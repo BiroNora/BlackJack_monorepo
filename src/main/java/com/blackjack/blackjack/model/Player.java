@@ -50,9 +50,8 @@ public class Player {
         this.tokens = initialTokens;
     }
 
-    public Player(UUID clientId, UUID idempotencyKey, int tokens) {
+    public Player(UUID clientId, int initialTokens) {
         this.clientId = clientId;
-        this.idempotencyKey = idempotencyKey;
-        this.tokens = tokens;
+        this.tokens = initialTokens;
     }
 }

@@ -7,6 +7,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface PlayerRepository extends JpaRepository<Player, UUID> {
-    Player findBySessionId(String sessionId);
+    Optional<Player> findBySessionId(String sessionId);
     Optional<Player> findByClientId(UUID clientId);
 }

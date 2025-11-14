@@ -5,8 +5,6 @@ import { generateUUID, getOrCreateIdempotencyKey } from "../utilities/utils";
 const runningInitializations = new Map<string, Promise<SessionInitResponse>>();
 // Statikus kulcs a futó session inicializálási folyamat jelzésére
 const SESSION_INIT_KEY = '__SESSION_INITIALIZATION_RUNNING__';
-// A sessionStorage-ban használt kulcs az ideiglenes client_id tárolására
-const SESSION_ID_KEY = 'temp_session_client_id';
 
 export async function initializeSessionAPI(): Promise<SessionInitResponse> {
   // 1. 🔑 BLOKKOLÁS ELLENŐRZÉS: Ellenőrizzük, hogy fut-e már inicializálás.
@@ -17,13 +15,11 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
     return existingPromise;
   }
 
-  // 2. IDEIGLENES ID KEZELÉSE (sessionStorage helyett)
-  let clientUuid = sessionStorage.getItem(SESSION_ID_KEY);
-  if (!clientUuid) {
-    clientUuid = generateUUID(); // Feltételezzük, hogy a függvény elérhető
-    // Elmentjük az ID-t a sessionStorage-ba, hogy a második (duplikált) hívás is ezt kapja.
-    sessionStorage.setItem(SESSION_ID_KEY, clientUuid);
-  }
+  // 2. A CLIENT ID ELŐKÉSZÍTÉSE (sessionStorage TÖRLÉSE)
+    // Mivel a hosszú lejáratú sütit a szerver kezeli, a frontendnek nincs szüksége
+    // tartós tárolóra. Generálunk egy IDEIGLENES ID-t, ami segít a szervernek
+    // az azonosításban, ha még nincs süti.
+    const tempClientUuid = generateUUID();
 
   // 3. KÉSZÍTÉS ÉS CACHELÉS: Létrehozzuk az aszinkron műveletet és azonnal elmentjük a Cache-be.
   const initializationPromise = (async () => {
@@ -32,12 +28,8 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
       const data = await callApiEndpoint<SessionInitResponse>(
         "/api/initialize_session",
         "POST",
-        { client_id: clientUuid }
+        { client_id: tempClientUuid }
       );
-
-      // 4. SIKERES VÁLASZ: A szerver beállította a JSESSIONID sütit,
-      // így az ideiglenes client_id törölhető.
-      sessionStorage.removeItem(SESSION_ID_KEY);
 
       return data;
     } catch (error) {
