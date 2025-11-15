@@ -3,54 +3,66 @@ import type { ErrorResponse, SessionInitResponse } from "../types/game-types";
 import { generateUUID, getOrCreateIdempotencyKey } from "../utilities/utils";
 
 const runningInitializations = new Map<string, Promise<SessionInitResponse>>();
-// Statikus kulcs a futó session inicializálási folyamat jelzésére
-const SESSION_INIT_KEY = '__SESSION_INITIALIZATION_RUNNING__';
+
+// Statikus kulcs a futó inicializálási folyamat jelzésére (sik = Session Init Key)
+const SESSION_INIT_KEY = '__sik__';
+// localStorage számára (cid = Client ID)
+const CLIENT_STORAGE_ID_KEY = 'cid';
+
 
 export async function initializeSessionAPI(): Promise<SessionInitResponse> {
-  // 1. 🔑 BLOKKOLÁS ELLENŐRZÉS: Ellenőrizzük, hogy fut-e már inicializálás.
+  // 1. 🔑 BLOKKOLÁS ELLENŐRZÉS: Ellenőrizzük, hogy fut-e már inicializálás (__sik__ kulcs).
   const existingPromise = runningInitializations.get(SESSION_INIT_KEY);
   if (existingPromise) {
-    // Ha már fut, azonnal adjuk vissza a meglévő Promise-t, és várjuk meg a végét.
     console.warn("[Cache Hit] A session inicializálás már folyamatban van. Várakozás a futó kérésre...");
     return existingPromise;
   }
 
-  // 2. A CLIENT ID ELŐKÉSZÍTÉSE (sessionStorage TÖRLÉSE)
-    // Mivel a hosszú lejáratú sütit a szerver kezeli, a frontendnek nincs szüksége
-    // tartós tárolóra. Generálunk egy IDEIGLENES ID-t, ami segít a szervernek
-    // az azonosításban, ha még nincs süti.
-    const tempClientUuid = generateUUID();
+  // 2. 💡 AZONOSÍTÓ KEZELÉSE A LOCALSTORAGE-BEN (cid kulcs)
+  let clientStorageId = localStorage.getItem(CLIENT_STORAGE_ID_KEY);
 
-  // 3. KÉSZÍTÉS ÉS CACHELÉS: Létrehozzuk az aszinkron műveletet és azonnal elmentjük a Cache-be.
+  if (!clientStorageId) {
+    // Ha még nincs mentve, generálunk egy újat és eltároljuk tartósan
+    clientStorageId = generateUUID();
+    localStorage.setItem(CLIENT_STORAGE_ID_KEY, clientStorageId);
+    console.info(`[LocalStorage] Új tartós ID generálva és mentve a ${CLIENT_STORAGE_ID_KEY} kulcs alatt.`);
+  } else {
+    console.info(`[LocalStorage] Meglévő tartós ID betöltve a ${CLIENT_STORAGE_ID_KEY} kulcs alól.`);
+  }
+
+  // A szervernek küldendő azonosító az, amit a localStorage-ban tárolunk
+  const idToSend = clientStorageId;
+
+  // 3. KÉSZÍTÉS ÉS CACHELÉS
   const initializationPromise = (async () => {
     try {
       // Eredeti API hívás
       const data = await callApiEndpoint<SessionInitResponse>(
         "/api/initialize_session",
         "POST",
-        { client_id: tempClientUuid }
+        {
+          // 💡 Az elmentett ID-t küldjük el konzisztensen
+          client_id: idToSend
+        }
       );
 
       return data;
     } catch (error) {
-      // Hiba esetén továbbdobás.
       console.error("Hiba az inicializálás során:", error);
       throw error;
     }
   })();
 
-  // 5. CACHELÉS: Elmentjük az újonnan indított Promise-t.
+  // 4. CACHELÉS ÉS VÉGLEGESÍTÉS
   runningInitializations.set(SESSION_INIT_KEY, initializationPromise);
 
-  // 6. Véglegesítés: Hozzáadjuk a finally blokkot, hogy a kérés befejezése után (sikertelen vagy sikeres) törölje a cache kulcsot.
   initializationPromise.finally(() => {
     runningInitializations.delete(SESSION_INIT_KEY);
   });
 
-  // 7. Visszaadjuk a Promise-t, amire a hívó fél várni fog.
+  // 5. Visszaadjuk a Promise-t.
   return initializationPromise;
 }
-
 export async function setBet(betAmount: number) {
   const data = await callApiEndpoint("/api/bet", "POST", { bet: betAmount });
 

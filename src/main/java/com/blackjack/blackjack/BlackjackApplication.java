@@ -13,10 +13,11 @@ public class BlackjackApplication {
     @Autowired
     private StringRedisTemplate redisTemplate;
 
-	public static void main(String[] args) {
-		SpringApplication.run(BlackjackApplication.class, args);
+    public static void main(String[] args) {
+        SpringApplication.run(BlackjackApplication.class, args);
         System.out.println("--- Deck Tesztelés ---");
-	}
+    }
+
     @PostConstruct
     public void testRedisConnection() {
         System.out.println("------------------------------------------");

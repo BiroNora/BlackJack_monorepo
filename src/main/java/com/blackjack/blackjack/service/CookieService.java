@@ -14,6 +14,7 @@ public class CookieService {
     /**
      * Létrehoz egy hosszú élettartamú Cookie-t a Player azonosító (UUID) tárolására.
      * Ez a Cookie felel a session-ök közötti perzisztenciáért ("holnapi" visszatérés).
+     *
      * @param clientId Az érvényes UUID, amit a Cookie-ban tárolni kell.
      * @return A beállított Cookie objektum.
      */
@@ -29,6 +30,7 @@ public class CookieService {
 
     /**
      * Keresi és visszaadja a Player ID-t a bejövő Cookie-k közül.
+     *
      * @param cookies A kérésben érkezett Cookie tömb.
      * @return A client_id UUID-ként, vagy null, ha a Cookie hiányzik vagy hibás.
      */

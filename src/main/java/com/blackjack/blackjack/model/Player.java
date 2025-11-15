@@ -26,7 +26,6 @@ public class Player {
     private UUID id;
 
     // Kliens Azonosító (client_id)
-    @UuidGenerator(style = UuidGenerator.Style.AUTO)
     @Column(name = "client_id", unique = true, nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID clientId;
