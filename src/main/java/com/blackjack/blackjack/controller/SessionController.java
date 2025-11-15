@@ -1,7 +1,7 @@
 package com.blackjack.blackjack.controller;
 
-import com.blackjack.blackjack.dto.InitializationResponse;
-import com.blackjack.blackjack.dto.InitializeRequest;
+import com.blackjack.blackjack.dto.init.InitializationResponse;
+import com.blackjack.blackjack.dto.init.InitializationRequest;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import jakarta.servlet.http.Cookie;
@@ -40,7 +40,7 @@ public class SessionController {
 
     @PostMapping("/initialize_session")
     public ResponseEntity<InitializationResponse> initializeSession(
-        @RequestBody InitializeRequest requestRecord,
+        @RequestBody InitializationRequest requestRecord,
         HttpServletRequest request,
         HttpServletResponse response,
         HttpSession session) {

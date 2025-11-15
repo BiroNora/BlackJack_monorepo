@@ -1,4 +1,4 @@
-package com.blackjack.blackjack.dto;
+package com.blackjack.blackjack.dto.init;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
