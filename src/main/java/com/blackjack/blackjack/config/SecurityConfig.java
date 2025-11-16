@@ -23,33 +23,39 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            // 1. KÖTELEZŐ: CORS engedélyezése a Security Filter Chain-ben.
+            // 1. KULCS: A CSRF védelem végleges kikapcsolása. (Megoldja a 403-as hibát a POST kéréseknél).
+            .csrf(AbstractHttpConfigurer::disable)
+
+            // 2. CORS engedélyezése.
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
 
-            // 2. Útvonal engedélyek beállítása
+            // 3. Útvonal engedélyek beállítása
             .authorizeHttpRequests(authorize -> authorize
-                // 🔑 JAVÍTÁS A 403-RA: Engedélyezi a CORS OPTIONS kéréseket minden útvonalra (Pre-flight).
+                // Engedélyezi a statikus fájlokat.
+                .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
+
+                // Engedélyezi a CORS OPTIONS kéréseket (pre-flight).
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
-                // Engedélyezi az initialize_session végponthoz való anonim hozzáférést.
-                .requestMatchers("/api/initialize_session").permitAll()
+                // JAVÍTÁS: Engedélyezi a belső hiba útvonalat. Ez kritikus, ha az /api/bet NullPointer-t dob!
+                .requestMatchers("/error").permitAll()
+
+                // Engedélyezi az összes API végponthoz való anonim hozzáférést.
+                .requestMatchers("/api/**").permitAll()
 
                 // Minden más kéréshez hitelesítés szükséges.
                 .anyRequest().authenticated()
             )
 
-            // 3. CSRF védelem kikapcsolása (CORS és Session ID használat miatt).
-            .csrf(AbstractHttpConfigurer::disable)
+            // 4. Nincs külön exceptionHandling beállítás, az alapértelmezett hibakezelés lép életbe.
 
-            // 4. SESSION KEZELÉS: Megerősítjük, hogy a Spring Session-t (Redis) használja.
+            // 5. SESSION KEZELÉS: Spring Session (Redis) használata.
             .sessionManagement(session -> session
                 .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
             )
 
-            // 5. HTTP Basic Auth kikapcsolása.
+            // 6. HTTP Basic Auth és FormLogin kikapcsolása.
             .httpBasic(AbstractHttpConfigurer::disable)
-
-            // 6. Kikapcsolja a bejelentkezési formot, ami átirányítási hibát okozhat API-knál.
             .formLogin(AbstractHttpConfigurer::disable);
 
 
@@ -57,20 +63,15 @@ public class SecurityConfig {
     }
 
     /**
-     * CORS konfigurációs Bean, ami a Spring Security Filterben fut le.
+     * CORS konfigurációs Bean a frontend (5173) engedélyezéséhez.
      */
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        // 🔑 HELYES PORT: PONTOSAN a VITE frontend URL-je (5173-as port).
         configuration.setAllowedOrigins(List.of("http://localhost:5173"));
-
-        // Minden metódust engedélyezünk, beleértve az OPTIONS-ot is.
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
-
-        // 🔑 KULCS: Ez engedélyezi a JSESSIONID cookie átvitelét a tartományok között.
         configuration.setAllowCredentials(true);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

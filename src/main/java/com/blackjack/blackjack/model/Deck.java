@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.model;
 
+import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -9,7 +10,7 @@ import java.util.stream.Collectors;
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.NUM_DECKS;
 
-public class Deck {
+public class Deck implements Serializable {
     private final List<Card> deck;
 
     public Deck() {

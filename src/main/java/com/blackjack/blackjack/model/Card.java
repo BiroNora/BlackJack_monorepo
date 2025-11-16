@@ -1,6 +1,8 @@
 package com.blackjack.blackjack.model;
 
-public class Card {
+import java.io.Serializable;
+
+public class Card implements Serializable {
     private final Suit suit;
     private final Rank rank;
 

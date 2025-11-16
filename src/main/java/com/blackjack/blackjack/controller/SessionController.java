@@ -45,90 +45,75 @@ public class SessionController {
         HttpServletResponse response,
         HttpSession session) {
 
-        String newSessionId = session.getId();
-        logger.info("Session inicializálás indult. Új Session ID: {}", newSessionId);
+        String currentSessionId = session.getId();
+        logger.info("Session inicializálás indult. Session ID: {}", currentSessionId);
 
-        UUID clientIdFromCookie = getClientIdFromCookie(request);
+        // Kliens által küldött tartós azonosító (localStorage)
         UUID clientIdFromStorage = requestRecord.clientId();
         logger.info("  -> Frontend ID (localStorage/Request Body): {}", clientIdFromStorage);
 
         Player player = null;
 
-        // --- 1. PRIOTITÁS: Keresés az AKTÍV SESSION ID alapján (Ütközés elkerülése) ---
-        // A tábla nevét feltételezzük: players
-        logger.info("  -> 1. Prioritás keresés indult: Session ID: {}", newSessionId); // <-- KIÍRÁS
+        // --- 1. PRIOTITÁS: Keresés a Request Body-ban lévő ID alapján (TARTÓS ID) ---
+        if (clientIdFromStorage != null) {
+            Optional<Player> existingPlayer = playerRepository.findByClientId(clientIdFromStorage);
 
-        Optional<Player> existingPlayerBySessionId = playerRepository.findBySessionId(newSessionId);
+            if (existingPlayer.isPresent()) {
+                player = existingPlayer.get();
+                logger.info("1. Prioritás: Meglévő Player betöltve a tartós ID ({}) alapján.", clientIdFromStorage);
 
-        if (existingPlayerBySessionId.isPresent()) {
-            player = existingPlayerBySessionId.get();
-            // 💡 KIÍRÁS: Ha találtunk Session ID alapján, ez a Player betöltődik!
-            logger.warn("1. Prioritás: Rögzített Session ID-t találtunk a DB-ben. Betöltött Client ID: {}", player.getClientId());
-            player.setLastActivity(OffsetDateTime.now());
-        }
-
-        // --- 2. PRIOTITÁS: Keresés a Request Body-ban lévő ID alapján (TARTÓS ID) ---
-        if (player == null && clientIdFromStorage != null) {
-            // Itt valószínűleg nem volt találat, ezért futott le az INSERT.
-            Optional<Player> existingPlayerByStorageId = playerRepository.findByClientId(clientIdFromStorage);
-
-            if (existingPlayerByStorageId.isPresent()) {
-                player = existingPlayerByStorageId.get();
-                logger.info("2. Prioritás: Meglévő Player betöltve a frontend által küldött ID (localStorage) alapján.");
-                player.setSessionId(newSessionId);
+                // Frissítjük a Session ID-t az ÚJ/AKTÍV Session ID-ra
+                player.setSessionId(currentSessionId);
                 player.setLastActivity(OffsetDateTime.now());
-                setClientIdCookie(response, player.getClientId());
+
+            } else {
+                // --- 2. ÚJ PLAYER LÉTREHOZÁSA (INSERT Logika) ---
+                player = new Player();
+                player.setClientId(clientIdFromStorage);
+
+                logger.info("2. Prioritás: Új Player objektum létrehozva. Client ID beállítva: {}", player.getClientId());
+
+                player.setSessionId(currentSessionId);
+                player.setTokens(INITIAL_TOKENS);
+                player.setLastActivity(OffsetDateTime.now());
+                player.setIdempotencyKey(UUID.randomUUID());
             }
         }
 
-        // --- 3. PRIOTITÁS: Keresés a Client ID (HttpOnly süti) alapján (BIZTONSÁGI TARTALÉK) ---
-        if (player == null && clientIdFromCookie != null) {
-            Optional<Player> existingPlayerByCookieId = playerRepository.findByClientId(clientIdFromCookie);
-
-            if (existingPlayerByCookieId.isPresent()) {
-                player = existingPlayerByCookieId.get();
-                logger.info("3. Prioritás: Meglévő Player betöltve Client ID (süti) alapján.");
-                player.setSessionId(newSessionId);
-                player.setLastActivity(OffsetDateTime.now());
-            }
-        }
-
-        // 💡 --- 4. ÚJ PLAYER LÉTREHOZÁSA (INSERT Logika) ---
+        // --- BIZTOSÍTÉK: Ha a Frontend valamiért nem küldött Client ID-t ---
         if (player == null) {
-
-            if (clientIdFromStorage == null) {
-                logger.error("SÚLYOS HIBA: A frontend nem küldött 'clientId'-t a request body-ban! Feltehetőleg belemószeroltak.");
-                throw new IllegalArgumentException("Session inicializálási hiba: A tartós kliens azonosító (clientId) hiányzik.");
-            }
+            logger.error("SÚLYOS HIBA: A frontend nem küldött 'clientId'-t a request body-ban! Kényszerített új Client ID létrehozása.");
+            // Létrehozunk egy új Player rekordot véletlenszerű ID-val, hogy ne törjön el az alkalmazás
+            UUID forcedNewClientId = UUID.randomUUID();
             player = new Player();
-            player.setClientId(clientIdFromStorage);
-
-            logger.info("  -> 4. Prioritás: Új Player objektum létrehozva. Client ID beállítva: {}", player.getClientId()); // <-- KIÍRÁS: A frontend ID-ja
-
-            player.setSessionId(newSessionId);
+            player.setClientId(forcedNewClientId);
+            player.setSessionId(currentSessionId);
             player.setTokens(INITIAL_TOKENS);
             player.setLastActivity(OffsetDateTime.now());
             player.setIdempotencyKey(UUID.randomUUID());
-            setClientIdCookie(response, clientIdFromStorage);
         }
 
-        // 5. Mentés/Frissítés az adatbázisban
-        // 💡 Fontos: Használjuk a save által visszaadott példányt a konzisztencia érdekében!
+
+        // 3. Mentés/Frissítés az adatbázisban
         Player savedPlayer = playerRepository.save(player);
-        logger.info("Player DB-ben frissítve/mentve. A rekord Client ID-ja (Mentés utáni log): {}", savedPlayer.getClientId());
+        logger.info("Player DB-ben frissítve/mentve. A rekord Client ID-ja: {}", savedPlayer.getClientId());
 
-        // Frissítjük a referenciát
-        player = savedPlayer;
+        // --- 🔑 KRITIKUS JAVÍTÁS: Client ID mentése az HttpSession-be (Redis) ---
+        session.setAttribute("clientId", savedPlayer.getClientId().toString());
+        logger.info("A Client ID ({}) sikeresen elmentve az HttpSession-be (Redis) 'clientId' néven.", savedPlayer.getClientId());
 
-        // 6. 🛡️ Spring Security Konfiguráció
+        // HttpOnly süti beállítása a tartós azonosításhoz (ha szükséges)
+        setClientIdCookie(response, savedPlayer.getClientId());
+
+        // 4. 🛡️ Spring Security Konfiguráció
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-            player.getClientId().toString(),
+            savedPlayer.getClientId().toString(),
             null,
             Collections.emptyList()
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // 7. DTO Összeállítása
+        // 5. DTO Összeállítása
         InitializationResponse.GameStateInit gameStateData =
             InitializationResponse.GameStateInit.builder()
                 .deckLen(INITIAL_DECK_LENGTH)
@@ -139,13 +124,15 @@ public class SessionController {
             .message("Játék session sikeresen indult.")
             .gameState(gameStateData)
             .gameStateHint("Place your bet.")
-            .tokens(player.getTokens())
+            .tokens(savedPlayer.getTokens())
             .build());
     }
 
-    // --- Segédmetódusok ---
+    // --- Segédmetódusok (változatlanul) ---
 
+    // A getClientIdFromCookie metódust már nem használjuk a fő logikában, de a setCookie megmarad.
     private UUID getClientIdFromCookie(HttpServletRequest request) {
+        // ... (kód változatlan)
         if (request.getCookies() == null) {
             return null;
         }
