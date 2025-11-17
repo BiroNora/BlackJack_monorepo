@@ -16,15 +16,15 @@ public enum Suit {
         this.symbol = symbol;
     }
 
-    @JsonValue
-    public String getSymbol() {
-        return symbol;
-    }
-
     public static Suit fromSymbol(String symbol) {
         return Arrays.stream(Suit.values())
             .filter(suit -> suit.getSymbol().equals(symbol))
             .findFirst()
             .orElseThrow(() -> new IllegalArgumentException("Invalid suit symbol: " + symbol));
+    }
+
+    @JsonValue
+    public String getSymbol() {
+        return symbol;
     }
 }

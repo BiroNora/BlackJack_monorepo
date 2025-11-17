@@ -1,7 +1,7 @@
 package com.blackjack.blackjack.controller;
 
-import com.blackjack.blackjack.dto.init.InitializationResponse;
 import com.blackjack.blackjack.dto.init.InitializationRequest;
+import com.blackjack.blackjack.dto.init.InitializationResponse;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;

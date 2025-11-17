@@ -2,25 +2,10 @@ package com.blackjack.blackjack.model;
 
 import java.io.Serializable;
 
-public class Card implements Serializable {
-    private final Suit suit;
-    private final Rank rank;
-
-    public Card(Suit suit, Rank rank) {
-        this.suit = suit;
-        this.rank = rank;
-    }
+public record Card(Suit suit, Rank rank) implements Serializable {
 
     public int getBaseValue() {
         return rank.getBaseValue();
-    }
-
-    public Suit getSuit() {
-        return suit;
-    }
-
-    public Rank getRank() {
-        return rank;
     }
 
     @Override

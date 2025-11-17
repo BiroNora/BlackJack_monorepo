@@ -2,16 +2,16 @@ package com.blackjack.blackjack.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.session.web.http.DefaultCookieSerializer;
 import org.springframework.session.web.http.CookieSerializer;
+import org.springframework.session.web.http.DefaultCookieSerializer;
 
 /**
  * Konfiguráció a JSESSIONID cookie SameSite és Secure beállításainak felülírására.
- *
+ * <p>
  * Mivel a böngészők a Cross-Origin kérések (5173 -> 8080) során blokkolják a
  * HTTP-n keresztül beállított SameSite=Lax cookiet, ezt a konfigurációt
  * használjuk a fejlesztői környezetben a SameSite attribútum eltávolítására.
- *
+ * <p>
  * FIGYELEM: Ezt a konfigurációt ÉLES, HTTPS-t használó környezetben NEM szabad
  * beállítani, ott a SameSite=None és Secure=true a helyes.
  */
