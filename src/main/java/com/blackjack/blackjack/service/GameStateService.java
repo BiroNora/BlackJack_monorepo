@@ -1,58 +1,66 @@
 package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.model.GameState;
-import org.springframework.data.redis.core.RedisTemplate;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.stereotype.Service;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.Optional;
 import java.util.UUID;
-import java.util.concurrent.TimeUnit;
 
-@Service // Spring komponenssé tesszük
+/**
+ * Szolgáltatás a GameState (Játékállapot) kezelésére az HttpSession (Redis) segítségével.
+ * NEM HASZNÁL SAJÁT REDIS KULCSOT, hanem a session attribútumait.
+ */
+@Service
 public class GameStateService {
 
-    private static final String GAME_STATE_KEY_PREFIX = "game_state:";
-    // Ajánlott: Beállítjuk a session lejáratát (pl. 30 perc inaktivitás után)
-    private static final long SESSION_TIMEOUT_MINUTES = 30;
+    private static final String GAME_STATE_ATTR_NAME = "gameState"; // A session attribútum neve
 
-    // RedisTemplate injektálása (String kulcs és GameState érték)
-    private final RedisTemplate<String, GameState> redisTemplate;
-
-    public GameStateService(RedisTemplate<String, GameState> redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public GameStateService() {
     }
 
-    private String buildKey(UUID clientId) {
-        // A kulcsot a GameState_prefix + ClientID UUID-ből generáljuk
-        return GAME_STATE_KEY_PREFIX + clientId.toString();
+    // Segítő metódus az aktuális HttpSession objektum eléréséhez
+    private HttpSession getCurrentSession() {
+        ServletRequestAttributes attr = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        if (attr != null) {
+            // Fontos: false paramétert használunk, hogy ne hozzon létre új sessiont, ha nincs.
+            return attr.getRequest().getSession(false);
+        }
+        return null;
     }
 
     /**
-     * Visszaadja az aktuális GameState objektumot a Redisből.
+     * Visszaadja az aktuális GameState objektumot a Sessionből.
      */
     public Optional<GameState> getGameState(UUID clientId) {
-        String key = buildKey(clientId);
+        // A clientId-t továbbra is beolvashatjuk, de a lekérdezés a Session-en keresztül történik.
+        HttpSession session = getCurrentSession();
 
-        // Lekérdezzük az értéket a kulcs alapján
-        GameState gameState = redisTemplate.opsForValue().get(key);
-
-        // Ha sikeres a lekérés, frissítjük a session időzítőjét (timeout)
-        if (gameState != null) {
-            redisTemplate.expire(key, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+        if (session != null) {
+            // Kiolvassa az objektumot a Session attribútumai közül
+            GameState gameState = (GameState) session.getAttribute(GAME_STATE_ATTR_NAME);
+            return Optional.ofNullable(gameState);
         }
 
-        return Optional.ofNullable(gameState);
+        return Optional.empty(); // Nincs aktív session
     }
 
     /**
-     * Ezt a metódust használja majd a Controller/GameService a GameState mentésére.
+     * Menti a frissített GameState-et a Sessionbe (és ezzel automatikusan a Redisbe).
+     * EZ A KRITIKUS JAVÍTÁS!
      */
     public void saveGameState(GameState gameState) {
-        String key = buildKey(gameState.getClientId());
+        HttpSession session = getCurrentSession();
 
-        // Elmenti az objektumot és beállítja a lejárati időt
-        redisTemplate.opsForValue().set(key, gameState, SESSION_TIMEOUT_MINUTES, TimeUnit.MINUTES);
+        if (session != null) {
+            // Visszamentjük a MÓDOSÍTOTT GameState objektumot a Sessionbe.
+            // A Spring Session/Redis erről gondoskodik.
+            session.setAttribute(GAME_STATE_ATTR_NAME, gameState);
+        } else {
+            // Hibakezelés, ha a mentéskor valamiért eltűnt a session
+            System.err.println("HIBÁBA SZERETETT VOLNA MENTENI: Nincs aktív HttpSession a GameState mentéséhez!");
+        }
     }
-
-    // ... további metódusok (pl. removeGameState)
 }

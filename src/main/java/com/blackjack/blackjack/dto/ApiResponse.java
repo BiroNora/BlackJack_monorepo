@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -13,7 +14,10 @@ import lombok.experimental.SuperBuilder;
 public class ApiResponse<T> {
     private String status;
     private String message;
+    @JsonProperty("game_state")
     private T gameState;
+    @JsonProperty("game_state_hint")
     private String gameStateHint;
-    private int tokens;
+    @JsonProperty("current_tokens")
+    private int currentTokens;
 }

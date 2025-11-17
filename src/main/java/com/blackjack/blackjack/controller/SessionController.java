@@ -2,6 +2,7 @@ package com.blackjack.blackjack.controller;
 
 import com.blackjack.blackjack.dto.init.InitializationResponse;
 import com.blackjack.blackjack.dto.init.InitializationRequest;
+import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import jakarta.servlet.http.Cookie;
@@ -102,6 +103,12 @@ public class SessionController {
         session.setAttribute("clientId", savedPlayer.getClientId().toString());
         logger.info("A Client ID ({}) sikeresen elmentve az HttpSession-be (Redis) 'clientId' néven.", savedPlayer.getClientId());
 
+        // *** 🃏 HIÁNYZÓ LOGIKA BEILLESZTÉSE: A GameState Létrehozása és Mentése ***
+        GameState initialGameState = new GameState(); // Feltételezve, hogy a konstruktor beállítja az alapértékeket (pl. deck len: 104, bet: 0, tokens: 1000)
+
+        // MENTÉS: E NÉLKÜL a '/api/bet' nem találja a GameState objektumot!
+        session.setAttribute("gameState", initialGameState);
+        logger.info("A GameState objektum sikeresen elmentve az HttpSession-be 'gameState' néven.");
         // HttpOnly süti beállítása a tartós azonosításhoz (ha szükséges)
         setClientIdCookie(response, savedPlayer.getClientId());
 

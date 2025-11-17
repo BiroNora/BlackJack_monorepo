@@ -13,7 +13,7 @@ import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate; // <-- ÚJ IMPORT
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -21,7 +21,6 @@ import org.springframework.web.bind.annotation.*;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
-import java.util.Set; // <-- ÚJ IMPORT
 
 @RestController
 @RequestMapping("/api")
@@ -108,6 +107,12 @@ public class BetController {
         // 4. GameState lekérése és Logika
         Optional<GameState> gameStateOptional = gameStateService.getGameState(currentClientId);
 
+        if (gameStateOptional.isPresent()) {
+            logger.info(">>>>>>>>>>>>>>>>GameState lekérve a Redisből: {}", gameStateOptional.get());
+        } else {
+            logger.info("GameState NEM TALÁLHATÓ a Redisben.");
+        }
+
         // --- A TÖBBI KÓD VÁLTOZATLANUL MARAD ---
         Optional<Player> playerOptional = playerService.getPlayerByClientId(currentClientId);
 
@@ -116,8 +121,9 @@ public class BetController {
         }
 
         Player player = playerOptional.get();
-        int betAmount = betRequest.betAmount();
-
+        int betAmount = betRequest.bet();
+        logger.info(">>>>>>>>>>>>>>>>betAmount: {}", betAmount);
+        logger.info(">>>>>>>>>>>>>>>>player.getTokens(): {}", player.getTokens());
         if (player.getTokens() < betAmount) {
             return ResponseEntity.badRequest().body("Nincs elegendő token a fogadáshoz.");
         }
@@ -130,6 +136,7 @@ public class BetController {
         }
 
         int updatedTokens = updatedPlayer.getTokens();
+        logger.info(">>>>>>>>>>>>>>>>updatedTokens: {}", updatedTokens);
         GameState updatedGameState = gameService.placeBet(gameStateOptional, currentClientId, betAmount);
 
         int deckLength;
@@ -150,8 +157,8 @@ public class BetController {
             .status("success")
             .message("Tét sikeresen elhelyezve. Kérem, várja az laposztást.")
             .gameState(gameStateData)
-            .gameStateHint("A laposztás a tét után történik.")
-            .tokens(updatedTokens)
+            .gameStateHint("BET_SUCCESSFULLY_PLACED")
+            .currentTokens(updatedTokens)
             .build());
     }
 
