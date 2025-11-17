@@ -17,8 +17,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 import java.util.UUID;
@@ -56,9 +58,10 @@ public class BetController {
         @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
 
         SessionContext context = authenticationService.validateAndGetContext(session);
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
         UUID currentClientId = context.clientId();
         Player player = context.player();
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
 
         int betAmount = betRequest.bet();
         if (player.getTokens() < betAmount) {
@@ -77,7 +80,6 @@ public class BetController {
         GameState updatedGameState = gameService.placeBet(gameStateOptional, currentClientId, betAmount);
 
         int deckLength;
-
         if (updatedGameState.getDeck() == null) {
             deckLength = GameConstants.INITIAL_DECK_LENGTH;
         } else {
@@ -95,6 +97,56 @@ public class BetController {
             .message("Tét sikeresen elhelyezve. Kérem, várja az laposztást.")
             .gameState(gameStateData)
             .gameStateHint("BET_SUCCESSFULLY_PLACED")
+            .currentTokens(updatedTokens)
+            .build());
+    }
+
+    // ... (A placeBet metódus után)
+
+    @PostMapping("/retake_bet")
+    public ResponseEntity<?> retakeBet(
+        HttpSession session,
+        @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
+
+        SessionContext context = authenticationService.validateAndGetContext(session);
+
+        UUID currentClientId = context.clientId();
+        Player player = context.player();
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
+        int amountToReturn = gameService.retakeBet(gameStateOptional);
+
+        Player updatedPlayer;
+        try {
+            updatedPlayer = playerService.deductBetAndSave(player, amountToReturn);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Hiba történt a tokenek visszaadása során.");
+        }
+
+        int updatedTokens = updatedPlayer.getTokens();
+
+        GameState updatedGameState = gameStateService.getGameState(currentClientId)
+            .orElseThrow(() -> new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, "Nem sikerült újra betölteni a frissített játékállapotot."));
+        logger.info("RetakeBet VÁLASZ ELŐTT: A Redisből lekérdezett friss, teljes tét (bet): {}", updatedGameState.getBet());
+        int deckLength;
+        if (updatedGameState.getDeck() == null) {
+            deckLength = GameConstants.INITIAL_DECK_LENGTH;
+        } else {
+            deckLength = updatedGameState.getDeck().getDeckLength();
+        }
+
+        GameStateBet gameStateData = GameStateBet.builder()
+            .bet(updatedGameState.getBet())
+            .betList(updatedGameState.getBetList())
+            .deckLen(deckLength)
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
+            .status("success")
+            .message("Tét sikeresen visszavéve.")
+            .gameState(gameStateData)
+            .gameStateHint("AWAITING_NEW_BET")
             .currentTokens(updatedTokens)
             .build());
     }
