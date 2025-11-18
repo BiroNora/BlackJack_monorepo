@@ -1,5 +1,7 @@
 package com.blackjack.blackjack.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -9,6 +11,7 @@ import java.util.stream.Collectors;
 
 import static com.blackjack.blackjack.common.GameConstants.NUM_DECKS;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class Deck implements Serializable {
     private final List<Card> deck;
 

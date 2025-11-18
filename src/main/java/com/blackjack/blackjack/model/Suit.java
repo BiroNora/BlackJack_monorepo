@@ -23,7 +23,6 @@ public enum Suit {
             .orElseThrow(() -> new IllegalArgumentException("Invalid suit symbol: " + symbol));
     }
 
-    @JsonValue
     public String getSymbol() {
         return symbol;
     }

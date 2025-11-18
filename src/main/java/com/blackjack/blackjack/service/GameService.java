@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.model.Deck;
 import com.blackjack.blackjack.model.GameState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,7 +79,6 @@ public class GameService {
 
         List<Integer> betList = gameState.getBetList();
 
-        // 1. Ellenőrzés: Van-e tét, amit vissza lehet venni?
         if (betList == null || betList.isEmpty()) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
@@ -86,7 +86,6 @@ public class GameService {
             );
         }
 
-        // 3. Logika: Utolsó tét eltávolítása
         int amountToReturn = betList.remove(betList.size() - 1);
 
         int currentTotalBet = gameState.getBet();
@@ -94,19 +93,36 @@ public class GameService {
 
         gameState.setBet(newTotalBet);
 
-        logger.info("Játékállapot frissítve (TÉT VISSZAVÉTEL): Utolsó tét: {}, Új teljes tét (bet): {}",
-            amountToReturn, gameState.getBet());
-
-        // 5. Fázis visszaállítása, ha elfogytak a tétek
         if (betList.isEmpty()) {
             gameState.setPhase("AWAITING_BET");
             gameState.setRoundActive(false);
         }
 
         gameState.setBetList(betList);
-
-        // 6. Mentés és a visszavett összeg visszaadása
         gameStateService.saveGameState(gameState);
+
         return amountToReturn * -1;
+    }
+
+    /**
+     * Létrehoz egy új, kevert paklit, hozzárendeli a GameState-hez, és menti.
+     * @param gameStateOptional Az aktuális állapot (Optional).
+     * @return A frissített GameState.
+     */
+    public GameState createNewDeck(Optional<GameState> gameStateOptional) {
+
+        GameState gameState = gameStateOptional.orElseThrow(() -> {
+            return new ResponseStatusException(
+                HttpStatus.BAD_REQUEST,
+                "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
+            );
+        });
+
+        Deck newDeck = new Deck();
+
+        gameState.setDeck(newDeck);
+        gameStateService.saveGameState(gameState);
+
+        return gameState;
     }
 }

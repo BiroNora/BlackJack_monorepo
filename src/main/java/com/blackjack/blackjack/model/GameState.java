@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -10,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+@JsonIgnoreProperties(ignoreUnknown = true)
 @Data
 @Builder
 @NoArgsConstructor
@@ -23,8 +25,11 @@ public class GameState implements Serializable {
     // --- Játékmenet Kötelező Elemek ---
     // A deck (ami a lapokat tárolja)
     private Deck deck;
+    public int getDeckLen() {
+        return this.deck != null ? this.deck.getDeckLength() : 0;
+    }
 
-    // Aktuális tét és tétek listája (BetController által frissül)
+    // Aktuális tét és tétek listája (BetAndDeckController által frissül)
     private int bet; // Az aktuális tét
     private List<Integer> betList; // A korábbi/split tétek listája
     private boolean isRoundActive; // Helyettesíti az is_round_active-ot

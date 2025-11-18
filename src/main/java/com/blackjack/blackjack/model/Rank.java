@@ -2,6 +2,8 @@ package com.blackjack.blackjack.model;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 
+import java.util.Arrays;
+
 public enum Rank {
     KING(10, "K"),
     QUEEN(10, "Q"),
@@ -28,7 +30,13 @@ public enum Rank {
         this.symbol = symbol;
     }
 
-    @JsonValue
+    public static Rank fromSymbol(String symbol) { // <<< Ezt kell hozzáadni
+        return Arrays.stream(Rank.values())
+            .filter(rank -> rank.getSymbol().equals(symbol))
+            .findFirst()
+            .orElseThrow(() -> new IllegalArgumentException("Invalid rank symbol: " + symbol));
+    }
+
     public int getBaseValue() {
         return baseValue;
     }

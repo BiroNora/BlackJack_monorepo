@@ -1,6 +1,5 @@
 package com.blackjack.blackjack.controller;
 
-import com.blackjack.blackjack.common.GameConstants;
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.BetRequest;
@@ -25,10 +24,12 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
+
 @RestController
 @RequestMapping("/api")
-public class BetController {
-    private static final Logger logger = LoggerFactory.getLogger(BetController.class);
+public class BetAndDeckController {
+    private static final Logger logger = LoggerFactory.getLogger(BetAndDeckController.class);
     private final GameStateService gameStateService;
     private final PlayerService playerService;
     private final GameService gameService;
@@ -37,7 +38,7 @@ public class BetController {
     private final RedisTemplate<String, Object> generalRedisTemplate;
 
     @Autowired
-    public BetController(
+    public BetAndDeckController(
         GameStateService gameStateService,
         PlayerService playerService,
         GameService gameService, StringRedisTemplate stringRedisTemplate, AuthenticationService authenticationService,
@@ -81,13 +82,13 @@ public class BetController {
 
         int deckLength;
         if (updatedGameState.getDeck() == null) {
-            deckLength = GameConstants.INITIAL_DECK_LENGTH;
+            deckLength = INITIAL_DECK_LENGTH;
         } else {
             deckLength = updatedGameState.getDeck().getDeckLength();
         }
 
         GameStateBet gameStateData = GameStateBet.builder()
-            .bet(betAmount)
+            .bet(updatedGameState.getBet())
             .betList(updatedGameState.getBetList())
             .deckLen(deckLength)
             .build();
@@ -100,8 +101,6 @@ public class BetController {
             .currentTokens(updatedTokens)
             .build());
     }
-
-    // ... (A placeBet metódus után)
 
     @PostMapping("/retake_bet")
     public ResponseEntity<?> retakeBet(
@@ -128,10 +127,10 @@ public class BetController {
         GameState updatedGameState = gameStateService.getGameState(currentClientId)
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR, "Nem sikerült újra betölteni a frissített játékállapotot."));
-        logger.info("RetakeBet VÁLASZ ELŐTT: A Redisből lekérdezett friss, teljes tét (bet): {}", updatedGameState.getBet());
+
         int deckLength;
         if (updatedGameState.getDeck() == null) {
-            deckLength = GameConstants.INITIAL_DECK_LENGTH;
+            deckLength = INITIAL_DECK_LENGTH;
         } else {
             deckLength = updatedGameState.getDeck().getDeckLength();
         }
@@ -146,8 +145,40 @@ public class BetController {
             .status("success")
             .message("Tét sikeresen visszavéve.")
             .gameState(gameStateData)
-            .gameStateHint("AWAITING_NEW_BET")
+            .gameStateHint("BET_SUCCESSFULLY_RETRAKEN")
             .currentTokens(updatedTokens)
+            .build());
+    }
+
+    @PostMapping("/create_deck")
+    public ResponseEntity<?> createDeck(
+        HttpSession session,
+        @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
+
+        SessionContext context = authenticationService.validateAndGetContext(session);
+
+        UUID currentClientId = context.clientId();
+
+        Player player = context.player();
+        int tokens = player.getTokens();
+
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState updatedGameState = gameService.createNewDeck(gameStateOptional);
+
+        int deckLength = updatedGameState.getDeck() != null ? updatedGameState.getDeck().getDeckLength() : 0;
+
+        GameStateBet gameStateData = GameStateBet.builder()
+            .bet(updatedGameState.getBet())
+            .betList(updatedGameState.getBetList())
+            .deckLen(deckLength)
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
+            .status("success")
+            .message("Új pakli sikeresen létrehozva.")
+            .gameState(gameStateData)
+            .gameStateHint("DECK_CREATED")
+            .currentTokens(tokens)
             .build());
     }
 }
