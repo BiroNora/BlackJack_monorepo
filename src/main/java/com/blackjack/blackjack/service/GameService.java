@@ -106,6 +106,7 @@ public class GameService {
 
     /**
      * Létrehoz egy új, kevert paklit, hozzárendeli a GameState-hez, és menti.
+     *
      * @param gameStateOptional Az aktuális állapot (Optional).
      * @return A frissített GameState.
      */

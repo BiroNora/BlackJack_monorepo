@@ -25,14 +25,12 @@ public class GameState implements Serializable {
     // --- Játékmenet Kötelező Elemek ---
     // A deck (ami a lapokat tárolja)
     private Deck deck;
-    public int getDeckLen() {
-        return this.deck != null ? this.deck.getDeckLength() : 0;
-    }
-
-    // Aktuális tét és tétek listája (BetAndDeckController által frissül)
+    // Aktuális tét és tétek listája (BetController által frissül)
     private int bet; // Az aktuális tét
     private List<Integer> betList; // A korábbi/split tétek listája
     private boolean isRoundActive; // Helyettesíti az is_round_active-ot
+    // --- Állapot Változók ---
+    private String winner; // A winner tárolása (Pl. "PLAYER", "DEALER", "PUSH")
 
     // --- Kéz (Hand) Objektumok ---
     // A player, dealer_masked/unmasked, split_player hivatkozhatnak egy Hand objektumra
@@ -40,21 +38,20 @@ public class GameState implements Serializable {
     //private Hand playerHand; // A player (fő játékos kéz)
     //private Hand dealerHand; // A dealer_unmasked/masked kezelése ezen a Hand-en keresztül történik
     //private Hand splitPlayerHand; // A split_player
-
-    // --- Állapot Változók ---
-    private String winner; // A winner tárolása (Pl. "PLAYER", "DEALER", "PUSH")
     private String phase; // Opcionális: a kézi állapot (pl. "DEALING", "PLAYERS_TURN")
-
     // --- Speciális/Számláló Változók ---
     private int aces; // Segíthet az Ász rugalmas pontozásában, de a Hand felelőssége is lehet
     private boolean natural21; // natural_21 (Pl. Blackjack az első két lapból)
     private int handCounter; // hand_counter (Melyik split kéz van soron, ha van)
     //private Map<String, Hand> players; // players - Ha több játékos van vagy a split kéz ID alapján megy
     private Map<String, Integer> playersIndex; // players_index (Komplexebb esetben)
-
     // --- Frontend Segítő Változók ---
     private boolean splitReq; // splitReq (Megengedett-e a split az aktuális kártyákkal)
     private boolean unmaskedSumSent; // unmasked_sum_sent (Elküldtük-e már a dealer rejtett lapjának értékét)
+
+    public int getDeckLen() {
+        return this.deck != null ? this.deck.getDeckLength() : 0;
+    }
 
     // --- Megjegyzés ---
     // A deckLen (get_deck_len()) egy származtatott érték, amit a DTO-ban adunk vissza:

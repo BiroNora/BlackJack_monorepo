@@ -2,6 +2,7 @@ package com.blackjack.blackjack.model;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonValue;
+
 import java.io.Serializable;
 
 public record Card(Suit suit, Rank rank) implements Serializable {

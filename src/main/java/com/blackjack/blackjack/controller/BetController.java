@@ -14,8 +14,6 @@ import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.core.RedisTemplate;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -28,28 +26,22 @@ import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 
 @RestController
 @RequestMapping("/api")
-public class BetAndDeckController {
-    private static final Logger logger = LoggerFactory.getLogger(BetAndDeckController.class);
+public class BetController {
+    private static final Logger logger = LoggerFactory.getLogger(BetController.class);
     private final GameStateService gameStateService;
     private final PlayerService playerService;
     private final GameService gameService;
-    private final StringRedisTemplate stringRedisTemplate;
     private final AuthenticationService authenticationService;
-    private final RedisTemplate<String, Object> generalRedisTemplate;
 
     @Autowired
-    public BetAndDeckController(
+    public BetController(
         GameStateService gameStateService,
         PlayerService playerService,
-        GameService gameService, StringRedisTemplate stringRedisTemplate, AuthenticationService authenticationService,
-
-        RedisTemplate<String, Object> generalRedisTemplate) {
+        GameService gameService, AuthenticationService authenticationService) {
         this.gameStateService = gameStateService;
         this.playerService = playerService;
         this.gameService = gameService;
-        this.stringRedisTemplate = stringRedisTemplate;
         this.authenticationService = authenticationService;
-        this.generalRedisTemplate = generalRedisTemplate;
     }
 
     @PostMapping("/bet")
@@ -147,38 +139,6 @@ public class BetAndDeckController {
             .gameState(gameStateData)
             .gameStateHint("BET_SUCCESSFULLY_RETRAKEN")
             .currentTokens(updatedTokens)
-            .build());
-    }
-
-    @PostMapping("/create_deck")
-    public ResponseEntity<?> createDeck(
-        HttpSession session,
-        @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
-
-        SessionContext context = authenticationService.validateAndGetContext(session);
-
-        UUID currentClientId = context.clientId();
-
-        Player player = context.player();
-        int tokens = player.getTokens();
-
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
-        GameState updatedGameState = gameService.createNewDeck(gameStateOptional);
-
-        int deckLength = updatedGameState.getDeck() != null ? updatedGameState.getDeck().getDeckLength() : 0;
-
-        GameStateBet gameStateData = GameStateBet.builder()
-            .bet(updatedGameState.getBet())
-            .betList(updatedGameState.getBetList())
-            .deckLen(deckLength)
-            .build();
-
-        return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
-            .status("success")
-            .message("Új pakli sikeresen létrehozva.")
-            .gameState(gameStateData)
-            .gameStateHint("DECK_CREATED")
-            .currentTokens(tokens)
             .build());
     }
 }
