@@ -4,6 +4,7 @@ import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.BetRequest;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
+import com.blackjack.blackjack.dto.bet.RetakeBetRequest;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.AuthenticationService;
@@ -96,6 +97,7 @@ public class BetController {
 
     @PostMapping("/retake_bet")
     public ResponseEntity<?> retakeBet(
+        @RequestBody(required = false) RetakeBetRequest request,
         HttpSession session,
         @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
 

@@ -46,7 +46,7 @@ public class GameState implements Serializable {
     //private Map<String, Hand> players; // players - Ha több játékos van vagy a split kéz ID alapján megy
     private Map<String, Integer> playersIndex; // players_index (Komplexebb esetben)
     // --- Frontend Segítő Változók ---
-    private boolean splitReq; // splitReq (Megengedett-e a split az aktuális kártyákkal)
+    private boolean splitReq; // split kérés
     private boolean unmaskedSumSent; // unmasked_sum_sent (Elküldtük-e már a dealer rejtett lapjának értékét)
 
     public int getDeckLen() {

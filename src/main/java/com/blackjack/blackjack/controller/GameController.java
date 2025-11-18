@@ -3,6 +3,7 @@ package com.blackjack.blackjack.controller;
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
+import com.blackjack.blackjack.dto.createdeck.CreateDeckRequest;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.AuthenticationService;
@@ -11,10 +12,7 @@ import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestHeader;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Optional;
 
@@ -33,6 +31,7 @@ public class GameController {
 
     @PostMapping("/create_deck")
     public ResponseEntity<?> createDeck(
+        @RequestBody(required = false) CreateDeckRequest request,
         HttpSession session,
         @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
 
