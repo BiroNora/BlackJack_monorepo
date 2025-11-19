@@ -48,7 +48,6 @@ public class GameService {
     }
 
     public int retakeBet(Optional<GameState> gameStateOptional) {
-
         GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
             "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
@@ -82,7 +81,6 @@ public class GameService {
     }
 
     public GameState createNewDeck(Optional<GameState> gameStateOptional) {
-
         GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
             "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
@@ -96,10 +94,6 @@ public class GameService {
         return gameState;
     }
 
-    /**
-     * Visszaállítja a GameState-et a következő kör megkezdéséhez szükséges állapotra.
-     * MEGSZÜNTETI a játékos és osztó lapokat, téteket és körállapotokat.
-     */
     public GameState resetRoundState(GameState gameState) {
         gameState.setPlayerHand(PlayerHand.createEmptyHand());
         gameState.setSplitPlayerHand(null);
@@ -116,6 +110,115 @@ public class GameService {
         gameState.setRoundActive(false);
 
         return gameState;
+    }
+
+    public int updateHandSum(GameState gameState, boolean isPlayer) {
+        List<Card> handToCalculate;
+
+        if (isPlayer) {
+            handToCalculate = gameState.getPlayerHand().getHand();
+        } else {
+            handToCalculate = gameState.getDealerHandMasked().getHand();
+        }
+
+        int newSum = HandValueCalculator.calculateSum(handToCalculate);
+
+        if (isPlayer) {
+            gameState.getPlayerHand().setSum(newSum);
+        } else {
+            gameState.getDealerHandMasked().setSum(newSum);
+        }
+
+        return newSum;
+    }
+
+    public WinnerState initNatural21State(GameState gameState) {
+        PlayerHand playerHand = gameState.getPlayerHand();
+        DealerHandUnmasked dealerHand = gameState.getDealerHandUnMasked();
+
+        int playerSum = HandValueCalculator.calculateSum(playerHand.getHand());
+        int dealerSum = HandValueCalculator.calculateSum(dealerHand.getHand());
+
+        boolean playerNatural = (playerHand.getHand().size() == 2) && (playerSum == 21);
+        boolean dealerNatural = (dealerHand.getHand().size() == 2) && (dealerSum == 21);
+
+        WinnerState naturalState;
+
+        if (playerNatural && dealerNatural) {
+            naturalState = WinnerState.BLACKJACK_PUSH;
+        } else if (playerNatural) {
+            naturalState = WinnerState.BLACKJACK_PLAYER_WON;
+        } else if (dealerNatural) {
+            naturalState = WinnerState.BLACKJACK_DEALER_WON;
+        } else {
+            naturalState = WinnerState.NONE;
+        }
+
+        playerHand.setSum(playerSum);
+        dealerHand.setSum(dealerSum);
+
+        return naturalState;
+    }
+
+    public boolean canSplit(List<Card> hand) {
+        if (hand == null || hand.size() != 2) {
+            return false;
+        }
+
+        Rank rank1 = hand.get(0).rank();
+        Rank rank2 = hand.get(1).rank();
+
+        boolean sameRank = rank1 == rank2;
+        boolean bothAreTenValue = rank1.getBaseValue() == 10 && rank2.getBaseValue() == 10;
+
+        return sameRank || bothAreTenValue;
+    }
+
+    public HandState updateHandState(GameState gameState, boolean isPlayer) {
+        int count;
+        HandState currentState;
+
+        if (isPlayer) {
+            count = gameState.getPlayerHand().getSum();
+            currentState = gameState.getPlayerHand().getHandState();
+        } else {
+            count = gameState.getDealerHandUnMasked().getSum();
+            currentState = gameState.getDealerHandUnMasked().getHandState();
+        }
+
+        HandState state;
+
+        // 2. Alapállapot megállapítása (BUST, TWENTY_ONE, UNDER_21)
+        if (count > 21) {
+            state = HandState.BUST;
+        } else if (count == 21) {
+            state = HandState.TWENTY_ONE;
+        } else {
+            state = HandState.UNDER_21;
+        }
+
+        // 3. Blackjack állapot felülírása (Natural 21)
+        WinnerState naturalState = gameState.getNatural21();
+
+        if (isPlayer) {
+            if (naturalState == WinnerState.BLACKJACK_PLAYER_WON ||
+                naturalState == WinnerState.BLACKJACK_PUSH) {
+                state = HandState.BLACKJACK;
+            }
+        } else {
+            if (naturalState == WinnerState.BLACKJACK_DEALER_WON ||
+                naturalState == WinnerState.BLACKJACK_PUSH) {
+                state = HandState.BLACKJACK;
+            }
+        }
+
+        if (isPlayer) {
+            gameState.getPlayerHand().setHandState(state);
+        } else {
+            gameState.getDealerHandUnMasked().setHandState(state);
+        }
+
+        return state;
     }
 
 

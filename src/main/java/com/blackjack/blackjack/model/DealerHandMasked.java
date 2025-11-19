@@ -11,16 +11,16 @@ public class DealerHandMasked implements DealerView, Serializable {
     private List<Card> hand;
     private int sum;
     private boolean canInsure;
-    private WinnerState natural21Status;
+    private WinnerState natural21State;
 
     public DealerHandMasked() {
     }
 
-    public DealerHandMasked(List<Card> hand, int sum, boolean canInsure, WinnerState natural21Status) {
+    public DealerHandMasked(List<Card> hand, int sum, boolean canInsure, WinnerState natural21State) {
         this.hand = hand;
         this.sum = sum;
         this.canInsure = canInsure;
-        this.natural21Status = natural21Status;
+        this.natural21State = natural21State;
     }
 
     public static DealerHandMasked createEmptyHand() {
@@ -28,7 +28,7 @@ public class DealerHandMasked implements DealerView, Serializable {
         maskedHand.setHand(Collections.emptyList());
         maskedHand.setSum(0);
         maskedHand.setCanInsure(false);
-        maskedHand.setNatural21Status(WinnerState.NONE);
+        maskedHand.setNatural21State(WinnerState.NONE);
         return maskedHand;
     }
 

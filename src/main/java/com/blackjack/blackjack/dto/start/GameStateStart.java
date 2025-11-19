@@ -1,4 +1,4 @@
-package com.blackjack.blackjack.dto.startandhit;
+package com.blackjack.blackjack.dto.start;
 
 import com.blackjack.blackjack.model.DealerHandMasked;
 import com.blackjack.blackjack.model.PlayerHand;
@@ -11,7 +11,7 @@ import lombok.NoArgsConstructor;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class GameStateStartAndHit {
+public class GameStateStart {
     private PlayerHand playerHand;
     private DealerHandMasked dealerHandMasked;
     private int deckLen;
