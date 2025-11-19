@@ -3,7 +3,6 @@ package com.blackjack.blackjack.controller;
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
-import com.blackjack.blackjack.dto.createdeck.CreateDeckRequest;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.AuthenticationService;
@@ -31,9 +30,7 @@ public class GameController {
 
     @PostMapping("/create_deck")
     public ResponseEntity<?> createDeck(
-        @RequestBody(required = false) CreateDeckRequest request,
-        HttpSession session,
-        @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
+        HttpSession session) {
 
         SessionContext context = authenticationService.validateAndGetContext(session);
 

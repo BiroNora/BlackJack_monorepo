@@ -1,7 +1,7 @@
 package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.model.Deck;
-import com.blackjack.blackjack.model.GameState;
+import com.blackjack.blackjack.exception.GameRuleException;
+import com.blackjack.blackjack.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -11,7 +11,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 @Service
 public class GameService {
@@ -23,59 +22,37 @@ public class GameService {
         this.gameStateService = gameStateService;
     }
 
-    /**
-     * Létrehozza vagy frissíti a GameState-et a tét elhelyezése után.
-     *
-     * @param gameStateOptional Az aktuális állapot a Redisből.
-     * @param clientId          A játékos azonosítója.
-     * @param betAmount         Az elhelyezett tét.
-     * @return A frissített GameState objektum.
-     */
-    // ...
-    public GameState placeBet(Optional<GameState> gameStateOptional, UUID clientId, int betAmount) {
+    public GameState placeBet(Optional<GameState> gameStateOptional, int betAmount) {
 
-        GameState gameState = gameStateOptional.orElseThrow(() -> {
-            return new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "A játékállapot nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-            );
-        });
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "A játékállapot nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
+        ));
 
         List<Integer> currentBetList = gameState.getBetList();
 
-        // Védelmi réteg a null listák ellen (bár az init-nek be kell állítania)
         if (currentBetList == null) {
             currentBetList = new ArrayList<>();
         }
 
-        // --- TÉT RÖGZÍTÉSE ---
         int currentTotalBet = gameState.getBet();
-        int newTotalBet = currentTotalBet + betAmount; // currentTotalBet += betAmount
+        currentTotalBet += betAmount;
 
-        gameState.setBet(newTotalBet);
+        gameState.setBet(currentTotalBet);
         currentBetList.add(betAmount);
         gameState.setBetList(currentBetList);
 
-        // Menti a frissített GameState-et a Redisbe
         gameStateService.saveGameState(gameState);
 
         return gameState;
     }
 
-    /**
-     * Eltávolítja az utoljára elhelyezett tétet a GameState-ből, frissíti az összeget, és elmenti.
-     *
-     * @param gameStateOptional Az aktuális állapot a Redisből.
-     * @return A visszavett tét összege.
-     */
     public int retakeBet(Optional<GameState> gameStateOptional) {
 
-        GameState gameState = gameStateOptional.orElseThrow(() -> {
-            return new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-            );
-        });
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
+        ));
 
         List<Integer> betList = gameState.getBetList();
 
@@ -104,20 +81,12 @@ public class GameService {
         return amountToReturn * -1;
     }
 
-    /**
-     * Létrehoz egy új, kevert paklit, hozzárendeli a GameState-hez, és menti.
-     *
-     * @param gameStateOptional Az aktuális állapot (Optional).
-     * @return A frissített GameState.
-     */
     public GameState createNewDeck(Optional<GameState> gameStateOptional) {
 
-        GameState gameState = gameStateOptional.orElseThrow(() -> {
-            return new ResponseStatusException(
-                HttpStatus.BAD_REQUEST,
-                "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-            );
-        });
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
+        ));
 
         Deck newDeck = new Deck();
 
@@ -125,5 +94,46 @@ public class GameService {
         gameStateService.saveGameState(gameState);
 
         return gameState;
+    }
+
+    /**
+     * Visszaállítja a GameState-et a következő kör megkezdéséhez szükséges állapotra.
+     * MEGSZÜNTETI a játékos és osztó lapokat, téteket és körállapotokat.
+     */
+    public GameState resetRoundState(GameState gameState) {
+        gameState.setPlayerHand(PlayerHand.createEmptyHand());
+        gameState.setSplitPlayerHand(null);
+        gameState.setDealerHandMasked(DealerHandMasked.createEmptyHand());
+        gameState.setDealerHandUnMasked(DealerHandUnmasked.createEmptyHand());
+        gameState.setAces(false);
+        gameState.setNatural21(WinnerState.NONE);
+        gameState.setWinner(WinnerState.NONE);
+        gameState.setHandCounter(0);
+        gameState.setSplitReq(0);
+        gameState.setUnmaskedSumSent(false);
+        gameState.setBetList(List.of());
+        gameState.setBet(0);
+        gameState.setRoundActive(false);
+
+        return gameState;
+    }
+
+
+    public void createSplitHand(PlayerHand originalHand) {
+        List<Card> cards = originalHand.getHand();
+
+        // 1. Lapok számának ellenőrzése
+        if (cards.size() != 2) {
+            throw new GameRuleException("A hasításhoz pontosan két lap szükséges.");
+        }
+
+        // 2. Rang ellenőrzése (ez a kulcs!)
+        // Összehasonlítja az első lap rangját (rank) a második lap rangjával.
+        if (cards.get(0).rank() != cards.get(1).rank()) {
+            throw new GameRuleException("A lapoknak azonos rangúnak kell lenniük a hasításhoz.");
+        }
+
+        // ... ha az ellenőrzések sikeresek, akkor folytatódik a hasítási logika,
+        // és meghívható a PlayerHand.createSplitHand(originalHand)
     }
 }

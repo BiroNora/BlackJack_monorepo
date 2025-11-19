@@ -4,7 +4,6 @@ import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.BetRequest;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
-import com.blackjack.blackjack.dto.bet.RetakeBetRequest;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.AuthenticationService;
@@ -48,12 +47,10 @@ public class BetController {
     @PostMapping("/bet")
     public ResponseEntity<?> placeBet(
         @RequestBody BetRequest betRequest,
-        HttpSession session,
-        @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
+        HttpSession session) {
 
         SessionContext context = authenticationService.validateAndGetContext(session);
 
-        UUID currentClientId = context.clientId();
         Player player = context.player();
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
@@ -71,7 +68,7 @@ public class BetController {
 
         int updatedTokens = updatedPlayer.getTokens();
 
-        GameState updatedGameState = gameService.placeBet(gameStateOptional, currentClientId, betAmount);
+        GameState updatedGameState = gameService.placeBet(gameStateOptional, betAmount);
 
         int deckLength;
         if (updatedGameState.getDeck() == null) {
@@ -97,9 +94,7 @@ public class BetController {
 
     @PostMapping("/retake_bet")
     public ResponseEntity<?> retakeBet(
-        @RequestBody(required = false) RetakeBetRequest request,
-        HttpSession session,
-        @RequestHeader(value = "Cookie", required = false) String cookieHeader) {
+        HttpSession session) {
 
         SessionContext context = authenticationService.validateAndGetContext(session);
 
