@@ -2,6 +2,8 @@ package com.blackjack.blackjack.model;
 
 import com.blackjack.blackjack.service.HandStateUpdater;
 import com.blackjack.blackjack.service.HandValueCalculator;
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -9,6 +11,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Data
+@JsonIgnoreProperties(ignoreUnknown = true)
 public class PlayerHand implements Hand, Serializable {
     private String id;
     private List<Card> hand;
@@ -31,7 +34,9 @@ public class PlayerHand implements Hand, Serializable {
         return HandValueCalculator.calculateSum(this.hand);
     }
 
-    public HandState getHandState() {
-        return HandStateUpdater.updateHandState(this.getSum(), this.hand.size());
+    public int getHandState() {
+        HandState state = HandStateUpdater.updateHandState(this.getSum(), this.hand.size());
+
+        return state.getValue();
     }
 }

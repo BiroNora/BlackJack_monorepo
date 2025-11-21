@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
 @Builder
@@ -27,21 +28,17 @@ public class GameState implements Serializable {
     private boolean isRoundActive;
 
     // --- Kéz (Hand) Objektumok ---
-    private PlayerHand playerHand;
-    private PlayerHand splitPlayerHand;
-    private DealerHandMasked dealerHandMasked;
-    private DealerHandUnmasked dealerHandUnMasked;
-    private String phase;
+    private PlayerHand player;
+    private DealerHandMasked dealerMasked;
+    private DealerHandUnmasked dealerUnmasked;
 
     // --- Speciális/Számláló Változók ---
     private boolean aces;
     private WinnerState natural21;
     private WinnerState winner;
-    private int handCounter;
     private Map<String, PlayerHand> players;
-    private Map<String, Integer> playersIndex;
     private int splitReq;
-    private boolean unmaskedSumSent;
+    private int handCounter;
 
     public int getDeckLen() {
         return this.deck != null ? this.deck.getDeckLength() : 0;
@@ -56,5 +53,12 @@ public class GameState implements Serializable {
         String formattedCount = String.format("%03d", this.handCounter);
 
         return "H-" + formattedCount;
+    }
+
+    public int getNatural21StateValue() {
+        if (this.natural21 == null) {
+            return WinnerState.NONE.getValue();
+        }
+        return this.natural21.getValue();
     }
 }

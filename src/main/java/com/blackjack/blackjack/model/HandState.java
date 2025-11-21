@@ -1,5 +1,8 @@
 package com.blackjack.blackjack.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 public enum HandState {
     NONE(0),
     UNDER_21(10),
@@ -9,10 +12,12 @@ public enum HandState {
 
     private final int value;
 
+    @JsonCreator
     HandState(int value) {
         this.value = value;
     }
 
+    @JsonValue
     public int getValue() {
         return value;
     }

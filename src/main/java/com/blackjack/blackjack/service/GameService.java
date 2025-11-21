@@ -70,7 +70,6 @@ public class GameService {
         gameState.setBet(newTotalBet);
 
         if (betList.isEmpty()) {
-            gameState.setPhase("AWAITING_BET");
             gameState.setRoundActive(false);
         }
 
@@ -112,7 +111,7 @@ public class GameService {
         WinnerState result = initNatural21State(resetGameState);
         resetGameState.setAces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE);
 
-        PlayerHand playerHand = resetGameState.getPlayerHand();
+        PlayerHand playerHand = resetGameState.getPlayer();
         playerHand.setId(id);
         playerHand.getHand().add(card1);
         playerHand.getHand().add(card3);
@@ -121,7 +120,7 @@ public class GameService {
         playerHand.setCanSplit(isSplitPossible);
         playerHand.setBet(resetGameState.getBet());
 
-        DealerHandMasked dealerMasked = resetGameState.getDealerHandMasked();
+        DealerHandMasked dealerMasked = resetGameState.getDealerMasked();
         dealerMasked.getHand().add(Card.createMaskedCard());
         dealerMasked.getHand().add(card4);
 
@@ -138,27 +137,25 @@ public class GameService {
         } else {
             maskedState = result;
         }
-        dealerMasked.setNatural21State(maskedState);
+        dealerMasked.setNat21(maskedState);
 
-        DealerHandUnmasked dealerUnmasked = resetGameState.getDealerHandUnMasked();
+        DealerHandUnmasked dealerUnmasked = resetGameState.getDealerUnmasked();
         dealerUnmasked.getHand().add(card2);
         dealerUnmasked.getHand().add(card4);
-        dealerMasked.setNatural21State(result);
+        dealerMasked.setNat21(result);
 
         return resetGameState;
     }
 
     public GameState resetRoundState(GameState gameState) {
-        gameState.setPlayerHand(PlayerHand.createEmptyHand());
-        gameState.setSplitPlayerHand(null);
-        gameState.setDealerHandMasked(DealerHandMasked.createEmptyHand());
-        gameState.setDealerHandUnMasked(DealerHandUnmasked.createEmptyHand());
+        gameState.setPlayer(PlayerHand.createEmptyHand());
+        gameState.setDealerMasked(DealerHandMasked.createEmptyHand());
+        gameState.setDealerUnmasked(DealerHandUnmasked.createEmptyHand());
         gameState.setAces(false);
         gameState.setNatural21(WinnerState.NONE);
         gameState.setWinner(WinnerState.NONE);
         gameState.setHandCounter(0);
         gameState.setSplitReq(0);
-        gameState.setUnmaskedSumSent(false);
         gameState.setBetList(List.of());
         gameState.setRoundActive(false);
 
@@ -166,8 +163,8 @@ public class GameService {
     }
 
     public WinnerState initNatural21State(GameState gameState) {
-        PlayerHand playerHand = gameState.getPlayerHand();
-        DealerHandUnmasked dealerHand = gameState.getDealerHandUnMasked();
+        PlayerHand playerHand = gameState.getPlayer();
+        DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
 
         int playerSum = playerHand.getSum();
         int dealerSum = dealerHand.getSum();

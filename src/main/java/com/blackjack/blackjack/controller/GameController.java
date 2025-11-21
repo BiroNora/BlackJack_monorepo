@@ -74,8 +74,8 @@ public class GameController {
         session.setAttribute("gameState", updatedGameState);
 
         GameStateStart gameStateData = GameStateStart.builder()
-            .player(updatedGameState.getPlayerHand())
-            .dealerMasked(updatedGameState.getDealerHandMasked())
+            .player(updatedGameState.getPlayer())
+            .dealerMasked(updatedGameState.getDealerMasked())
             .bet(updatedGameState.getBet())
             .deckLen(updatedGameState.getDeckLen())
             .isRoundActive(updatedGameState.isRoundActive())

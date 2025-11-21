@@ -1,5 +1,8 @@
 package com.blackjack.blackjack.model;
 
+import com.fasterxml.jackson.annotation.JsonCreator;
+import com.fasterxml.jackson.annotation.JsonValue;
+
 public enum WinnerState {
     NONE(0),
 
@@ -16,10 +19,12 @@ public enum WinnerState {
 
     private final int value;
 
+    @JsonCreator
     WinnerState(int value) {
         this.value = value;
     }
 
+    @JsonValue
     public int getValue() {
         return value;
     }
