@@ -11,12 +11,12 @@ public class DealerHandMasked implements Hand, Serializable {
     private List<Card> hand;
     private int sum;
     private boolean canInsure;
-    private WinnerState nat21;
+    private int nat21;
 
     public DealerHandMasked() {
     }
 
-    public DealerHandMasked(List<Card> hand, int sum, boolean canInsure, WinnerState nat21) {
+    public DealerHandMasked(List<Card> hand, int sum, boolean canInsure, int nat21) {
         this.hand = hand;
         this.sum = sum;
         this.canInsure = canInsure;
@@ -28,7 +28,7 @@ public class DealerHandMasked implements Hand, Serializable {
         maskedHand.setHand(new ArrayList<>());
         maskedHand.setSum(0);
         maskedHand.setCanInsure(false);
-        maskedHand.setNat21(WinnerState.NONE);
+        maskedHand.setNat21(0);
         return maskedHand;
     }
 }

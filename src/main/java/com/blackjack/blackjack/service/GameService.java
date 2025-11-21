@@ -108,7 +108,7 @@ public class GameService {
         Card card4 = deck.dealCard();
 
         String id = resetGameState.generateNextHandId();
-        WinnerState result = initNatural21State(resetGameState);
+        int initialOutcome = initNatural21State(resetGameState);
         resetGameState.setAces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE);
 
         PlayerHand playerHand = resetGameState.getPlayer();
@@ -131,18 +131,15 @@ public class GameService {
         boolean canInsure = card4.rank() == Rank.ACE;
         dealerMasked.setCanInsure(canInsure);
 
-        WinnerState maskedState;
-        if (result == WinnerState.BLACKJACK_DEALER_WON) {
-            maskedState = WinnerState.NONE;
-        } else {
-            maskedState = result;
-        }
+        int maskedState = (initialOutcome == WinnerState.BLACKJACK_DEALER_WON.getValue())
+            ? WinnerState.NONE.getValue()
+            : initialOutcome;
         dealerMasked.setNat21(maskedState);
 
         DealerHandUnmasked dealerUnmasked = resetGameState.getDealerUnmasked();
         dealerUnmasked.getHand().add(card2);
         dealerUnmasked.getHand().add(card4);
-        dealerMasked.setNat21(result);
+        dealerUnmasked.setNatural21(initialOutcome);
 
         return resetGameState;
     }
@@ -152,8 +149,8 @@ public class GameService {
         gameState.setDealerMasked(DealerHandMasked.createEmptyHand());
         gameState.setDealerUnmasked(DealerHandUnmasked.createEmptyHand());
         gameState.setAces(false);
-        gameState.setNatural21(WinnerState.NONE);
-        gameState.setWinner(WinnerState.NONE);
+        gameState.setNatural21(0);
+        gameState.setWinner(0);
         gameState.setHandCounter(0);
         gameState.setSplitReq(0);
         gameState.setBetList(List.of());
@@ -162,7 +159,7 @@ public class GameService {
         return gameState;
     }
 
-    public WinnerState initNatural21State(GameState gameState) {
+    public int initNatural21State(GameState gameState) {
         PlayerHand playerHand = gameState.getPlayer();
         DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
 
@@ -184,7 +181,7 @@ public class GameService {
             naturalState = WinnerState.NONE;
         }
 
-        return naturalState;
+        return naturalState.getValue();
     }
 
     public boolean canSplit(List<Card> hand) {

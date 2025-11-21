@@ -26,9 +26,10 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
     clientStorageId = generateUUID();
     localStorage.setItem(CLIENT_STORAGE_ID_KEY, clientStorageId);
     console.info(`[LocalStorage] Új tartós ID generálva és mentve a ${CLIENT_STORAGE_ID_KEY} kulcs alatt.`);
-  } else {
-    console.info(`[LocalStorage] Meglévő tartós ID betöltve a ${CLIENT_STORAGE_ID_KEY} kulcs alól.`);
   }
+  //else {
+  //  console.info(`[LocalStorage] Meglévő tartós ID betöltve a ${CLIENT_STORAGE_ID_KEY} kulcs alól.`);
+  //}
 
   // A szervernek küldendő azonosító az, amit a localStorage-ban tárolunk
   const idToSend = clientStorageId;

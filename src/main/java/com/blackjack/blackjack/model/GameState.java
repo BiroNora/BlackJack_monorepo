@@ -34,8 +34,8 @@ public class GameState implements Serializable {
 
     // --- Speciális/Számláló Változók ---
     private boolean aces;
-    private WinnerState natural21;
-    private WinnerState winner;
+    private int natural21;
+    private int winner;
     private Map<String, PlayerHand> players;
     private int splitReq;
     private int handCounter;
@@ -53,12 +53,5 @@ public class GameState implements Serializable {
         String formattedCount = String.format("%03d", this.handCounter);
 
         return "H-" + formattedCount;
-    }
-
-    public int getNatural21StateValue() {
-        if (this.natural21 == null) {
-            return WinnerState.NONE.getValue();
-        }
-        return this.natural21.getValue();
     }
 }
