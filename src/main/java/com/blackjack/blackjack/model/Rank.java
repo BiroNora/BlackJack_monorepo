@@ -18,7 +18,8 @@ public enum Rank {
     FIVE(5, "5"),
     FOUR(4, "4"),
     THREE(3, "3"),
-    TWO(2, "2");
+    TWO(2, "2"),
+    MASKED_RANK(0, "✪");
 
     private final int baseValue;
     private final String symbol;

@@ -6,6 +6,8 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import java.io.Serializable;
 
 public record Card(Suit suit, Rank rank) implements Serializable {
+    private static final Suit MASKED_SUIT = Suit.fromSymbol(" ");
+    private static final Rank MASKED_RANK = Rank.fromSymbol("✪");
 
     /**
      * @JsonCreator: Statikus gyári metódus, ami Jacksonnak megmondja,
@@ -25,6 +27,10 @@ public record Card(Suit suit, Rank rank) implements Serializable {
         Rank rank = Rank.fromSymbol(rankSymbol);
 
         return new Card(suit, rank);
+    }
+
+    public static Card createMaskedCard() {
+        return new Card(MASKED_SUIT, MASKED_RANK);
     }
 
     public int getBaseValue() {

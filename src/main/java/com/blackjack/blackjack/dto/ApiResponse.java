@@ -13,7 +13,6 @@ import lombok.experimental.SuperBuilder;
 @AllArgsConstructor
 public class ApiResponse<T> {
     private String status;
-    private String message;
     @JsonProperty("game_state")
     private T gameState;
     @JsonProperty("game_state_hint")

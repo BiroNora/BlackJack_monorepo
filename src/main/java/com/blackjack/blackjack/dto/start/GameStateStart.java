@@ -12,8 +12,8 @@ import lombok.NoArgsConstructor;
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameStateStart {
-    private PlayerHand playerHand;
-    private DealerHandMasked dealerHandMasked;
+    private PlayerHand player;
+    private DealerHandMasked dealerMasked;
     private int deckLen;
     private int bet;
     private boolean isRoundActive;

@@ -6,7 +6,8 @@ public enum Suit {
     HEARTS("♥"),
     DIAMONDS("♦"),
     CLUBS("♣"),
-    SPADES("♠");
+    SPADES("♠"),
+    MASKED_SUIT(" ");
 
     private final String symbol;
 

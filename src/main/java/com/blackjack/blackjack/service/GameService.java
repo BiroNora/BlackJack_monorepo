@@ -94,6 +94,59 @@ public class GameService {
         return gameState;
     }
 
+    public GameState initializeNewRound(Optional<GameState> gameStateOptional) {
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
+        ));
+        GameState resetGameState = resetRoundState(gameState);
+        resetGameState.setRoundActive(true);
+
+        Deck deck = gameState.getDeck();
+        Card card1 = deck.dealCard();
+        Card card2 = deck.dealCard();
+        Card card3 = deck.dealCard();
+        Card card4 = deck.dealCard();
+
+        String id = resetGameState.generateNextHandId();
+        WinnerState result = initNatural21State(resetGameState);
+        resetGameState.setAces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE);
+
+        PlayerHand playerHand = resetGameState.getPlayerHand();
+        playerHand.setId(id);
+        playerHand.getHand().add(card1);
+        playerHand.getHand().add(card3);
+        updateHandState(resetGameState, true);
+        List<Card> currentHand = playerHand.getHand();
+        boolean isSplitPossible = canSplit(currentHand);
+        playerHand.setCanSplit(isSplitPossible);
+        playerHand.setBet(resetGameState.getBet());
+
+        DealerHandMasked dealerMasked = resetGameState.getDealerHandMasked();
+        dealerMasked.getHand().add(Card.createMaskedCard());
+        dealerMasked.getHand().add(card4);
+        List<Card> maskedHand = List.of(card4);
+        int dealerSum = HandValueCalculator.calculateSum(maskedHand);
+        dealerMasked.setSum(dealerSum);
+        boolean canInsure = card4.rank() == Rank.ACE;
+        dealerMasked.setCanInsure(canInsure);
+        WinnerState maskedState;
+        if (result == WinnerState.BLACKJACK_DEALER_WON) {
+            maskedState = WinnerState.NONE;
+        } else {
+            maskedState = result;
+        }
+        dealerMasked.setNatural21State(maskedState);
+
+        DealerHandUnmasked dealerUnmasked = resetGameState.getDealerHandUnMasked();
+        dealerUnmasked.getHand().add(card2);
+        dealerUnmasked.getHand().add(card4);
+        updateHandState(resetGameState, false);
+        dealerMasked.setNatural21State(result);
+
+        return resetGameState;
+    }
+
     public GameState resetRoundState(GameState gameState) {
         gameState.setPlayerHand(PlayerHand.createEmptyHand());
         gameState.setSplitPlayerHand(null);
@@ -106,38 +159,17 @@ public class GameService {
         gameState.setSplitReq(0);
         gameState.setUnmaskedSumSent(false);
         gameState.setBetList(List.of());
-        gameState.setBet(0);
         gameState.setRoundActive(false);
 
         return gameState;
-    }
-
-    public int updateHandSum(GameState gameState, boolean isPlayer) {
-        List<Card> handToCalculate;
-
-        if (isPlayer) {
-            handToCalculate = gameState.getPlayerHand().getHand();
-        } else {
-            handToCalculate = gameState.getDealerHandMasked().getHand();
-        }
-
-        int newSum = HandValueCalculator.calculateSum(handToCalculate);
-
-        if (isPlayer) {
-            gameState.getPlayerHand().setSum(newSum);
-        } else {
-            gameState.getDealerHandMasked().setSum(newSum);
-        }
-
-        return newSum;
     }
 
     public WinnerState initNatural21State(GameState gameState) {
         PlayerHand playerHand = gameState.getPlayerHand();
         DealerHandUnmasked dealerHand = gameState.getDealerHandUnMasked();
 
-        int playerSum = HandValueCalculator.calculateSum(playerHand.getHand());
-        int dealerSum = HandValueCalculator.calculateSum(dealerHand.getHand());
+        int playerSum = playerHand.getSum();
+        int dealerSum = dealerHand.getSum();
 
         boolean playerNatural = (playerHand.getHand().size() == 2) && (playerSum == 21);
         boolean dealerNatural = (dealerHand.getHand().size() == 2) && (dealerSum == 21);
@@ -153,9 +185,6 @@ public class GameService {
         } else {
             naturalState = WinnerState.NONE;
         }
-
-        playerHand.setSum(playerSum);
-        dealerHand.setSum(dealerSum);
 
         return naturalState;
     }
@@ -176,19 +205,15 @@ public class GameService {
 
     public HandState updateHandState(GameState gameState, boolean isPlayer) {
         int count;
-        HandState currentState;
 
         if (isPlayer) {
             count = gameState.getPlayerHand().getSum();
-            currentState = gameState.getPlayerHand().getHandState();
         } else {
             count = gameState.getDealerHandUnMasked().getSum();
-            currentState = gameState.getDealerHandUnMasked().getHandState();
         }
 
         HandState state;
 
-        // 2. Alapállapot megállapítása (BUST, TWENTY_ONE, UNDER_21)
         if (count > 21) {
             state = HandState.BUST;
         } else if (count == 21) {
@@ -197,7 +222,6 @@ public class GameService {
             state = HandState.UNDER_21;
         }
 
-        // 3. Blackjack állapot felülírása (Natural 21)
         WinnerState naturalState = gameState.getNatural21();
 
         if (isPlayer) {
@@ -221,17 +245,13 @@ public class GameService {
         return state;
     }
 
-
     public void createSplitHand(PlayerHand originalHand) {
         List<Card> cards = originalHand.getHand();
 
-        // 1. Lapok számának ellenőrzése
         if (cards.size() != 2) {
             throw new GameRuleException("A hasításhoz pontosan két lap szükséges.");
         }
 
-        // 2. Rang ellenőrzése (ez a kulcs!)
-        // Összehasonlítja az első lap rangját (rank) a második lap rangjával.
         if (cards.get(0).rank() != cards.get(1).rank()) {
             throw new GameRuleException("A lapoknak azonos rangúnak kell lenniük a hasításhoz.");
         }

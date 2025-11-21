@@ -1,13 +1,14 @@
 package com.blackjack.blackjack.model;
 
+import com.blackjack.blackjack.service.HandValueCalculator;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class PlayerHand implements Serializable {
+public class PlayerHand implements Hand, Serializable {
     private String id;
     private List<Card> hand;
     private int sum;
@@ -18,7 +19,7 @@ public class PlayerHand implements Serializable {
 
     public static PlayerHand createEmptyHand() {
         PlayerHand hand = new PlayerHand();
-        hand.setHand(Collections.emptyList());
+        hand.setHand(new ArrayList<>());
         hand.setSum(0);
         hand.setHandState(HandState.NONE);
         hand.setCanSplit(false);
@@ -27,7 +28,7 @@ public class PlayerHand implements Serializable {
         return hand;
     }
 
-    public void setBet(int betAmount) {
-        this.bet = betAmount;
+    public int getSum() {
+        return HandValueCalculator.calculateSum(this.hand);
     }
 }

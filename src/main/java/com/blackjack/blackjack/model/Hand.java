@@ -2,8 +2,8 @@ package com.blackjack.blackjack.model;
 
 import java.util.List;
 
-public interface DealerView {
+public interface Hand {
     List<Card> getHand();
-    int getSum();
-    WinnerState getNatural21Status();
+
+    void setSum(int sum);
 }

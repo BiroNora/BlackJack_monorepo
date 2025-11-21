@@ -28,7 +28,6 @@ public class GameState implements Serializable {
 
     // --- Kéz (Hand) Objektumok ---
     private PlayerHand playerHand;
-    private PlayerHand dealerHand;
     private PlayerHand splitPlayerHand;
     private DealerHandMasked dealerHandMasked;
     private DealerHandUnmasked dealerHandUnMasked;
@@ -51,4 +50,11 @@ public class GameState implements Serializable {
     // --- Megjegyzés ---
     // A deckLen (get_deck_len()) egy származtatott érték, amit a DTO-ban adunk vissza:
     // deckLen = this.deck.getDeckLength();
+
+    public String generateNextHandId() {
+        this.handCounter++;
+        String formattedCount = String.format("%03d", this.handCounter);
+
+        return "H-" + formattedCount;
+    }
 }

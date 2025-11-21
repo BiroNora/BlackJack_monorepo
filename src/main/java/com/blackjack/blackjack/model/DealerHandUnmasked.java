@@ -1,13 +1,14 @@
 package com.blackjack.blackjack.model;
 
+import com.blackjack.blackjack.service.HandValueCalculator;
 import lombok.Data;
 
 import java.io.Serializable;
-import java.util.Collections;
+import java.util.ArrayList;
 import java.util.List;
 
 @Data
-public class DealerHandUnmasked implements DealerView, Serializable {
+public class DealerHandUnmasked implements Hand, Serializable {
     private List<Card> hand;
     private int sum;
     private HandState handState;
@@ -25,25 +26,14 @@ public class DealerHandUnmasked implements DealerView, Serializable {
 
     public static DealerHandUnmasked createEmptyHand() {
         DealerHandUnmasked unMaskedHand = new DealerHandUnmasked();
-        unMaskedHand.setHand(Collections.emptyList());
+        unMaskedHand.setHand(new ArrayList<>());
         unMaskedHand.setSum(0);
         unMaskedHand.setHandState(HandState.NONE);
         unMaskedHand.setNatural21Status(WinnerState.NONE);
         return unMaskedHand;
     }
 
-    @Override
-    public List<Card> getHand() {
-        return List.of();
-    }
-
-    @Override
     public int getSum() {
-        return 0;
-    }
-
-    @Override
-    public WinnerState getNatural21Status() {
-        return null;
+        return HandValueCalculator.calculateSum(this.hand);
     }
 }

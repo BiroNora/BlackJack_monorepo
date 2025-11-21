@@ -20,7 +20,9 @@ public class Deck implements Serializable {
 
     private List<Card> createDeck() {
         List<Card> singleDeck = Arrays.stream(Suit.values())
+            .filter(suit -> suit != Suit.MASKED_SUIT)
             .flatMap(suit -> Arrays.stream(Rank.values())
+                .filter(rank -> rank != Rank.MASKED_RANK)
                 .map(rank -> new Card(suit, rank)))
             .toList();
 
