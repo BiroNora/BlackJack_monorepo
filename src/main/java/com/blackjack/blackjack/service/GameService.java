@@ -116,7 +116,6 @@ public class GameService {
         playerHand.setId(id);
         playerHand.getHand().add(card1);
         playerHand.getHand().add(card3);
-        updateHandState(resetGameState, true);
         List<Card> currentHand = playerHand.getHand();
         boolean isSplitPossible = canSplit(currentHand);
         playerHand.setCanSplit(isSplitPossible);
@@ -125,11 +124,14 @@ public class GameService {
         DealerHandMasked dealerMasked = resetGameState.getDealerHandMasked();
         dealerMasked.getHand().add(Card.createMaskedCard());
         dealerMasked.getHand().add(card4);
+
         List<Card> maskedHand = List.of(card4);
         int dealerSum = HandValueCalculator.calculateSum(maskedHand);
         dealerMasked.setSum(dealerSum);
+
         boolean canInsure = card4.rank() == Rank.ACE;
         dealerMasked.setCanInsure(canInsure);
+
         WinnerState maskedState;
         if (result == WinnerState.BLACKJACK_DEALER_WON) {
             maskedState = WinnerState.NONE;
@@ -141,7 +143,6 @@ public class GameService {
         DealerHandUnmasked dealerUnmasked = resetGameState.getDealerHandUnMasked();
         dealerUnmasked.getHand().add(card2);
         dealerUnmasked.getHand().add(card4);
-        updateHandState(resetGameState, false);
         dealerMasked.setNatural21State(result);
 
         return resetGameState;
@@ -201,48 +202,6 @@ public class GameService {
         boolean bothAreTenValue = rank1.getBaseValue() == 10 && rank2.getBaseValue() == 10;
 
         return sameRank || bothAreTenValue;
-    }
-
-    public HandState updateHandState(GameState gameState, boolean isPlayer) {
-        int count;
-
-        if (isPlayer) {
-            count = gameState.getPlayerHand().getSum();
-        } else {
-            count = gameState.getDealerHandUnMasked().getSum();
-        }
-
-        HandState state;
-
-        if (count > 21) {
-            state = HandState.BUST;
-        } else if (count == 21) {
-            state = HandState.TWENTY_ONE;
-        } else {
-            state = HandState.UNDER_21;
-        }
-
-        WinnerState naturalState = gameState.getNatural21();
-
-        if (isPlayer) {
-            if (naturalState == WinnerState.BLACKJACK_PLAYER_WON ||
-                naturalState == WinnerState.BLACKJACK_PUSH) {
-                state = HandState.BLACKJACK;
-            }
-        } else {
-            if (naturalState == WinnerState.BLACKJACK_DEALER_WON ||
-                naturalState == WinnerState.BLACKJACK_PUSH) {
-                state = HandState.BLACKJACK;
-            }
-        }
-
-        if (isPlayer) {
-            gameState.getPlayerHand().setHandState(state);
-        } else {
-            gameState.getDealerHandUnMasked().setHandState(state);
-        }
-
-        return state;
     }
 
     public void createSplitHand(PlayerHand originalHand) {

@@ -1,0 +1,20 @@
+package com.blackjack.blackjack.service;
+
+import com.blackjack.blackjack.model.HandState;
+
+public class HandStateUpdater {
+    public static HandState updateHandState(int sum, int handSize) {
+        if (sum > 21) {
+            return HandState.BUST;
+        }
+        if (sum == 21) {
+            if (handSize == 2) {
+                return HandState.BLACKJACK;
+            } else {
+                return HandState.TWENTY_ONE;
+            }
+        }
+
+        return HandState.UNDER_21;
+    }
+}

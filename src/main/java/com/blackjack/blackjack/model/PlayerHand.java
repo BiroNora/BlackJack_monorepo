@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.model;
 
+import com.blackjack.blackjack.service.HandStateUpdater;
 import com.blackjack.blackjack.service.HandValueCalculator;
 import lombok.Data;
 
@@ -11,7 +12,6 @@ import java.util.List;
 public class PlayerHand implements Hand, Serializable {
     private String id;
     private List<Card> hand;
-    private int sum;
     private HandState handState;
     private boolean canSplit;
     private boolean stated;
@@ -20,7 +20,6 @@ public class PlayerHand implements Hand, Serializable {
     public static PlayerHand createEmptyHand() {
         PlayerHand hand = new PlayerHand();
         hand.setHand(new ArrayList<>());
-        hand.setSum(0);
         hand.setHandState(HandState.NONE);
         hand.setCanSplit(false);
         hand.setStated(false);
@@ -30,5 +29,9 @@ public class PlayerHand implements Hand, Serializable {
 
     public int getSum() {
         return HandValueCalculator.calculateSum(this.hand);
+    }
+
+    public HandState getHandState() {
+        return HandStateUpdater.updateHandState(this.getSum(), this.hand.size());
     }
 }
