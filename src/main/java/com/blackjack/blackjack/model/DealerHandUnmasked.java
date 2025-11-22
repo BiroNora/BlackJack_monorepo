@@ -13,22 +13,19 @@ import java.util.List;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class DealerHandUnmasked implements Hand, Serializable {
     private List<Card> hand;
-    private int handState;
     private int natural21;
 
     public DealerHandUnmasked() {
     }
 
-    public DealerHandUnmasked(List<Card> hand, int handState, int natural21) {
+    public DealerHandUnmasked(List<Card> hand, int natural21) {
         this.hand = hand;
-        this.handState = handState;
         this.natural21 = natural21;
     }
 
     public static DealerHandUnmasked createEmptyHand() {
         DealerHandUnmasked unMaskedHand = new DealerHandUnmasked();
         unMaskedHand.setHand(new ArrayList<>());
-        unMaskedHand.setHandState(0);
         unMaskedHand.setNatural21(0);
         return unMaskedHand;
     }

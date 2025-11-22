@@ -14,7 +14,6 @@ import java.util.List;
 public class PlayerHand implements Hand, Serializable {
     private String id;
     private List<Card> hand;
-    private HandState handState;
     private boolean canSplit;
     private boolean stated;
     private int bet;
@@ -22,7 +21,6 @@ public class PlayerHand implements Hand, Serializable {
     public static PlayerHand createEmptyHand() {
         PlayerHand hand = new PlayerHand();
         hand.setHand(new ArrayList<>());
-        hand.setHandState(HandState.NONE);
         hand.setCanSplit(false);
         hand.setStated(false);
         hand.setBet(0);

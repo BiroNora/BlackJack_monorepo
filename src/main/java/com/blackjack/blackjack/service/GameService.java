@@ -144,6 +144,22 @@ public class GameService {
         return resetGameState;
     }
 
+    public GameState playerHit(Optional<GameState> gameStateOptional) {
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
+        ));
+
+        if (!gameState.isRoundActive()) {
+            return gameState;
+        }
+
+        Card newCard = gameState.getDeck().dealCard();
+        gameState.getPlayer().getHand().add(newCard);
+
+        return gameState;
+    }
+
     public GameState resetRoundState(GameState gameState) {
         gameState.setPlayer(PlayerHand.createEmptyHand());
         gameState.setDealerMasked(DealerHandMasked.createEmptyHand());

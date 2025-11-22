@@ -88,4 +88,34 @@ public class GameController {
             .currentTokens(tokens)
             .build());
     }
+
+    @PostMapping("/hit")
+    public ResponseEntity<?> playerHit(
+        HttpSession session) {
+
+        SessionContext context = authenticationService.validateAndGetContext(session);
+
+        Player player = context.player();
+        int tokens = player.getTokens();
+
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState updatedGameState = gameService.playerHit(gameStateOptional);
+
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateStart gameStateData = GameStateStart.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerMasked(updatedGameState.getDealerMasked())
+            .bet(updatedGameState.getBet())
+            .deckLen(updatedGameState.getDeckLen())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.<GameStateStart>builder()
+            .status("success")
+            .gameState(gameStateData)
+            .gameStateHint("HIT_RECIEVED")
+            .currentTokens(tokens)
+            .build());
+    }
 }
