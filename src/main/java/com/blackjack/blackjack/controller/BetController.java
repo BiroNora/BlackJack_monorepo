@@ -64,7 +64,7 @@ public class BetController {
 
         Player updatedPlayer;
         try {
-            updatedPlayer = playerService.deductBetAndSave(player, betAmount);
+            updatedPlayer = playerService.deductBet(player, betAmount);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Hiba történt a token levonása során.");
         }
@@ -108,7 +108,7 @@ public class BetController {
 
         Player updatedPlayer;
         try {
-            updatedPlayer = playerService.deductBetAndSave(player, amountToReturn);
+            updatedPlayer = playerService.deductBet(player, amountToReturn);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Hiba történt a tokenek visszaadása során.");
         }

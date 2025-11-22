@@ -160,6 +160,27 @@ public class GameService {
         return gameState;
     }
 
+    public GameState playerStand(GameState gameState) {
+        int dealerSum = gameState.getDealerUnmasked().getSum();
+        int playerSum = gameState.getPlayer().getSum();
+
+        if (playerSum <= 21) {
+            while (dealerSum < 17) {
+                Card newCard = gameState.getDeck().dealCard();
+                gameState.getDealerUnmasked().getHand().add(newCard);
+                dealerSum = gameState.getDealerUnmasked().getSum();
+            }
+        }
+
+        gameState.getPlayer().getHandState();
+        gameState.getDealerUnmasked().getHandState();
+
+        int calculatedWinnerValue = winnerStateUpdater(gameState);
+        gameState.setWinner(calculatedWinnerValue);
+
+        return gameState;
+    }
+
     public GameState resetRoundState(GameState gameState) {
         gameState.setPlayer(PlayerHand.createEmptyHand());
         gameState.setDealerMasked(DealerHandMasked.createEmptyHand());
@@ -198,6 +219,75 @@ public class GameService {
         }
 
         return naturalState.getValue();
+    }
+
+    public int winnerStateUpdater(GameState gameState) {
+        PlayerHand playerHand = gameState.getPlayer();
+        DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
+
+        int playerSum = playerHand.getSum();
+        int dealerSum = dealerHand.getSum();
+        WinnerState winnerState;
+
+        if (playerSum > 21) {
+            winnerState = WinnerState.PLAYER_LOST;
+        }
+        else if (dealerSum > 21) {
+            winnerState = WinnerState.PLAYER_WON;
+        }
+        else if (playerSum == dealerSum) {
+            winnerState = WinnerState.PUSH;
+        }
+        else if (playerSum > dealerSum) {
+            winnerState = WinnerState.PLAYER_WON;
+        }
+        else {
+            winnerState = WinnerState.DEALER_WON;
+        }
+
+        return winnerState.getValue();
+    }
+
+    public record RewardResult(GameState gameState, int rewardAmount) {
+        // A record automatikusan biztosítja a konstruktort és a gettereket.
+    }
+
+    public RewardResult calculateRewards(GameState gameState) {
+        PlayerHand playerHand = gameState.getPlayer();
+        DealerHandUnmasked dealerUnmasked = gameState.getDealerUnmasked();
+
+        int bet = playerHand.getBet();
+
+        int globalWinnerState = gameState.getWinner();
+        int initialNatural21 = gameState.getNatural21();
+        int dealerUnmaskedNatural21 = dealerUnmasked.getNatural21();
+
+        double rewardAmount = 0.0;
+
+        if (initialNatural21 == WinnerState.BLACKJACK_PLAYER_WON.getValue()) {
+            rewardAmount = bet * 2.5;
+        }
+
+        else if (globalWinnerState == WinnerState.PLAYER_WON.getValue() &&
+            dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) {
+            rewardAmount = bet * 2.0;
+        }
+
+        else if ((globalWinnerState == WinnerState.PUSH.getValue() &&
+            dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) ||
+            dealerUnmaskedNatural21 == WinnerState.BLACKJACK_PUSH.getValue()) {
+
+            rewardAmount = bet * 1.0;
+        }
+
+        playerHand.setBet(0);
+        gameState.setBet(0);
+
+        gameState.setRoundActive(false);
+
+        int finalReward = (int) Math.floor(rewardAmount);
+
+        return new RewardResult(gameState, finalReward);
     }
 
     public boolean canSplit(List<Card> hand) {

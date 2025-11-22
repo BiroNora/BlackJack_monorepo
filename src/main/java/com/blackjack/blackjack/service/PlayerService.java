@@ -26,12 +26,19 @@ public class PlayerService {
      * Ez a metódus tranzakciós, hogy biztosítsa az adatok integritását!
      */
     @Transactional
-    public Player deductBetAndSave(Player player, int betAmount) {
+    public Player deductBet(Player player, int betAmount) {
         if (player.getTokens() < betAmount) {
             throw new IllegalArgumentException("Insufficient tokens.");
         }
 
         player.setTokens(player.getTokens() - betAmount);
+        return playerRepository.save(player);
+    }
+
+    @Transactional
+    public Player updateTokens(Player player, int rewardAmount) {
+        player.setTokens(player.getTokens() + rewardAmount);
+
         return playerRepository.save(player);
     }
 }

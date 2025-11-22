@@ -1,4 +1,4 @@
-package com.blackjack.blackjack.dto.start;
+package com.blackjack.blackjack.dto.others;
 
 import com.blackjack.blackjack.model.DealerHandMasked;
 import com.blackjack.blackjack.model.PlayerHand;
