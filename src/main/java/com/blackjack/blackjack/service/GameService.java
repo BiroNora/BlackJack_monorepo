@@ -36,7 +36,6 @@ public class GameService {
         gameState.setBet(currentTotalBet);
         currentBetList.add(betAmount);
         gameState.setBetList(currentBetList);
-
         gameStateService.saveGameState(gameState);
 
         return gameState;
@@ -125,6 +124,7 @@ public class GameService {
         dealerUnmasked.getHand().add(card2);
         dealerUnmasked.getHand().add(card4);
         dealerUnmasked.setNatural21(initialOutcome);
+        gameStateService.saveGameState(resetGameState);
 
         return resetGameState;
     }
@@ -138,6 +138,7 @@ public class GameService {
 
         Card newCard = gameState.getDeck().dealCard();
         gameState.getPlayer().getHand().add(newCard);
+        gameStateService.saveGameState(gameState);
 
         return gameState;
     }
@@ -160,6 +161,7 @@ public class GameService {
 
         int calculatedWinnerValue = winnerStateUpdater(gameState);
         gameState.setWinner(calculatedWinnerValue);
+        gameStateService.saveGameState(gameState);
 
         return gameState;
     }
@@ -178,26 +180,21 @@ public class GameService {
 
         if (initialNatural21 == WinnerState.BLACKJACK_PLAYER_WON.getValue()) {
             rewardAmount = bet * 2.5;
-        }
-
-        else if (globalWinnerState == WinnerState.PLAYER_WON.getValue() &&
+        } else if (globalWinnerState == WinnerState.PLAYER_WON.getValue() &&
             dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) {
             rewardAmount = bet * 2.0;
-        }
-
-        else if ((globalWinnerState == WinnerState.PUSH.getValue() &&
+        } else if ((globalWinnerState == WinnerState.PUSH.getValue() &&
             dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) ||
             dealerUnmaskedNatural21 == WinnerState.BLACKJACK_PUSH.getValue()) {
 
             rewardAmount = bet * 1.0;
         }
 
+        int finalReward = (int) Math.floor(rewardAmount);
         playerHand.setBet(0);
         gameState.setBet(0);
-
         gameState.setRoundActive(false);
-
-        int finalReward = (int) Math.floor(rewardAmount);
+        gameStateService.saveGameState(gameState);
 
         return new TransactionResult(gameState, finalReward);
     }
@@ -261,25 +258,17 @@ public class GameService {
 
         if (playerSum > 21) {
             winnerState = WinnerState.PLAYER_LOST;
-        }
-        else if (dealerSum > 21) {
+        } else if (dealerSum > 21) {
             winnerState = WinnerState.PLAYER_WON;
-        }
-        else if (playerSum == dealerSum) {
+        } else if (playerSum == dealerSum) {
             winnerState = WinnerState.PUSH;
-        }
-        else if (playerSum > dealerSum) {
+        } else if (playerSum > dealerSum) {
             winnerState = WinnerState.PLAYER_WON;
-        }
-        else {
+        } else {
             winnerState = WinnerState.DEALER_WON;
         }
 
         return winnerState.getValue();
-    }
-
-    public record TransactionResult(GameState gameState, int transactionResult) {
-        // A record automatikusan biztosítja a konstruktort és a gettereket.
     }
 
     public boolean canSplit(List<Card> hand) {
@@ -309,5 +298,9 @@ public class GameService {
 
         // ... ha az ellenőrzések sikeresek, akkor folytatódik a hasítási logika,
         // és meghívható a PlayerHand.createSplitHand(originalHand)
+    }
+
+    public record TransactionResult(GameState gameState, int transactionResult) {
+        // A record automatikusan biztosítja a konstruktort és a gettereket.
     }
 }
