@@ -60,7 +60,7 @@ public class GameStateService {
             session.setAttribute(GAME_STATE_ATTR_NAME, gameState);
         } else {
             // Hibakezelés, ha a mentéskor valamiért eltűnt a session
-            System.err.println("HIBÁBA SZERETETT VOLNA MENTENI: Nincs aktív HttpSession a GameState mentéséhez!");
+            System.err.println("INTERNAL_UPDATE_FAILED");
         }
     }
 }

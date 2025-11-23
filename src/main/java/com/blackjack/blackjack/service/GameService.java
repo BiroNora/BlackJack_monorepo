@@ -14,7 +14,6 @@ import java.util.Optional;
 
 @Service
 public class GameService {
-
     private static final Logger logger = LoggerFactory.getLogger(GameService.class);
     private final GameStateService gameStateService;
 
@@ -23,11 +22,7 @@ public class GameService {
     }
 
     public GameState placeBet(Optional<GameState> gameStateOptional, int betAmount) {
-
-        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "A játékállapot nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-        ));
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
 
         List<Integer> currentBetList = gameState.getBetList();
 
@@ -48,10 +43,7 @@ public class GameService {
     }
 
     public int retakeBet(Optional<GameState> gameStateOptional) {
-        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-        ));
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
 
         List<Integer> betList = gameState.getBetList();
 
@@ -80,11 +72,7 @@ public class GameService {
     }
 
     public GameState createNewDeck(Optional<GameState> gameStateOptional) {
-        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-        ));
-
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
         Deck newDeck = new Deck();
 
         gameState.setDeck(newDeck);
@@ -94,10 +82,7 @@ public class GameService {
     }
 
     public GameState initializeNewRound(Optional<GameState> gameStateOptional) {
-        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-        ));
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
         GameState resetGameState = resetRoundState(gameState);
         resetGameState.setRoundActive(true);
 
@@ -145,10 +130,7 @@ public class GameService {
     }
 
     public GameState playerHit(Optional<GameState> gameStateOptional) {
-        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "A játékállapot (GameState) nem található. Kérem, indítsa újra a session-t az /api/initialize_session végponton!"
-        ));
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
 
         if (!gameState.isRoundActive()) {
             return gameState;
@@ -160,7 +142,8 @@ public class GameService {
         return gameState;
     }
 
-    public GameState playerStand(GameState gameState) {
+    public GameState playerStand(Optional<GameState> gameStateOptional) {
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
         int dealerSum = gameState.getDealerUnmasked().getSum();
         int playerSum = gameState.getPlayer().getSum();
 
@@ -179,6 +162,53 @@ public class GameService {
         gameState.setWinner(calculatedWinnerValue);
 
         return gameState;
+    }
+
+    public TransactionResult calculateRewards(GameState gameState) {
+        PlayerHand playerHand = gameState.getPlayer();
+        DealerHandUnmasked dealerUnmasked = gameState.getDealerUnmasked();
+
+        int bet = playerHand.getBet();
+
+        int globalWinnerState = gameState.getWinner();
+        int initialNatural21 = gameState.getNatural21();
+        int dealerUnmaskedNatural21 = dealerUnmasked.getNatural21();
+
+        double rewardAmount = 0.0;
+
+        if (initialNatural21 == WinnerState.BLACKJACK_PLAYER_WON.getValue()) {
+            rewardAmount = bet * 2.5;
+        }
+
+        else if (globalWinnerState == WinnerState.PLAYER_WON.getValue() &&
+            dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) {
+            rewardAmount = bet * 2.0;
+        }
+
+        else if ((globalWinnerState == WinnerState.PUSH.getValue() &&
+            dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) ||
+            dealerUnmaskedNatural21 == WinnerState.BLACKJACK_PUSH.getValue()) {
+
+            rewardAmount = bet * 1.0;
+        }
+
+        playerHand.setBet(0);
+        gameState.setBet(0);
+
+        gameState.setRoundActive(false);
+
+        int finalReward = (int) Math.floor(rewardAmount);
+
+        return new TransactionResult(gameState, finalReward);
+    }
+
+
+    // helpers
+    private GameState getGameStateOrThrow(Optional<GameState> gameStateOptional) {
+        return gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "CLIENT_ERROR_SPECIFIC"
+        ));
     }
 
     public GameState resetRoundState(GameState gameState) {
@@ -248,46 +278,8 @@ public class GameService {
         return winnerState.getValue();
     }
 
-    public record RewardResult(GameState gameState, int rewardAmount) {
+    public record TransactionResult(GameState gameState, int transactionResult) {
         // A record automatikusan biztosítja a konstruktort és a gettereket.
-    }
-
-    public RewardResult calculateRewards(GameState gameState) {
-        PlayerHand playerHand = gameState.getPlayer();
-        DealerHandUnmasked dealerUnmasked = gameState.getDealerUnmasked();
-
-        int bet = playerHand.getBet();
-
-        int globalWinnerState = gameState.getWinner();
-        int initialNatural21 = gameState.getNatural21();
-        int dealerUnmaskedNatural21 = dealerUnmasked.getNatural21();
-
-        double rewardAmount = 0.0;
-
-        if (initialNatural21 == WinnerState.BLACKJACK_PLAYER_WON.getValue()) {
-            rewardAmount = bet * 2.5;
-        }
-
-        else if (globalWinnerState == WinnerState.PLAYER_WON.getValue() &&
-            dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) {
-            rewardAmount = bet * 2.0;
-        }
-
-        else if ((globalWinnerState == WinnerState.PUSH.getValue() &&
-            dealerUnmaskedNatural21 != WinnerState.BLACKJACK_DEALER_WON.getValue()) ||
-            dealerUnmaskedNatural21 == WinnerState.BLACKJACK_PUSH.getValue()) {
-
-            rewardAmount = bet * 1.0;
-        }
-
-        playerHand.setBet(0);
-        gameState.setBet(0);
-
-        gameState.setRoundActive(false);
-
-        int finalReward = (int) Math.floor(rewardAmount);
-
-        return new RewardResult(gameState, finalReward);
     }
 
     public boolean canSplit(List<Card> hand) {

@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.model;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -11,6 +12,8 @@ public class DealerHandMasked implements Hand, Serializable {
     private List<Card> hand;
     private int sum;
     private boolean canInsure;
+
+    @JsonProperty("nat_21")
     private int nat21;
 
     public DealerHandMasked() {
