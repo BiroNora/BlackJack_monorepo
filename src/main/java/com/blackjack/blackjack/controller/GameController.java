@@ -8,7 +8,6 @@ import com.blackjack.blackjack.dto.others.GameStateRewards;
 import com.blackjack.blackjack.dto.others.GameStateStart;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
-import com.blackjack.blackjack.model.PlayerHand;
 import com.blackjack.blackjack.service.AuthenticationService;
 import com.blackjack.blackjack.service.GameService;
 import com.blackjack.blackjack.service.GameStateService;
@@ -171,46 +170,41 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
         GameState initialGameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
-            "CLIENT_ERROR_SPECIFIC"
+            "CLIENT_ERROR_SPECIFIC: A Double Down kéréshez játékállapot szükséges."
         ));
 
-        PlayerHand playerHand = initialGameState.getPlayer();
-        int currentBet = playerHand.getBet();
+        int betToDeduct = initialGameState.getPlayer().getBet();
 
-        if (player.getTokens() < currentBet) {
+        if (player.getTokens() < betToDeduct) {
             return ResponseEntity.badRequest().body("INSUFFICIENT_FUNDS_FOR_DOUBLE");
         }
 
-        int transactionBet = currentBet * -1;
-        int doubledBet = currentBet * 2;
-        GameState gameStateAfterHit = gameService.playerHit(gameStateOptional);
-        gameStateAfterHit.getPlayer().setBet(doubledBet);
-
         try {
-            playerService.updateTokens(player, transactionBet);
+            playerService.deductBet(player, betToDeduct);
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("INTERNAL_UPDATE_FAILED");
         }
 
-        gameStateService.saveGameState(gameStateAfterHit);
-        session.setAttribute("gameState", gameStateAfterHit);
+        GameState gameStateAfterHit = gameService.playerHit(gameStateOptional);
+        GameState updatedGameState = gameService.doubleRequest(gameStateAfterHit, betToDeduct);
+        gameStateService.saveGameState(updatedGameState);
+        session.setAttribute("gameState", updatedGameState);
 
         GameStateDouble gameStateDouble = GameStateDouble.builder()
-            .player(gameStateAfterHit.getPlayer())
-            .deckLen(gameStateAfterHit.getDeckLen())
-            .isRoundActive(gameStateAfterHit.isRoundActive())
+            .player(updatedGameState.getPlayer())
+            .deckLen(updatedGameState.getDeckLen())
+            .isRoundActive(updatedGameState.isRoundActive())
             .build();
 
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())
             .gameState(gameStateDouble)
-            .gameStateHint("REWARDS_PROCESSED")
+            .gameStateHint("DOUBLE_DOWN_PROCESSED")
             .build());
     }
 }
