@@ -1,6 +1,7 @@
 package com.blackjack.blackjack.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -34,6 +35,8 @@ public class GameState implements Serializable {
 
     // --- Speciális/Számláló Változók ---
     private boolean aces;
+
+    @JsonProperty("natural_21")
     private int natural21;
     private int winner;
     private Map<String, PlayerHand> players;

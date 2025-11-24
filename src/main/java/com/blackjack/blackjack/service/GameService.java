@@ -5,7 +5,6 @@ import com.blackjack.blackjack.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -87,13 +86,24 @@ public class GameService {
         resetGameState.setRoundActive(true);
 
         Deck deck = gameState.getDeck();
-        Card card1 = deck.dealCard();
-        Card card2 = deck.dealCard();
-        Card card3 = deck.dealCard();
-        Card card4 = deck.dealCard();
+        //Card card1 = deck.dealCard();
+        //Card card2 = deck.dealCard();
+        //Card card3 = deck.dealCard();
+        //Card card4 = deck.dealCard();
+
+        Card newAceCard1 = new Card(Suit.HEARTS, Rank.QUEEN);
+        Card newAceCard3 = new Card(Suit.HEARTS, Rank.ACE);
+        Card newAceCard2 = new Card(Suit.HEARTS, Rank.QUEEN);
+        Card newAceCard4 = new Card(Suit.HEARTS, Rank.ACE);
+        // Vagy használja a Card osztályban lévő segédmetódust, ha van:
+        // Card newAceCard = Card.createAce(Suit.HEARTS);
+
+        Card card2 = newAceCard2;
+        Card card4 = newAceCard4;
+        Card card1 = newAceCard1;
+        Card card3 = newAceCard3;
 
         String id = resetGameState.generateNextHandId();
-        int initialOutcome = initNatural21State(resetGameState);
         resetGameState.setAces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE);
 
         PlayerHand playerHand = resetGameState.getPlayer();
@@ -105,11 +115,18 @@ public class GameService {
         playerHand.setCanSplit(isSplitPossible);
         playerHand.setBet(resetGameState.getBet());
 
+        DealerHandUnmasked dealerUnmasked = resetGameState.getDealerUnmasked();
+        dealerUnmasked.getHand().add(card2);
+        dealerUnmasked.getHand().add(card4);
+
+        int initialOutcome = initNatural21State(resetGameState);
+        dealerUnmasked.setNatural21(initialOutcome);
+
         DealerHandMasked dealerMasked = resetGameState.getDealerMasked();
         dealerMasked.getHand().add(Card.createMaskedCard());
         dealerMasked.getHand().add(card4);
-
         List<Card> maskedHand = List.of(card4);
+
         int dealerSum = HandValueCalculator.calculateSum(maskedHand);
         dealerMasked.setSum(dealerSum);
 
@@ -121,10 +138,7 @@ public class GameService {
             : initialOutcome;
         dealerMasked.setNat21(maskedState);
 
-        DealerHandUnmasked dealerUnmasked = resetGameState.getDealerUnmasked();
-        dealerUnmasked.getHand().add(card2);
-        dealerUnmasked.getHand().add(card4);
-        dealerUnmasked.setNatural21(initialOutcome);
+        resetGameState.setNatural21(initialOutcome);
         gameStateService.saveGameState(resetGameState);
 
         return resetGameState;
@@ -206,6 +220,32 @@ public class GameService {
         gameStateService.saveGameState(gameState);
 
         return gameState;
+    }
+
+    public TransactionResult insuranceRequest(Optional<GameState> gameStateOptional) {
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        logger.info("--- gamestate --- {}", gameState);
+
+        int currentBet = gameState.getBet();
+        double halfBet = (double) currentBet / 2.0;
+        double roundedCost = Math.ceil(halfBet);
+
+
+        int natural21 = gameState.getDealerUnmasked().getNatural21();
+
+        if (natural21 == 3) {
+            gameState.setBet(0);
+            gameState.getPlayer().setBet(0);
+            gameState.setRoundActive(false);
+            gameState.setWinner(WinnerState.DEALER_WON.getValue());
+        }
+
+        gameStateService.saveGameState(gameState);
+
+        int insCost = natural21 == 3 ? currentBet : (int) roundedCost * -1;
+        logger.info("--- insCost --- {}", insCost);
+        logger.info("--- gamestate --- {}", gameState);
+        return new TransactionResult(gameState, insCost);
     }
 
 

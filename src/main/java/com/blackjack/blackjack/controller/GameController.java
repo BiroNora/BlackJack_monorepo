@@ -4,6 +4,7 @@ import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.others.GameStateDouble;
+import com.blackjack.blackjack.dto.others.GameStateInsurance;
 import com.blackjack.blackjack.dto.others.GameStateRewards;
 import com.blackjack.blackjack.dto.others.GameStateStart;
 import com.blackjack.blackjack.model.GameState;
@@ -207,4 +208,84 @@ public class GameController {
             .gameStateHint("DOUBLE_DOWN_PROCESSED")
             .build());
     }
+
+    @PostMapping("/ins_request")
+    public ResponseEntity<?> insuranceRequest(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameService.TransactionResult insResult = gameService.insuranceRequest(gameStateOptional);
+        GameState updatedGameState = insResult.gameState();
+        int insCost = insResult.transactionResult();
+
+        try {
+            playerService.updateTokens(player, insCost);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Hiba történt a jutalom feldolgozása során.");
+        }
+
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateInsurance gameStateData = GameStateInsurance.builder()
+            .player(updatedGameState.getPlayer())
+            .natural21(updatedGameState.getNatural21())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getPlayer().getBet())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .dealerMasked(updatedGameState.getDealerMasked())
+            .dealerUnmasked(updatedGameState.getDealerUnmasked())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateData)
+            .gameStateHint("REWARDS_PROCESSED")
+            .build());
+    }
+
+    @PostMapping("/rewards")
+    public ResponseEntity<?> rewards(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "CLIENT_ERROR_SPECIFIC"
+        ));
+        GameService.TransactionResult rewardResult = gameService.calculateRewards(gameState);
+
+        GameState updatedGameState = rewardResult.gameState();
+        int rewardAmount = rewardResult.transactionResult();
+
+        try {
+            playerService.updateTokens(player, rewardAmount);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Hiba történt a jutalom feldolgozása során.");
+        }
+
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateRewards gameStateData = GameStateRewards.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerUnmasked(updatedGameState.getDealerUnmasked())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getPlayer().getBet())
+            .winner(updatedGameState.getWinner())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateData)
+            .gameStateHint("REWARDS_PROCESSED")
+            .build());
+    }
+
+
 }
