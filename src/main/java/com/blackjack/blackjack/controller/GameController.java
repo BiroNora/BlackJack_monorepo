@@ -3,10 +3,7 @@ package com.blackjack.blackjack.controller;
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
-import com.blackjack.blackjack.dto.others.GameStateDouble;
-import com.blackjack.blackjack.dto.others.GameStateInsurance;
-import com.blackjack.blackjack.dto.others.GameStateRewards;
-import com.blackjack.blackjack.dto.others.GameStateStart;
+import com.blackjack.blackjack.dto.others.*;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.AuthenticationService;
@@ -175,7 +172,7 @@ public class GameController {
 
         GameState initialGameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
-            "CLIENT_ERROR_SPECIFIC: A Double Down kéréshez játékállapot szükséges."
+            "CLIENT_ERROR_SPECIFIC"
         ));
 
         int betToDeduct = initialGameState.getPlayer().getBet();
@@ -287,5 +284,52 @@ public class GameController {
             .build());
     }
 
+
+    @PostMapping("/split_request")
+    public ResponseEntity<?> splitRequest(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
+        GameState initialGameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "CLIENT_ERROR_SPECIFIC"
+        ));
+
+        int betToDeduct = initialGameState.getPlayer().getBet();
+
+        if (player.getTokens() < betToDeduct) {
+            return ResponseEntity.badRequest().body("INSUFFICIENT_FUNDS_FOR_SPLIT");
+        }
+
+        try {
+            playerService.deductBet(player, betToDeduct);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("INTERNAL_UPDATE_FAILED");
+        }
+
+        GameState updatedGameState = gameService.splitHand(gameStateOptional);
+        gameStateService.saveGameState(updatedGameState);
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerHandMasked(updatedGameState.getDealerMasked())
+            .aces(updatedGameState.isAces())
+            .players(updatedGameState.getPlayers())
+            .splitReq(updatedGameState.getSplitReq())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getBet())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateSplitHand)
+            .gameStateHint("SPLT_REQUEST_PROCESSED")
+            .build());
+    }
 
 }

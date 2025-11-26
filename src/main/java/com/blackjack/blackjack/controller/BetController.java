@@ -26,6 +26,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
+import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
 
 @RestController
 @RequestMapping("/api")
@@ -58,15 +59,18 @@ public class BetController {
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
         int betAmount = betRequest.bet();
+        if (betAmount < MINIMUM_BET) {
+            return ResponseEntity.badRequest().body("BET_BELOW_MINIMUM");
+        }
         if (player.getTokens() < betAmount) {
-            return ResponseEntity.badRequest().body("Nincs elegendő token a fogadáshoz.");
+            return ResponseEntity.badRequest().body("NOT_ENOUGH_TOKENS_FOR_BET");
         }
 
         Player updatedPlayer;
         try {
             updatedPlayer = playerService.deductBet(player, betAmount);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Hiba történt a token levonása során.");
+            return ResponseEntity.internalServerError().body("ERROR");
         }
 
         int updatedTokens = updatedPlayer.getTokens();

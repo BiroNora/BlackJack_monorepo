@@ -8,8 +8,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 
@@ -39,7 +39,9 @@ public class GameState implements Serializable {
     @JsonProperty("natural_21")
     private int natural21;
     private int winner;
-    private Map<String, PlayerHand> players;
+
+    @Builder.Default
+    private LinkedList<PlayerHand> players = new LinkedList<>();
     private int splitReq;
     private int handCounter;
 
@@ -56,5 +58,9 @@ public class GameState implements Serializable {
         String formattedCount = String.format("%03d", this.handCounter);
 
         return "H-" + formattedCount;
+    }
+
+    public int addSplitReq(int count) {
+        return this.splitReq += count;
     }
 }

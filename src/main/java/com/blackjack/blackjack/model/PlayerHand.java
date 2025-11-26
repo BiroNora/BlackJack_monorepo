@@ -7,20 +7,20 @@ import lombok.Data;
 
 import java.io.Serializable;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.LinkedList;
 
 @Data
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PlayerHand implements Hand, Serializable {
     private String id;
-    private List<Card> hand;
+    private LinkedList<Card> hand;
     private boolean canSplit;
     private boolean stated;
     private int bet;
 
     public static PlayerHand createEmptyHand() {
         PlayerHand hand = new PlayerHand();
-        hand.setHand(new ArrayList<>());
+        hand.setHand(new LinkedList<>());
         hand.setCanSplit(false);
         hand.setStated(false);
         hand.setBet(0);

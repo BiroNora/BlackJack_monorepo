@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
@@ -92,9 +93,9 @@ public class GameService {
         //Card card4 = deck.dealCard();
 
         Card newAceCard1 = new Card(Suit.HEARTS, Rank.QUEEN);
-        Card newAceCard3 = new Card(Suit.HEARTS, Rank.ACE);
-        Card newAceCard2 = new Card(Suit.HEARTS, Rank.QUEEN);
-        Card newAceCard4 = new Card(Suit.HEARTS, Rank.ACE);
+        Card newAceCard3 = new Card(Suit.HEARTS, Rank.KING);
+        Card newAceCard2 = new Card(Suit.DIAMONDS, Rank.QUEEN);
+        Card newAceCard4 = new Card(Suit.CLUBS, Rank.ACE);
         // Vagy használja a Card osztályban lévő segédmetódust, ha van:
         // Card newAceCard = Card.createAce(Suit.HEARTS);
 
@@ -110,7 +111,7 @@ public class GameService {
         playerHand.setId(id);
         playerHand.getHand().add(card1);
         playerHand.getHand().add(card3);
-        List<Card> currentHand = playerHand.getHand();
+        LinkedList<Card> currentHand = playerHand.getHand();
         boolean isSplitPossible = canSplit(currentHand);
         playerHand.setCanSplit(isSplitPossible);
         playerHand.setBet(resetGameState.getBet());
@@ -248,6 +249,26 @@ public class GameService {
         return new TransactionResult(gameState, insCost);
     }
 
+    public GameState splitHand(Optional<GameState> gameStateOptional) {
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        PlayerHand playerHand = gameState.getPlayer();
+
+        if (!playerHand.isCanSplit() || gameState.getPlayers() == null || gameState.getPlayers().size() > 3) {
+            return gameState;
+        }
+
+        Card cardToSplit = playerHand.getHand().remove(1);
+        PlayerHand updatedHand = dealSplitCard(gameState, true, null);
+        gameState.setPlayer(updatedHand);
+        PlayerHand secondPlayer = dealSplitCard(gameState, false, cardToSplit);
+        gameState.getPlayers().add(secondPlayer);
+
+        gameState.addSplitReq(1);
+        //logger.info("gameState: {}", gameState);
+        return gameState;
+    }
+
+
 
     // helpers
     private GameState getGameStateOrThrow(Optional<GameState> gameStateOptional) {
@@ -334,19 +355,33 @@ public class GameService {
         return sameRank || bothAreTenValue;
     }
 
-    public void createSplitHand(PlayerHand originalHand) {
-        List<Card> cards = originalHand.getHand();
+    public PlayerHand dealSplitCard(GameState gameState, boolean isFirst, Card cardToSplit) {
+        PlayerHand playerHand;
+        Card card1;
 
-        if (cards.size() != 2) {
-            throw new GameRuleException("A hasításhoz pontosan két lap szükséges.");
+        if (isFirst) {
+            playerHand = gameState.getPlayer();
+            Deck deck = gameState.getDeck();
+            card1 = deck.dealCard();
+            playerHand.getHand().add(card1);
+            LinkedList<Card> currentHand = playerHand.getHand();
+            boolean isSplitPossible = canSplit(currentHand);
+            if (currentHand.getFirst().rank() == Rank.ACE && currentHand.getLast().rank() == Rank.ACE) {
+                playerHand.setCanSplit(false);
+            } else {
+                playerHand.setCanSplit(isSplitPossible);
+            }
+            playerHand.setBet(gameState.getBet());
+            playerHand.setStated(false);
+        } else {
+            playerHand = PlayerHand.createEmptyHand();
+            String id = gameState.generateNextHandId();
+            playerHand.setId(id);
+            playerHand.getHand().add(cardToSplit);
+            playerHand.setBet(gameState.getBet());
         }
 
-        if (cards.get(0).rank() != cards.get(1).rank()) {
-            throw new GameRuleException("A lapoknak azonos rangúnak kell lenniük a hasításhoz.");
-        }
-
-        // ... ha az ellenőrzések sikeresek, akkor folytatódik a hasítási logika,
-        // és meghívható a PlayerHand.createSplitHand(originalHand)
+        return playerHand;
     }
 
     public record TransactionResult(GameState gameState, int transactionResult) {
