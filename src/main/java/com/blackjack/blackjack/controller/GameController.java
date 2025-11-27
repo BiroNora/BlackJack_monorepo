@@ -284,7 +284,7 @@ public class GameController {
             .build());
     }
 
-
+    // SPLIT part
     @PostMapping("/split_request")
     public ResponseEntity<?> splitRequest(
         HttpSession session) {
