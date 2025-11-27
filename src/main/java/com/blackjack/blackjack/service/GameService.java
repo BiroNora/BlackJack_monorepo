@@ -87,9 +87,9 @@ public class GameService {
 
         Deck deck = gameState.getDeck();
         //Card card1 = deck.dealCard();
-        //Card card2 = deck.dealCard();
+        Card card2 = deck.dealCard();
         //Card card3 = deck.dealCard();
-        //Card card4 = deck.dealCard();
+        Card card4 = deck.dealCard();
 
         Card newAceCard1 = new Card(Suit.HEARTS, Rank.QUEEN);
         Card newAceCard3 = new Card(Suit.HEARTS, Rank.KING);
@@ -98,8 +98,8 @@ public class GameService {
         // Vagy használja a Card osztályban lévő segédmetódust, ha van:
         // Card newAceCard = Card.createAce(Suit.HEARTS);
 
-        Card card2 = newAceCard2;
-        Card card4 = newAceCard4;
+        //Card card2 = newAceCard2;
+        //Card card4 = newAceCard4;
         Card card1 = newAceCard1;
         Card card3 = newAceCard3;
 

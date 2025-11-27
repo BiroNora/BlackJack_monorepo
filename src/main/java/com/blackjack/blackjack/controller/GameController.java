@@ -492,5 +492,53 @@ public class GameController {
             .build());
     }
 
+    @PostMapping("/split_double_request")
+    public ResponseEntity<?> splitDoubleRequest(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
+        GameState initialGameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "CLIENT_ERROR_SPECIFIC"
+        ));
+
+        int betToDeduct = initialGameState.getPlayer().getBet();
+
+        if (player.getTokens() < betToDeduct) {
+            return ResponseEntity.badRequest().body("INSUFFICIENT_FUNDS_FOR_DOUBLE");
+        }
+
+        try {
+            playerService.deductBet(player, betToDeduct);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("INTERNAL_UPDATE_FAILED");
+        }
+
+        GameState gameStateAfterHit = gameService.playerHit(gameStateOptional);
+        GameState updatedGameState = gameService.doubleRequest(gameStateAfterHit, betToDeduct);
+        gameStateService.saveGameState(updatedGameState);
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerHandMasked(updatedGameState.getDealerMasked())
+            .aces(updatedGameState.isAces())
+            .players(updatedGameState.getPlayers())
+            .splitReq(updatedGameState.getSplitReq())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getBet())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateSplitHand)
+            .gameStateHint("SPLT_REQUEST_PROCESSED")
+            .build());
+    }
+
 
 }
