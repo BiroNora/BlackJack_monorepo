@@ -539,6 +539,4 @@ public class GameController {
             .gameStateHint("SPLT_REQUEST_PROCESSED")
             .build());
     }
-
-
 }
