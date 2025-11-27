@@ -8,9 +8,7 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -32,6 +30,7 @@ public class GameState implements Serializable {
     private PlayerHand player;
     private DealerHandMasked dealerMasked;
     private DealerHandUnmasked dealerUnmasked;
+    private PlayerHand splitPlayer;
 
     // --- Speciális/Számláló Változók ---
     private boolean aces;
@@ -41,9 +40,12 @@ public class GameState implements Serializable {
     private int winner;
 
     @Builder.Default
-    private LinkedList<PlayerHand> players = new LinkedList<>();
+    private Map<String, PlayerHand> players = new LinkedHashMap<>();
     private int splitReq;
     private int handCounter;
+
+    @Builder.Default
+    private Map<String, Boolean> playersIndex = new HashMap<>();
 
     public int getDeckLen() {
         return this.deck != null ? this.deck.getDeckLength() : 0;

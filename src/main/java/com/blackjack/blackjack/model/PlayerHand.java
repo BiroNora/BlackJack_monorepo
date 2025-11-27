@@ -3,13 +3,18 @@ package com.blackjack.blackjack.model;
 import com.blackjack.blackjack.service.HandStateUpdater;
 import com.blackjack.blackjack.service.HandValueCalculator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.ArrayList;
 import java.util.LinkedList;
 
 @Data
+@Builder // <--- ADJA HOZZÁ EZT!
+@NoArgsConstructor // <--- Érdemes hozzáadni az alapértelmezett konstruktorhoz
+@AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PlayerHand implements Hand, Serializable {
     private String id;

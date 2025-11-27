@@ -21,8 +21,6 @@ public class GameStateInsurance {
     private int natural21;
     private int deckLen;
     private int bet;
-
-    @JsonProperty("is_round_active")
     private boolean isRoundActive;
 
     private DealerHandMasked dealerMasked;

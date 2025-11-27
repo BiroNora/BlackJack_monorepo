@@ -310,7 +310,6 @@ public class GameController {
         }
 
         GameState updatedGameState = gameService.splitHand(gameStateOptional);
-        gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
@@ -331,5 +330,165 @@ public class GameController {
             .gameStateHint("SPLT_REQUEST_PROCESSED")
             .build());
     }
+
+    @PostMapping("/add_to_players_list_by_stand")
+    public ResponseEntity<?> addToPlayersByStand(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
+        GameState updatedGameState = gameService.addToPlayersListByStand(gameStateOptional);
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateAddToPlayersByStand gameStateSplitHand = GameStateAddToPlayersByStand.builder()
+            .player(updatedGameState.getPlayer())
+            .aces(updatedGameState.isAces())
+            .players(updatedGameState.getPlayers())
+            .splitReq(updatedGameState.getSplitReq())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getBet())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .dealerMasked(updatedGameState.getDealerMasked())
+            .dealerUnmasked(updatedGameState.getDealerUnmasked())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateSplitHand)
+            .gameStateHint("SPLT_REQUEST_PROCESSED")
+            .build());
+    }
+
+    @PostMapping("/add_split_player_to_game")
+    public ResponseEntity<?> addSplitPlayerToGame(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
+        GameState updatedGameState = gameService.addSplitPlayerToGame(gameStateOptional);
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerHandMasked(updatedGameState.getDealerMasked())
+            .aces(updatedGameState.isAces())
+            .players(updatedGameState.getPlayers())
+            .splitReq(updatedGameState.getSplitReq())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getBet())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateSplitHand)
+            .gameStateHint("SPLT_REQUEST_PROCESSED")
+            .build());
+    }
+
+    @PostMapping("/add_player_from_players")
+    public ResponseEntity<?> addPlayerFromPlayers(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
+        GameState updatedGameState = gameService.addPlayerFromPlayers(gameStateOptional);
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateAddPlayerFromPlayers gameStateAddPlayerFromPlayers = GameStateAddPlayerFromPlayers.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerUnmasked(updatedGameState.getDealerUnmasked())
+            .aces(updatedGameState.isAces())
+            .players(updatedGameState.getPlayers())
+            .splitReq(updatedGameState.getSplitReq())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getBet())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateAddPlayerFromPlayers)
+            .gameStateHint("SPLT_REQUEST_PROCESSED")
+            .build());
+    }
+
+    @PostMapping("/split_hit")
+    public ResponseEntity<?> splitHit(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+
+        Player player = context.player();
+        int tokens = player.getTokens();
+
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState updatedGameState = gameService.playerHit(gameStateOptional);
+
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerHandMasked(updatedGameState.getDealerMasked())
+            .aces(updatedGameState.isAces())
+            .players(updatedGameState.getPlayers())
+            .splitReq(updatedGameState.getSplitReq())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getBet())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateSplitHand)
+            .gameStateHint("SPLT_HIT_REQUEST_PROCESSED")
+            .build());
+    }
+
+    @PostMapping("/split_stand_and_rewards")
+    public ResponseEntity<?> splitStandAndRewards(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+        Player player = context.player();
+
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+
+        GameState stoodGameState = gameService.playerStand(gameStateOptional);
+        GameService.TransactionResult rewardResult = gameService.calculateRewards(stoodGameState);
+
+        GameState updatedGameState = rewardResult.gameState();
+        int rewardAmount = rewardResult.transactionResult();
+
+        try {
+            playerService.updateTokens(player, rewardAmount);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Hiba történt a jutalom feldolgozása során.");
+        }
+
+        session.setAttribute("gameState", stoodGameState);
+
+        GameStateRewards gameStateData = GameStateRewards.builder()
+            .player(updatedGameState.getPlayer())
+            .dealerUnmasked(updatedGameState.getDealerUnmasked())
+            .deckLen(updatedGameState.getDeckLen())
+            .bet(updatedGameState.getPlayer().getBet())
+            .winner(updatedGameState.getWinner())
+            .isRoundActive(updatedGameState.isRoundActive())
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(gameStateData)
+            .gameStateHint("REWARDS_PROCESSED")
+            .build());
+    }
+
 
 }

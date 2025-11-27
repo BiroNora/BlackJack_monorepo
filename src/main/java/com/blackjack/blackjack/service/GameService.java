@@ -1,6 +1,5 @@
 package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -8,14 +7,32 @@ import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.ArrayList;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 @Service
 public class GameService {
+    private static final Comparator<PlayerHand> SPLIT_HAND_COMPARATOR = Comparator
+        .comparing(PlayerHand::isStated)
+        .thenComparing(PlayerHand::getId);
+
+    public void sortPlayersByStateAndId(GameState gameState) {
+        Map<String, PlayerHand> playersMap = gameState.getPlayers();
+
+        if (playersMap == null || playersMap.isEmpty()) {
+            return;
+        }
+
+        List<PlayerHand> sortedHands = new ArrayList<>(playersMap.values());
+        sortedHands.sort(SPLIT_HAND_COMPARATOR);
+        playersMap.clear();
+
+        for (PlayerHand hand : sortedHands) {
+            playersMap.put(hand.getId(), hand);
+        }
+    }
+
     private static final Logger logger = LoggerFactory.getLogger(GameService.class);
+
     private final GameStateService gameStateService;
 
     public GameService(GameStateService gameStateService) {
@@ -261,9 +278,88 @@ public class GameService {
         PlayerHand updatedHand = dealSplitCard(gameState, true, null);
         gameState.setPlayer(updatedHand);
         PlayerHand secondPlayer = dealSplitCard(gameState, false, cardToSplit);
-        gameState.getPlayers().add(secondPlayer);
+        gameState.getPlayers().put(secondPlayer.getId(), secondPlayer);
+        sortPlayersMap(gameState.getPlayers());
 
         gameState.addSplitReq(1);
+        gameStateService.saveGameState(gameState);
+        //logger.info("gameState: {}", gameState);
+        return gameState;
+    }
+
+    public GameState addToPlayersListByStand(Optional<GameState> gameStateOptional) {
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        PlayerHand playerHand = gameState.getPlayer();
+        boolean isActive = areStatedFalseHands(gameState.getPlayers());
+        logger.info(">>>>y isActive: {}", isActive);
+        if (isActive) {
+            playerHand.setStated(true);
+            gameState.getPlayers().put(playerHand.getId(), playerHand);
+            String ID = playerHand.getId();
+            gameState.getPlayersIndex().put(ID, true);
+        }
+
+        gameStateService.saveGameState(gameState);
+        //logger.info("gameState: {}", gameState);
+        return gameState;
+    }
+
+    public GameState addSplitPlayerToGame(Optional<GameState> gameStateOptional) {
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        Map<String, Boolean> playersIndex = gameState.getPlayersIndex();
+
+        Optional<String> nextIdOptional = findNextActivePlayerId(playersIndex);
+        PlayerHand player = gameState.getPlayer();
+        PlayerHand splitPlayer = gameState.getSplitPlayer();
+
+        if (nextIdOptional.isEmpty()) {
+            return gameState;
+        }
+
+        String nextHandId = nextIdOptional.get();
+        // ESET 1: VISSZATÖLTÉS (Cache Védelme a Strict Mode miatt)
+        if (splitPlayer != null && splitPlayer.getId() != null && splitPlayer.getId().equals(nextHandId)) {
+            gameState.setPlayer(splitPlayer);
+        }
+        // ESET 2: Gyors kiút (A lap már be van töltve)
+        else if (player != null && player.getId().equals(nextHandId)) {
+        }
+        // ESET 3: ELSŐ FUTÁS (Lap kiemelése, mentés, és splitReq csökkentése)
+        else if (gameState.getPlayers().containsKey(nextHandId)) {
+            Map<String, PlayerHand> playersMap = gameState.getPlayers();
+
+            PlayerHand nextHand = playersMap.remove(nextHandId);
+            gameState.setPlayer(nextHand);
+            gameState.setSplitPlayer(deepCopyPlayerHand(nextHand));
+            gameState.addSplitReq(-1);
+        }
+
+        PlayerHand newPlayer = gameState.getPlayer();
+
+        if (newPlayer.getHand().size() < 2) {
+            Deck deck = gameState.getDeck();
+            Card cardToAdd = deck.dealCard();
+            newPlayer.getHand().add(cardToAdd);
+            boolean canSplit = canSplit(newPlayer.getHand());
+            newPlayer.setCanSplit(canSplit);
+        }
+
+        gameStateService.saveGameState(gameState);
+        //logger.info("gameState: {}", gameState);
+        return gameState;
+    }
+
+    public GameState addPlayerFromPlayers(Optional<GameState> gameStateOptional) {
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        Map<String, PlayerHand> playersMap = gameState.getPlayers();
+
+        if (playersMap == null) {
+            return gameState;
+        }
+        PlayerHand firstHand = playersMap.remove(0);
+        gameState.setPlayer(firstHand);
+
+        gameStateService.saveGameState(gameState);
         //logger.info("gameState: {}", gameState);
         return gameState;
     }
@@ -282,6 +378,7 @@ public class GameService {
         gameState.setPlayer(PlayerHand.createEmptyHand());
         gameState.setDealerMasked(DealerHandMasked.createEmptyHand());
         gameState.setDealerUnmasked(DealerHandUnmasked.createEmptyHand());
+        gameState.setSplitPlayer(PlayerHand.createEmptyHand());
         gameState.setAces(false);
         gameState.setNatural21(0);
         gameState.setWinner(0);
@@ -381,7 +478,59 @@ public class GameService {
             playerHand.setBet(gameState.getBet());
         }
 
+        gameState.getPlayersIndex().put(playerHand.getId(), false);
+
         return playerHand;
+    }
+
+    public boolean areStatedFalseHands(Map<String, PlayerHand> playersMap) {
+        if (playersMap == null || playersMap.isEmpty()) {
+            return false;
+        }
+        return playersMap.values().stream()
+            .anyMatch(hand -> !hand.isStated());
+    }
+
+    public Optional<String> findNextActivePlayerId(Map<String, Boolean> playersIndex) {
+        if (playersIndex == null || playersIndex.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return playersIndex.entrySet().stream()
+            .filter(entry -> !entry.getValue())
+            .map(Map.Entry::getKey)
+            .sorted()
+            .findFirst();
+    }
+
+    private PlayerHand deepCopyPlayerHand(PlayerHand original) {
+        if (original == null) {
+            return null;
+        }
+
+        LinkedList<Card> copiedHand = new LinkedList<>(original.getHand());
+
+        return PlayerHand.builder()
+            .id(original.getId())
+            .hand(copiedHand)
+            .canSplit(original.isCanSplit())
+            .stated(original.isStated())
+            .bet(original.getBet())
+            .build();
+    }
+
+    public void sortPlayersMap(Map<String, PlayerHand> playersMap) {
+        if (playersMap == null || playersMap.isEmpty()) {
+            return;
+        }
+
+        List<PlayerHand> sortedHands = new ArrayList<>(playersMap.values());
+        sortedHands.sort(SPLIT_HAND_COMPARATOR);
+        playersMap.clear();
+
+        for (PlayerHand hand : sortedHands) {
+            playersMap.put(hand.getId(), hand);
+        }
     }
 
     public record TransactionResult(GameState gameState, int transactionResult) {

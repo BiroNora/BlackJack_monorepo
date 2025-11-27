@@ -13,12 +13,12 @@ public enum Rank {
 
     NINE(9, "9"),
     EIGHT(8, "8"),
-    SEVEN(7, "7"),
+    /*SEVEN(7, "7"),
     SIX(6, "6"),
     FIVE(5, "5"),
     FOUR(4, "4"),
     THREE(3, "3"),
-    TWO(2, "2"),
+    TWO(2, "2"),*/
     MASKED_RANK(0, "✪");
 
     private final int baseValue;
