@@ -473,12 +473,14 @@ public class GameController {
 
         session.setAttribute("gameState", stoodGameState);
 
-        GameStateRewards gameStateData = GameStateRewards.builder()
+        GameStateSplitStandAndRewards gameStateData = GameStateSplitStandAndRewards.builder()
             .player(updatedGameState.getPlayer())
             .dealerUnmasked(updatedGameState.getDealerUnmasked())
+            .players(updatedGameState.getPlayers())
+            .winner(updatedGameState.getWinner())
+            .splitReq(updatedGameState.getSplitReq())
             .deckLen(updatedGameState.getDeckLen())
             .bet(updatedGameState.getPlayer().getBet())
-            .winner(updatedGameState.getWinner())
             .isRoundActive(updatedGameState.isRoundActive())
             .build();
 

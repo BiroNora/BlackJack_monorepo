@@ -1,6 +1,5 @@
 package com.blackjack.blackjack.dto.others;
 
-import com.blackjack.blackjack.model.DealerHandMasked;
 import com.blackjack.blackjack.model.DealerHandUnmasked;
 import com.blackjack.blackjack.model.PlayerHand;
 import com.fasterxml.jackson.annotation.JsonProperty;
@@ -9,8 +8,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
 import java.util.Map;
 
 @Data

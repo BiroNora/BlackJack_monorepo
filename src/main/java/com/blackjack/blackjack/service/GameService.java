@@ -14,25 +14,7 @@ public class GameService {
     private static final Comparator<PlayerHand> SPLIT_HAND_COMPARATOR = Comparator
         .comparing(PlayerHand::isStated)
         .thenComparing(PlayerHand::getId);
-
-    public void sortPlayersByStateAndId(GameState gameState) {
-        Map<String, PlayerHand> playersMap = gameState.getPlayers();
-
-        if (playersMap == null || playersMap.isEmpty()) {
-            return;
-        }
-
-        List<PlayerHand> sortedHands = new ArrayList<>(playersMap.values());
-        sortedHands.sort(SPLIT_HAND_COMPARATOR);
-        playersMap.clear();
-
-        for (PlayerHand hand : sortedHands) {
-            playersMap.put(hand.getId(), hand);
-        }
-    }
-
     private static final Logger logger = LoggerFactory.getLogger(GameService.class);
-
     private final GameStateService gameStateService;
 
     public GameService(GameStateService gameStateService) {
@@ -352,18 +334,21 @@ public class GameService {
     public GameState addPlayerFromPlayers(Optional<GameState> gameStateOptional) {
         GameState gameState = getGameStateOrThrow(gameStateOptional);
         Map<String, PlayerHand> playersMap = gameState.getPlayers();
+        PlayerHand extractedHand;
 
-        if (playersMap == null) {
+        if (playersMap == null || playersMap.isEmpty()) {
             return gameState;
         }
-        PlayerHand firstHand = playersMap.remove(0);
-        gameState.setPlayer(firstHand);
+
+        Map.Entry<String, PlayerHand> firstEntry = playersMap.entrySet().iterator().next();
+        String firstId = firstEntry.getKey();
+        extractedHand = playersMap.remove(firstId);
+        gameState.setPlayer(extractedHand);
 
         gameStateService.saveGameState(gameState);
-        //logger.info("gameState: {}", gameState);
+
         return gameState;
     }
-
 
 
     // helpers
