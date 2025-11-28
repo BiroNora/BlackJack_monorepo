@@ -6,6 +6,7 @@ import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.others.*;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
+import com.blackjack.blackjack.repository.PlayerRepository;
 import com.blackjack.blackjack.service.AuthenticationService;
 import com.blackjack.blackjack.service.GameService;
 import com.blackjack.blackjack.service.GameStateService;
@@ -22,6 +23,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
+import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
+import static com.blackjack.blackjack.common.GameConstants.INITIAL_TOKENS;
+
 @RestController
 @RequestMapping("/api")
 public class GameController {
@@ -30,13 +34,15 @@ public class GameController {
     private final AuthenticationService authenticationService;
     private final PlayerService playerService;
     private final GameStateService gameStateService;
+    private final PlayerRepository playerRepository;
 
-    public GameController(GameService gameService, AuthenticationService authenticationService, PlayerService playerService, GameStateService gameStateService
+    public GameController(GameService gameService, AuthenticationService authenticationService, PlayerService playerService, GameStateService gameStateService, PlayerRepository playerRepository
     ) {
         this.gameService = gameService;
         this.authenticationService = authenticationService;
         this.playerService = playerService;
         this.gameStateService = gameStateService;
+        this.playerRepository = playerRepository;
     }
 
     @PostMapping("/create_deck")
@@ -537,6 +543,39 @@ public class GameController {
             .currentTokens(player.getTokens())
             .gameState(gameStateSplitHand)
             .gameStateHint("SPLT_REQUEST_PROCESSED")
+            .build());
+    }
+
+
+    @PostMapping("/set_restart")
+    public ResponseEntity<?> setRestart(
+        HttpSession session) {
+        SessionContext context = authenticationService.validateAndGetContext(session);
+
+        Player player = context.player();
+        Player updatedPlayer;
+        try {
+            updatedPlayer = playerService.resetTokens(player, INITIAL_TOKENS);
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("ERROR");
+        }
+
+        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState updatedGameState = gameService.restartGame(gameStateOptional);
+
+        session.setAttribute("gameState", updatedGameState);
+
+        GameStateBet gameStateData = GameStateBet.builder()
+            .bet(updatedGameState.getBet())
+            .betList(updatedGameState.getBetList())
+            .deckLen(INITIAL_DECK_LENGTH)
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
+            .status("success")
+            .gameState(gameStateData)
+            .gameStateHint("BET_SUCCESSFULLY_PLACED")
+            .currentTokens(updatedPlayer.getTokens())
             .build());
     }
 }

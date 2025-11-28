@@ -6,7 +6,6 @@ import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
@@ -42,7 +41,6 @@ public class SessionController {
     @PostMapping("/initialize_session")
     public ResponseEntity<InitializationResponse> initializeSession(
         @RequestBody InitializationRequest requestRecord,
-        HttpServletRequest request,
         HttpServletResponse response,
         HttpSession session) {
 
@@ -135,26 +133,7 @@ public class SessionController {
             .build());
     }
 
-    // --- Segédmetódusok (változatlanul) ---
-
-    // A getClientIdFromCookie metódust már nem használjuk a fő logikában, de a setCookie megmarad.
-    private UUID getClientIdFromCookie(HttpServletRequest request) {
-        // ... (kód változatlan)
-        if (request.getCookies() == null) {
-            return null;
-        }
-        for (Cookie cookie : request.getCookies()) {
-            if (CLIENT_ID_COOKIE_NAME.equals(cookie.getName())) {
-                try {
-                    return UUID.fromString(cookie.getValue());
-                } catch (IllegalArgumentException e) {
-                    logger.warn("Érvénytelen Client ID található a sütiben: {}", cookie.getValue());
-                    return null;
-                }
-            }
-        }
-        return null;
-    }
+    // --- Segédmetódusok ---
 
     private void setClientIdCookie(HttpServletResponse response, UUID clientId) {
         Cookie cookie = new Cookie(CLIENT_ID_COOKIE_NAME, clientId.toString());

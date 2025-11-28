@@ -350,6 +350,16 @@ public class GameService {
         return gameState;
     }
 
+    public GameState restartGame(Optional<GameState> gameStateOptional) {
+        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState resetGameState = resetRoundState(gameState);
+        resetGameState.setBet(0);
+
+        gameStateService.saveGameState(resetGameState);
+
+        return resetGameState;
+    }
+
 
     // helpers
     private GameState getGameStateOrThrow(Optional<GameState> gameStateOptional) {
@@ -371,6 +381,7 @@ public class GameService {
         gameState.setSplitReq(0);
         gameState.setBetList(List.of());
         gameState.setRoundActive(false);
+        gameState.getPlayers().clear();
 
         return gameState;
     }

@@ -25,7 +25,6 @@ public class Player {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID id;
 
-    // Kliens Azonosító (client_id)
     @Column(name = "client_id", unique = true, nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID clientId;
@@ -33,7 +32,6 @@ public class Player {
     @Column(name = "session_id", unique = true, nullable = false)
     private String sessionId;
 
-    // Tokens
     @Column(name = "tokens", nullable = false)
     private int tokens;
 

@@ -5,9 +5,6 @@ import com.blackjack.blackjack.repository.PlayerRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.Optional;
-import java.util.UUID;
-
 @Service
 public class PlayerService {
 
@@ -17,14 +14,6 @@ public class PlayerService {
         this.playerRepository = playerRepository;
     }
 
-    public Optional<Player> getPlayerByClientId(UUID clientId) {
-        return playerRepository.findByClientId(clientId);
-    }
-
-    /**
-     * Levonja a tétet a játékos tokenjeiből és menti az új egyenleget.
-     * Ez a metódus tranzakciós, hogy biztosítsa az adatok integritását!
-     */
     @Transactional
     public Player deductBet(Player player, int betAmount) {
         if (player.getTokens() < betAmount) {
@@ -38,6 +27,13 @@ public class PlayerService {
     @Transactional
     public Player updateTokens(Player player, int rewardAmount) {
         player.setTokens(player.getTokens() + rewardAmount);
+
+        return playerRepository.save(player);
+    }
+
+    @Transactional
+    public Player resetTokens(Player player, int initialTokens) {
+        player.setTokens(initialTokens);
 
         return playerRepository.save(player);
     }
