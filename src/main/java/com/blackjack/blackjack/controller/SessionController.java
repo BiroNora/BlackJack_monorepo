@@ -2,6 +2,7 @@ package com.blackjack.blackjack.controller;
 
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
+import com.blackjack.blackjack.dto.init.ForceRestartRequest;
 import com.blackjack.blackjack.dto.init.InitializationRequest;
 import com.blackjack.blackjack.dto.init.InitializationResponse;
 import com.blackjack.blackjack.model.GameState;
@@ -19,7 +20,6 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import com.blackjack.blackjack.dto.init.ForceRestartRequest;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;

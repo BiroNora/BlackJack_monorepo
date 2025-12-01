@@ -4,6 +4,7 @@ import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.BetRequest;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
+import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.AuthenticationService;
@@ -60,17 +61,17 @@ public class BetController {
 
         int betAmount = betRequest.bet();
         if (betAmount < MINIMUM_BET) {
-            return ResponseEntity.badRequest().body("BET_BELOW_MINIMUM");
+            throw new GameRuleException("BET_BELOW_MINIMUM");
         }
         if (player.getTokens() < betAmount) {
-            return ResponseEntity.badRequest().body("NOT_ENOUGH_TOKENS_FOR_BET");
+            throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_BET");
         }
 
         Player updatedPlayer;
         try {
             updatedPlayer = playerService.deductBet(player, betAmount);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("ERROR");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "DEDUCTION_FAILED");
         }
 
         int updatedTokens = updatedPlayer.getTokens();
@@ -114,14 +115,14 @@ public class BetController {
         try {
             updatedPlayer = playerService.deductBet(player, amountToReturn);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Hiba történt a tokenek visszaadása során.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_FAILED");
         }
 
         int updatedTokens = updatedPlayer.getTokens();
 
         GameState updatedGameState = gameStateService.getGameState(currentClientId)
             .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR, "Nem sikerült újra betölteni a frissített játékállapotot."));
+                HttpStatus.INTERNAL_SERVER_ERROR, "ERROR"));
 
         int deckLength;
         if (updatedGameState.getDeck() == null) {
