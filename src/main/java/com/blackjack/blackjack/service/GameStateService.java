@@ -51,7 +51,6 @@ public class GameStateService {
 
     /**
      * Menti a frissített GameState-et a Sessionbe (és ezzel automatikusan a Redisbe).
-     * EZ A KRITIKUS JAVÍTÁS!
      */
     public void saveGameState(GameState gameState) {
         HttpSession session = getCurrentSession();
