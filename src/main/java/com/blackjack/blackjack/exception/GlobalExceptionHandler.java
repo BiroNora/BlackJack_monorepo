@@ -1,6 +1,7 @@
 package com.blackjack.blackjack.exception;
 
 import com.blackjack.blackjack.dto.error.ErrorResponse;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -8,13 +9,13 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.server.ResponseStatusException;
 
 @ControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
-
     // 400 Bad Request
     @ExceptionHandler(GameRuleException.class)
     public ResponseEntity<ErrorResponse> handleGameRuleException(GameRuleException ex) {
 
-        System.err.println("Game Rule Violation: " + ex.getMessage());
+        log.warn("Game Rule Violation: {}", ex.getMessage());
         ErrorResponse errorResponse = new ErrorResponse(
             ex.getMessage()
         );
@@ -25,7 +26,11 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex) {
 
-        System.err.println("Válasz státusz hiba: " + ex.getStatusCode() + " - " + ex.getReason());
+        if (ex.getStatusCode().is5xxServerError()) {
+            log.error("Válasz státusz KRITIKUS hiba ({}): {}", ex.getStatusCode(), ex.getReason(), ex);
+        } else {
+            log.warn("Válasz státusz Hiba ({}): {}", ex.getStatusCode(), ex.getReason());
+        }
 
         String errorCode;
         if (ex.getReason() != null) {
@@ -41,9 +46,8 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleGlobalException(Exception ex) {
-
-        System.err.println("Szerver Kritikus Hiba: " + ex.getMessage());
-        ex.printStackTrace();
+        //log.error("Elkapott Kivétel Típusa: {}", ex.getClass().getName());
+        log.error("Szerver Kritikus Hiba: {}", ex.getMessage(), ex);
 
         ErrorResponse errorResponse = new ErrorResponse(
             "UNEXPECTED_SERVER_ERROR"

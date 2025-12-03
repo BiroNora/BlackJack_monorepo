@@ -47,14 +47,14 @@ public class AuthenticationService {
             currentClientId = UUID.fromString(clientIdObj.toString());
         } catch (IllegalArgumentException e) {
             logger.error("A sessionben tárolt 'clientId' formátuma érvénytelen: {}", clientIdObj);
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A belső ügyfélazonosító érvénytelen formátumú.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
 
         // --- 2. Player lekérése a DB-ből ---
         Player player = playerRepository.findByClientId(currentClientId)
             .orElseThrow(() -> {
                 logger.warn("Játékos nem található a DB-ben Client ID: {}", currentClientId);
-                return new ResponseStatusException(HttpStatus.NOT_FOUND, "Játékos nem található.");
+                return new ResponseStatusException(HttpStatus.NOT_FOUND, "NOT_FOUND");
             });
 
         // --- 3. Redis ---

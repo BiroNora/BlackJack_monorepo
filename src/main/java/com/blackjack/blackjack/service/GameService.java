@@ -224,7 +224,6 @@ public class GameService {
 
     public TransactionResult insuranceRequest(Optional<GameState> gameStateOptional) {
         GameState gameState = getGameStateOrThrow(gameStateOptional);
-        logger.info("--- gamestate --- {}", gameState);
 
         int currentBet = gameState.getBet();
         double halfBet = (double) currentBet / 2.0;
@@ -243,8 +242,7 @@ public class GameService {
         gameStateService.saveGameState(gameState);
 
         int insCost = natural21 == 3 ? currentBet : (int) roundedCost * -1;
-        logger.info("--- insCost --- {}", insCost);
-        logger.info("--- gamestate --- {}", gameState);
+
         return new TransactionResult(gameState, insCost);
     }
 

@@ -4,6 +4,7 @@ import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.SessionContext;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.others.*;
+import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
@@ -49,13 +50,10 @@ public class GameController {
     public ResponseEntity<?> createDeck(
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-
         Player player = context.player();
-        int tokens = player.getTokens();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
-        GameState updatedGameState = gameService.createNewDeck(gameStateOptional);
 
+        GameState updatedGameState = gameService.createNewDeck(gameStateOptional);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateBet gameStateData = GameStateBet.builder()
@@ -68,7 +66,7 @@ public class GameController {
             .status("success")
             .gameState(gameStateData)
             .gameStateHint("DECK_CREATED")
-            .currentTokens(tokens)
+            .currentTokens(player.getTokens())
             .build());
     }
 
@@ -76,13 +74,10 @@ public class GameController {
     public ResponseEntity<?> initializeNewRound(
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-
         Player player = context.player();
-        int tokens = player.getTokens();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
-        GameState updatedGameState = gameService.initializeNewRound(gameStateOptional);
 
+        GameState updatedGameState = gameService.initializeNewRound(gameStateOptional);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateStart gameStateData = GameStateStart.builder()
@@ -97,7 +92,7 @@ public class GameController {
             .status("success")
             .gameState(gameStateData)
             .gameStateHint("NEW_ROUND_INITIALIZED")
-            .currentTokens(tokens)
+            .currentTokens(player.getTokens())
             .build());
     }
 
@@ -105,13 +100,10 @@ public class GameController {
     public ResponseEntity<?> playerHit(
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-
         Player player = context.player();
-        int tokens = player.getTokens();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
-        GameState updatedGameState = gameService.playerHit(gameStateOptional);
 
+        GameState updatedGameState = gameService.playerHit(gameStateOptional);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateStart gameStateData = GameStateStart.builder()
@@ -126,7 +118,7 @@ public class GameController {
             .status("success")
             .gameState(gameStateData)
             .gameStateHint("HIT_RECIEVED")
-            .currentTokens(tokens)
+            .currentTokens(player.getTokens())
             .build());
     }
 
@@ -135,19 +127,20 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
         GameState stoodGameState = gameService.playerStand(gameStateOptional);
         GameService.TransactionResult rewardResult = gameService.calculateRewards(stoodGameState);
-
         GameState updatedGameState = rewardResult.gameState();
         int rewardAmount = rewardResult.transactionResult();
 
         try {
             playerService.updateTokens(player, rewardAmount);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Hiba történt a jutalom feldolgozása során.");
+            throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR,
+                "INTERNAL_SERVER_ERROR"
+            );
         }
 
         session.setAttribute("gameState", stoodGameState);
@@ -184,13 +177,13 @@ public class GameController {
         int betToDeduct = initialGameState.getPlayer().getBet();
 
         if (player.getTokens() < betToDeduct) {
-            return ResponseEntity.badRequest().body("INSUFFICIENT_FUNDS_FOR_DOUBLE");
+            throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
         }
 
         try {
             playerService.deductBet(player, betToDeduct);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("INTERNAL_UPDATE_FAILED");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
         GameState gameStateAfterHit = gameService.playerHit(gameStateOptional);
@@ -217,16 +210,20 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
+
         GameService.TransactionResult insResult = gameService.insuranceRequest(gameStateOptional);
         GameState updatedGameState = insResult.gameState();
         int insCost = insResult.transactionResult();
 
+        if (insCost < 0 && player.getTokens() < Math.abs(insCost)) {
+            throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_INSURANCE");
+        }
+
         try {
             playerService.updateTokens(player, insCost);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Hiba történt a jutalom feldolgozása során.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
         session.setAttribute("gameState", updatedGameState);
@@ -254,21 +251,21 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
+
         GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
             "CLIENT_ERROR_SPECIFIC"
         ));
-        GameService.TransactionResult rewardResult = gameService.calculateRewards(gameState);
 
+        GameService.TransactionResult rewardResult = gameService.calculateRewards(gameState);
         GameState updatedGameState = rewardResult.gameState();
         int rewardAmount = rewardResult.transactionResult();
 
         try {
             playerService.updateTokens(player, rewardAmount);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Hiba történt a jutalom feldolgozása során.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
         session.setAttribute("gameState", updatedGameState);
@@ -306,13 +303,13 @@ public class GameController {
         int betToDeduct = initialGameState.getPlayer().getBet();
 
         if (player.getTokens() < betToDeduct) {
-            return ResponseEntity.badRequest().body("INSUFFICIENT_FUNDS_FOR_SPLIT");
+            throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_SPLIT");
         }
 
         try {
             playerService.deductBet(player, betToDeduct);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("INTERNAL_UPDATE_FAILED");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
         GameState updatedGameState = gameService.splitHand(gameStateOptional);
@@ -429,13 +426,10 @@ public class GameController {
     public ResponseEntity<?> splitHit(
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-
         Player player = context.player();
-        int tokens = player.getTokens();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
-        GameState updatedGameState = gameService.playerHit(gameStateOptional);
 
+        GameState updatedGameState = gameService.playerHit(gameStateOptional);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
@@ -462,19 +456,17 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
         GameState stoodGameState = gameService.playerStand(gameStateOptional);
         GameService.TransactionResult rewardResult = gameService.calculateRewards(stoodGameState);
-
         GameState updatedGameState = rewardResult.gameState();
         int rewardAmount = rewardResult.transactionResult();
 
         try {
             playerService.updateTokens(player, rewardAmount);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Hiba történt a jutalom feldolgozása során.");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
         session.setAttribute("gameState", stoodGameState);
@@ -513,13 +505,13 @@ public class GameController {
         int betToDeduct = initialGameState.getPlayer().getBet();
 
         if (player.getTokens() < betToDeduct) {
-            return ResponseEntity.badRequest().body("INSUFFICIENT_FUNDS_FOR_DOUBLE");
+            throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
         }
 
         try {
             playerService.deductBet(player, betToDeduct);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("INTERNAL_UPDATE_FAILED");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
         GameState gameStateAfterHit = gameService.playerHit(gameStateOptional);
@@ -551,13 +543,13 @@ public class GameController {
     public ResponseEntity<?> setRestart(
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-
         Player player = context.player();
         Player updatedPlayer;
+
         try {
             updatedPlayer = playerService.resetTokens(player, INITIAL_TOKENS);
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("ERROR");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
         Optional<GameState> gameStateOptional = context.gameStateOptional();
