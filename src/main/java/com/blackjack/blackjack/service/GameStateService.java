@@ -2,6 +2,7 @@ package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.model.GameState;
 import jakarta.servlet.http.HttpSession;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -14,6 +15,7 @@ import java.util.UUID;
  * NEM HASZNÁL SAJÁT REDIS KULCSOT, hanem a session attribútumait.
  */
 @Service
+@Slf4j
 public class GameStateService {
 
     private static final String GAME_STATE_ATTR_NAME = "gameState"; // A session attribútum neve
@@ -60,7 +62,7 @@ public class GameStateService {
             session.setAttribute(GAME_STATE_ATTR_NAME, gameState);
         } else {
             // Hibakezelés, ha a mentéskor valamiért eltűnt a session
-            System.err.println("INTERNAL_UPDATE_FAILED");
+            log.error("INTERNAL_UPDATE_FAILED");
         }
     }
 }
