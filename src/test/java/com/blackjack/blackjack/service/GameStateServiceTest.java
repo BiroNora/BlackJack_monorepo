@@ -25,12 +25,10 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 public class GameStateServiceTest {
-
-    // A tesztelt osztály, amelybe a mock-ok be vannak injektálva
     @InjectMocks
     private GameStateService gameStateService;
 
-    // Session környezet szimulálása
+    // Session
     @Mock
     private ServletRequestAttributes servletRequestAttributes;
     @Mock
@@ -38,24 +36,17 @@ public class GameStateServiceTest {
     @Mock
     private HttpSession httpSession;
 
-    // Példa adatok
     private final UUID testClientId = UUID.randomUUID();
     private GameState testGameState;
     private static final String GAME_STATE_ATTR_NAME = "gameState";
 
 
-    /**
-     * A tesztelés előtt minden alkalommal fut:
-     * Beállítja a statikus RequestContextHolder-t a mockolt Session eléréséhez.
-     */
-    @BeforeEach
+   @BeforeEach
     void setUp() {
-        // Mock GameState létrehozása
         testGameState = new GameState();
         testGameState.setClientId(testClientId);
         testGameState.setRoundActive(true);
 
-        // A Spring környezet mockolása: beállítjuk, hogy RequestContextHolder adja vissza a mockolt attribútumokat
         when(servletRequestAttributes.getRequest()).thenReturn(httpServletRequest);
         RequestContextHolder.setRequestAttributes(servletRequestAttributes);
     }

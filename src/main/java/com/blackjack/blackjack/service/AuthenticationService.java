@@ -39,7 +39,7 @@ public class AuthenticationService {
 
         if (clientIdObj == null) {
             logger.warn("HIBÁS ÁLLAPOT: A 'clientId' attribútum hiányzik az HttpSession-ből.");
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "A munkamenet érvénytelen vagy nem inicializált.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN");
         }
 
         UUID currentClientId;
