@@ -31,7 +31,7 @@ public class GlobalExceptionHandler {
         } else {
             log.warn("Válasz státusz Hiba ({}): {}", ex.getStatusCode(), ex.getReason());
         }
-        
+
         String errorCode;
         if (ex.getReason() != null) {
             errorCode = ex.getReason();

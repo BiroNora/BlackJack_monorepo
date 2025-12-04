@@ -17,7 +17,6 @@ import java.util.UUID;
 @Service
 @Slf4j
 public class GameStateService {
-
     private static final String GAME_STATE_ATTR_NAME = "gameState"; // A session attribútum neve
 
     public GameStateService() {

@@ -11,18 +11,19 @@ import java.util.*;
 
 @Service
 public class GameService {
-    private static final Comparator<PlayerHand> SPLIT_HAND_COMPARATOR = Comparator
-        .comparing(PlayerHand::isStated)
-        .thenComparing(PlayerHand::getId);
     private static final Logger logger = LoggerFactory.getLogger(GameService.class);
     private final GameStateService gameStateService;
+    private final GameRuleEngine gameRuleEngine;
+    private final GameStateManager gameStateManager;
 
-    public GameService(GameStateService gameStateService) {
+    public GameService(GameStateService gameStateService, GameRuleEngine gameRuleEngine, GameStateManager gameStateManager) {
         this.gameStateService = gameStateService;
+        this.gameRuleEngine = gameRuleEngine;
+        this.gameStateManager = gameStateManager;
     }
 
     public GameState placeBet(Optional<GameState> gameStateOptional, int betAmount) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
 
         List<Integer> currentBetList = gameState.getBetList();
 
@@ -42,14 +43,14 @@ public class GameService {
     }
 
     public int retakeBet(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
 
         List<Integer> betList = gameState.getBetList();
 
         if (betList == null || betList.isEmpty()) {
             throw new ResponseStatusException(
                 HttpStatus.BAD_REQUEST,
-                "Nincs elhelyezett tét, amit vissza lehetne venni."
+                "BAD REQUEST"
             );
         }
 
@@ -71,24 +72,24 @@ public class GameService {
     }
 
     public GameState createNewDeck(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         Deck newDeck = new Deck();
 
         gameState.setDeck(newDeck);
         gameStateService.saveGameState(gameState);
-
+        logger.info("+++++++++++ createNewDeck {}", gameState.getDeck());
         return gameState;
     }
 
     public GameState initializeNewRound(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
-        GameState resetGameState = resetRoundState(gameState);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
+        GameState resetGameState = gameStateManager.resetRoundState(gameState);
         resetGameState.setRoundActive(true);
 
         Deck deck = gameState.getDeck();
-        //Card card1 = deck.dealCard();
+        Card card1 = deck.dealCard();
         Card card2 = deck.dealCard();
-        //Card card3 = deck.dealCard();
+        Card card3 = deck.dealCard();
         Card card4 = deck.dealCard();
 
         Card newAceCard1 = new Card(Suit.HEARTS, Rank.QUEEN);
@@ -100,8 +101,8 @@ public class GameService {
 
         //Card card2 = newAceCard2;
         //Card card4 = newAceCard4;
-        Card card1 = newAceCard1;
-        Card card3 = newAceCard3;
+        //Card card1 = newAceCard1;
+        //Card card3 = newAceCard3;
 
         String id = resetGameState.generateNextHandId();
         resetGameState.setAces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE);
@@ -111,7 +112,7 @@ public class GameService {
         playerHand.getHand().add(card1);
         playerHand.getHand().add(card3);
         LinkedList<Card> currentHand = playerHand.getHand();
-        boolean isSplitPossible = canSplit(currentHand);
+        boolean isSplitPossible = gameRuleEngine.canSplit(currentHand);
         playerHand.setCanSplit(isSplitPossible);
         playerHand.setBet(resetGameState.getBet());
 
@@ -119,7 +120,7 @@ public class GameService {
         dealerUnmasked.getHand().add(card2);
         dealerUnmasked.getHand().add(card4);
 
-        int initialOutcome = initNatural21State(resetGameState);
+        int initialOutcome = gameRuleEngine.initNatural21State(resetGameState);
         dealerUnmasked.setNatural21(initialOutcome);
 
         DealerHandMasked dealerMasked = resetGameState.getDealerMasked();
@@ -140,12 +141,12 @@ public class GameService {
 
         resetGameState.setNatural21(initialOutcome);
         gameStateService.saveGameState(resetGameState);
-
+        logger.info("+++++++++++ deck {}", resetGameState.getDeck());
         return resetGameState;
     }
 
     public GameState playerHit(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
 
         if (!gameState.isRoundActive()) {
             return gameState;
@@ -154,12 +155,12 @@ public class GameService {
         Card newCard = gameState.getDeck().dealCard();
         gameState.getPlayer().getHand().add(newCard);
         gameStateService.saveGameState(gameState);
-
+        logger.info("+++++++++++ playerHit {}", gameState.getDeck());
         return gameState;
     }
 
     public GameState playerStand(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         int dealerSum = gameState.getDealerUnmasked().getSum();
         int playerSum = gameState.getPlayer().getSum();
 
@@ -174,7 +175,7 @@ public class GameService {
         gameState.getPlayer().getHandState();
         gameState.getDealerUnmasked().getHandState();
 
-        int calculatedWinnerValue = winnerStateUpdater(gameState);
+        int calculatedWinnerValue = gameRuleEngine.winnerStateUpdater(gameState);
         gameState.setWinner(calculatedWinnerValue);
         gameStateService.saveGameState(gameState);
 
@@ -223,7 +224,7 @@ public class GameService {
     }
 
     public TransactionResult insuranceRequest(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
 
         int currentBet = gameState.getBet();
         double halfBet = (double) currentBet / 2.0;
@@ -247,7 +248,7 @@ public class GameService {
     }
 
     public GameState splitHand(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         PlayerHand playerHand = gameState.getPlayer();
 
         if (!playerHand.isCanSplit() || gameState.getPlayers() == null || gameState.getPlayers().size() > 3) {
@@ -255,11 +256,11 @@ public class GameService {
         }
 
         Card cardToSplit = playerHand.getHand().remove(1);
-        PlayerHand updatedHand = dealSplitCard(gameState, true, null);
+        PlayerHand updatedHand = gameStateManager.dealSplitCard(gameState, true, null);
         gameState.setPlayer(updatedHand);
-        PlayerHand secondPlayer = dealSplitCard(gameState, false, cardToSplit);
+        PlayerHand secondPlayer = gameStateManager.dealSplitCard(gameState, false, cardToSplit);
         gameState.getPlayers().put(secondPlayer.getId(), secondPlayer);
-        sortPlayersMap(gameState.getPlayers());
+        gameStateManager.sortPlayersMap(gameState.getPlayers());
 
         gameState.addSplitReq(1);
         gameStateService.saveGameState(gameState);
@@ -268,9 +269,9 @@ public class GameService {
     }
 
     public GameState addToPlayersListByStand(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         PlayerHand playerHand = gameState.getPlayer();
-        boolean isActive = areStatedFalseHands(gameState.getPlayers());
+        boolean isActive = gameStateManager.areStatedFalseHands(gameState.getPlayers());
         logger.info(">>>>y isActive: {}", isActive);
         if (isActive) {
             playerHand.setStated(true);
@@ -285,10 +286,10 @@ public class GameService {
     }
 
     public GameState addSplitPlayerToGame(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         Map<String, Boolean> playersIndex = gameState.getPlayersIndex();
 
-        Optional<String> nextIdOptional = findNextActivePlayerId(playersIndex);
+        Optional<String> nextIdOptional = gameStateManager.findNextActivePlayerId(playersIndex);
         PlayerHand player = gameState.getPlayer();
         PlayerHand splitPlayer = gameState.getSplitPlayer();
 
@@ -310,7 +311,7 @@ public class GameService {
 
             PlayerHand nextHand = playersMap.remove(nextHandId);
             gameState.setPlayer(nextHand);
-            gameState.setSplitPlayer(deepCopyPlayerHand(nextHand));
+            gameState.setSplitPlayer(gameStateManager.deepCopyPlayerHand(nextHand));
             gameState.addSplitReq(-1);
         }
 
@@ -320,7 +321,7 @@ public class GameService {
             Deck deck = gameState.getDeck();
             Card cardToAdd = deck.dealCard();
             newPlayer.getHand().add(cardToAdd);
-            boolean canSplit = canSplit(newPlayer.getHand());
+            boolean canSplit = gameRuleEngine.canSplit(newPlayer.getHand());
             newPlayer.setCanSplit(canSplit);
         }
 
@@ -330,7 +331,7 @@ public class GameService {
     }
 
     public GameState addPlayerFromPlayers(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         Map<String, PlayerHand> playersMap = gameState.getPlayers();
         PlayerHand extractedHand;
 
@@ -349,182 +350,13 @@ public class GameService {
     }
 
     public GameState restartGame(Optional<GameState> gameStateOptional) {
-        GameState gameState = getGameStateOrThrow(gameStateOptional);
-        GameState resetGameState = resetRoundState(gameState);
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
+        GameState resetGameState = gameStateManager.resetRoundState(gameState);
         resetGameState.setBet(0);
 
         gameStateService.saveGameState(resetGameState);
 
         return resetGameState;
-    }
-
-
-    // helpers
-    private GameState getGameStateOrThrow(Optional<GameState> gameStateOptional) {
-        return gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "CLIENT_ERROR_SPECIFIC"
-        ));
-    }
-
-    public GameState resetRoundState(GameState gameState) {
-        gameState.setPlayer(PlayerHand.createEmptyHand());
-        gameState.setDealerMasked(DealerHandMasked.createEmptyHand());
-        gameState.setDealerUnmasked(DealerHandUnmasked.createEmptyHand());
-        gameState.setSplitPlayer(PlayerHand.createEmptyHand());
-        gameState.setAces(false);
-        gameState.setNatural21(0);
-        gameState.setWinner(0);
-        gameState.setHandCounter(0);
-        gameState.setSplitReq(0);
-        gameState.setBetList(List.of());
-        gameState.setRoundActive(false);
-        gameState.getPlayers().clear();
-
-        return gameState;
-    }
-
-    public int initNatural21State(GameState gameState) {
-        PlayerHand playerHand = gameState.getPlayer();
-        DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
-
-        int playerSum = playerHand.getSum();
-        int dealerSum = dealerHand.getSum();
-
-        boolean playerNatural = (playerHand.getHand().size() == 2) && (playerSum == 21);
-        boolean dealerNatural = (dealerHand.getHand().size() == 2) && (dealerSum == 21);
-
-        WinnerState naturalState;
-
-        if (playerNatural && dealerNatural) {
-            naturalState = WinnerState.BLACKJACK_PUSH;
-        } else if (playerNatural) {
-            naturalState = WinnerState.BLACKJACK_PLAYER_WON;
-        } else if (dealerNatural) {
-            naturalState = WinnerState.BLACKJACK_DEALER_WON;
-        } else {
-            naturalState = WinnerState.NONE;
-        }
-
-        return naturalState.getValue();
-    }
-
-    public int winnerStateUpdater(GameState gameState) {
-        PlayerHand playerHand = gameState.getPlayer();
-        DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
-
-        int playerSum = playerHand.getSum();
-        int dealerSum = dealerHand.getSum();
-        WinnerState winnerState;
-
-        if (playerSum > 21) {
-            winnerState = WinnerState.PLAYER_LOST;
-        } else if (dealerSum > 21) {
-            winnerState = WinnerState.PLAYER_WON;
-        } else if (playerSum == dealerSum) {
-            winnerState = WinnerState.PUSH;
-        } else if (playerSum > dealerSum) {
-            winnerState = WinnerState.PLAYER_WON;
-        } else {
-            winnerState = WinnerState.DEALER_WON;
-        }
-
-        return winnerState.getValue();
-    }
-
-    public boolean canSplit(List<Card> hand) {
-        if (hand == null || hand.size() != 2) {
-            return false;
-        }
-
-        Rank rank1 = hand.get(0).rank();
-        Rank rank2 = hand.get(1).rank();
-
-        boolean sameRank = rank1 == rank2;
-        boolean bothAreTenValue = rank1.getBaseValue() == 10 && rank2.getBaseValue() == 10;
-
-        return sameRank || bothAreTenValue;
-    }
-
-    public PlayerHand dealSplitCard(GameState gameState, boolean isFirst, Card cardToSplit) {
-        PlayerHand playerHand;
-        Card card1;
-
-        if (isFirst) {
-            playerHand = gameState.getPlayer();
-            Deck deck = gameState.getDeck();
-            card1 = deck.dealCard();
-            playerHand.getHand().add(card1);
-            LinkedList<Card> currentHand = playerHand.getHand();
-            boolean isSplitPossible = canSplit(currentHand);
-            if (currentHand.getFirst().rank() == Rank.ACE && currentHand.getLast().rank() == Rank.ACE) {
-                playerHand.setCanSplit(false);
-            } else {
-                playerHand.setCanSplit(isSplitPossible);
-            }
-            playerHand.setBet(gameState.getBet());
-            playerHand.setStated(false);
-        } else {
-            playerHand = PlayerHand.createEmptyHand();
-            String id = gameState.generateNextHandId();
-            playerHand.setId(id);
-            playerHand.getHand().add(cardToSplit);
-            playerHand.setBet(gameState.getBet());
-        }
-
-        gameState.getPlayersIndex().put(playerHand.getId(), false);
-
-        return playerHand;
-    }
-
-    public boolean areStatedFalseHands(Map<String, PlayerHand> playersMap) {
-        if (playersMap == null || playersMap.isEmpty()) {
-            return false;
-        }
-        return playersMap.values().stream()
-            .anyMatch(hand -> !hand.isStated());
-    }
-
-    public Optional<String> findNextActivePlayerId(Map<String, Boolean> playersIndex) {
-        if (playersIndex == null || playersIndex.isEmpty()) {
-            return Optional.empty();
-        }
-
-        return playersIndex.entrySet().stream()
-            .filter(entry -> !entry.getValue())
-            .map(Map.Entry::getKey)
-            .sorted()
-            .findFirst();
-    }
-
-    private PlayerHand deepCopyPlayerHand(PlayerHand original) {
-        if (original == null) {
-            return null;
-        }
-
-        LinkedList<Card> copiedHand = new LinkedList<>(original.getHand());
-
-        return PlayerHand.builder()
-            .id(original.getId())
-            .hand(copiedHand)
-            .canSplit(original.isCanSplit())
-            .stated(original.isStated())
-            .bet(original.getBet())
-            .build();
-    }
-
-    public void sortPlayersMap(Map<String, PlayerHand> playersMap) {
-        if (playersMap == null || playersMap.isEmpty()) {
-            return;
-        }
-
-        List<PlayerHand> sortedHands = new ArrayList<>(playersMap.values());
-        sortedHands.sort(SPLIT_HAND_COMPARATOR);
-        playersMap.clear();
-
-        for (PlayerHand hand : sortedHands) {
-            playersMap.put(hand.getId(), hand);
-        }
     }
 
     public record TransactionResult(GameState gameState, int transactionResult) {
