@@ -15,11 +15,13 @@ public class GameService {
     private final GameStateService gameStateService;
     private final GameRuleEngine gameRuleEngine;
     private final GameStateManager gameStateManager;
+    private final DeckService deckService;
 
-    public GameService(GameStateService gameStateService, GameRuleEngine gameRuleEngine, GameStateManager gameStateManager) {
+    public GameService(GameStateService gameStateService, GameRuleEngine gameRuleEngine, GameStateManager gameStateManager, DeckService deckService) {
         this.gameStateService = gameStateService;
         this.gameRuleEngine = gameRuleEngine;
         this.gameStateManager = gameStateManager;
+        this.deckService = deckService;
     }
 
     public GameState placeBet(Optional<GameState> gameStateOptional, int betAmount) {
@@ -81,28 +83,56 @@ public class GameService {
         return gameState;
     }
 
+    public Card safeDealCard(Optional<GameState> gameStateOptional) {
+        GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
+        Deck deck = gameState.getDeck();
+
+        if (deck == null || deck.getDeckLength() == 0) {
+            logger.info("--- DECK STATUS: Deck was NULL or empty. Initializing new deck.");
+            gameState = createNewDeck(gameStateOptional);
+            deck = gameState.getDeck();
+        }
+
+        logger.info("++++++++++ safeDealCard deck size before deal: {}", gameState.getDeck().getDeckLength());
+
+        try {
+            Card card = deckService.dealCard(deck);
+            gameStateService.saveGameState(gameState);
+            logger.debug("--- DEAL SUCCESS: Dealt {}. Remaining size: {}", card, deck.getDeckLength());
+            return card;
+
+        } catch (IllegalStateException e) {
+            logger.warn("!!! DECK EXHAUSTED: IllegalStateException caught. Starting automatic reshuffle/new deck.");
+
+            GameState newGameState = createNewDeck(gameStateOptional);
+            Deck newDeck = newGameState.getDeck();
+
+            Card card = deckService.dealCard(newDeck);
+            gameStateService.saveGameState(newGameState);
+            logger.info("--- DEAL RESHUFFLE SUCCESS: Dealt {} from new deck. Remaining size: {}", card, newDeck.getDeckLength());
+            return card;
+        }
+    }
+
     public GameState initializeNewRound(Optional<GameState> gameStateOptional) {
         GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         GameState resetGameState = gameStateManager.resetRoundState(gameState);
         resetGameState.setRoundActive(true);
 
-        Deck deck = gameState.getDeck();
-        Card card1 = deck.dealCard();
-        Card card2 = deck.dealCard();
-        Card card3 = deck.dealCard();
-        Card card4 = deck.dealCard();
+        Card card1 = safeDealCard(gameStateOptional);
+        Card card2 = safeDealCard(gameStateOptional);
+        Card card3 = safeDealCard(gameStateOptional);
+        Card card4 = safeDealCard(gameStateOptional);
 
-        Card newAceCard1 = new Card(Suit.HEARTS, Rank.QUEEN);
+        /*Card newAceCard1 = new Card(Suit.HEARTS, Rank.QUEEN);
         Card newAceCard3 = new Card(Suit.HEARTS, Rank.KING);
         Card newAceCard2 = new Card(Suit.DIAMONDS, Rank.QUEEN);
         Card newAceCard4 = new Card(Suit.CLUBS, Rank.ACE);
-        // Vagy használja a Card osztályban lévő segédmetódust, ha van:
-        // Card newAceCard = Card.createAce(Suit.HEARTS);
 
-        //Card card2 = newAceCard2;
-        //Card card4 = newAceCard4;
-        //Card card1 = newAceCard1;
-        //Card card3 = newAceCard3;
+        Card card2 = newAceCard2;
+        Card card4 = newAceCard4;
+        Card card1 = newAceCard1;
+        Card card3 = newAceCard3;*/
 
         String id = resetGameState.generateNextHandId();
         resetGameState.setAces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE);
@@ -152,7 +182,7 @@ public class GameService {
             return gameState;
         }
 
-        Card newCard = gameState.getDeck().dealCard();
+        Card newCard = safeDealCard(gameStateOptional);
         gameState.getPlayer().getHand().add(newCard);
         gameStateService.saveGameState(gameState);
         logger.info("+++++++++++ playerHit {}", gameState.getDeck());
@@ -166,7 +196,7 @@ public class GameService {
 
         if (playerSum <= 21) {
             while (dealerSum < 17) {
-                Card newCard = gameState.getDeck().dealCard();
+                Card newCard = safeDealCard(gameStateOptional);
                 gameState.getDealerUnmasked().getHand().add(newCard);
                 dealerSum = gameState.getDealerUnmasked().getSum();
             }
@@ -318,8 +348,7 @@ public class GameService {
         PlayerHand newPlayer = gameState.getPlayer();
 
         if (newPlayer.getHand().size() < 2) {
-            Deck deck = gameState.getDeck();
-            Card cardToAdd = deck.dealCard();
+            Card cardToAdd = safeDealCard(gameStateOptional);
             newPlayer.getHand().add(cardToAdd);
             boolean canSplit = gameRuleEngine.canSplit(newPlayer.getHand());
             newPlayer.setCanSplit(canSplit);
