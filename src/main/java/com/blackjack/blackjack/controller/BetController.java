@@ -12,8 +12,6 @@ import com.blackjack.blackjack.service.GameService;
 import com.blackjack.blackjack.service.GameStateService;
 import com.blackjack.blackjack.service.PlayerService;
 import jakarta.servlet.http.HttpSession;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -32,7 +30,6 @@ import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
 @RestController
 @RequestMapping("/api")
 public class BetController {
-    private static final Logger logger = LoggerFactory.getLogger(BetController.class);
     private final GameStateService gameStateService;
     private final PlayerService playerService;
     private final GameService gameService;
@@ -82,7 +79,7 @@ public class BetController {
         if (updatedGameState.getDeck() == null) {
             deckLength = INITIAL_DECK_LENGTH;
         } else {
-            deckLength = updatedGameState.getDeck().getDeckLength();
+            deckLength = updatedGameState.getDeckLen();
         }
 
         GameStateBet gameStateData = GameStateBet.builder()
@@ -124,12 +121,9 @@ public class BetController {
             .orElseThrow(() -> new ResponseStatusException(
                 HttpStatus.INTERNAL_SERVER_ERROR, "ERROR"));
 
-        int deckLength;
-        if (updatedGameState.getDeck() == null) {
-            deckLength = INITIAL_DECK_LENGTH;
-        } else {
-            deckLength = updatedGameState.getDeck().getDeckLength();
-        }
+        int deckLength = (updatedGameState.getDeck() == null)
+            ? INITIAL_DECK_LENGTH
+            : updatedGameState.getDeckLen();
 
         GameStateBet gameStateData = GameStateBet.builder()
             .bet(updatedGameState.getBet())
