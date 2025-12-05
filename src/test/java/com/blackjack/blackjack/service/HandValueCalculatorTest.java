@@ -1,6 +1,8 @@
-package com.blackjack.blackjack.model;
+package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.service.HandValueCalculator;
+import com.blackjack.blackjack.model.Card;
+import com.blackjack.blackjack.model.Rank;
+import com.blackjack.blackjack.model.Suit;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
