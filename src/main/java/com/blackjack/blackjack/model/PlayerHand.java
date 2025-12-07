@@ -12,8 +12,8 @@ import java.io.Serializable;
 import java.util.LinkedList;
 
 @Data
-@Builder // <--- ADJA HOZZÁ EZT!
-@NoArgsConstructor // <--- Érdemes hozzáadni az alapértelmezett konstruktorhoz
+@Builder
+@NoArgsConstructor
 @AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class PlayerHand implements Hand, Serializable {

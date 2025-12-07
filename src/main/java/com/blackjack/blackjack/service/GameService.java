@@ -75,7 +75,7 @@ public class GameService {
 
     public GameState createNewDeck(Optional<GameState> gameStateOptional) {
         GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
-        Deck newDeck = new Deck();
+        Deck newDeck = deckService.createNewDeck();
 
         gameState.setDeck(newDeck);
         gameStateService.saveGameState(gameState);
