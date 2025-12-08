@@ -59,7 +59,7 @@ public class GameState implements Serializable {
         this.handCounter++;
         String formattedCount = String.format("%03d", this.handCounter);
 
-        return "H-" + formattedCount;
+        return "P-" + formattedCount;
     }
 
     public int addSplitReq(int count) {
