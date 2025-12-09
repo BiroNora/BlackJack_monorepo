@@ -1,0 +1,198 @@
+package com.blackjack.blackjack.service;
+
+import com.blackjack.blackjack.model.*;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.*;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+public class GameStateManagerTest {
+    @Mock private GameRuleEngine mockGameRuleEngine;
+    @InjectMocks private GameStateManager gameStateManager;
+    @Mock private GameState mockGameState;
+    @Mock private PlayerHand mockPlayerHand1;
+    @Mock private PlayerHand mockPlayerHand2;
+    @Mock private PlayerHand mockPlayerHand; // Az eredeti kéz
+    @Mock private Deck mockDeck;
+    @Mock private Map<String, Boolean> mockPlayersIndex;
+    @Mock private LinkedList<Card> mockCurrentHand;
+    @Mock private Card mockCardToSplit;
+
+    private final Card testCardAce = new Card(Suit.HEARTS, Rank.ACE);
+    private final Card testCardTen = new Card(Suit.HEARTS, Rank.TEN);
+    private final Card mockDrawnCard = mock(Card.class);
+
+    @Test
+    void sortPlayersMap_shouldSortByStatedThenById() {
+        // 1. Állapot: Stated=false, ID=A1 (Legmagasabb prioritású aktív játékos ID szerint)
+        PlayerHand mockPlayerHandActiveA = mock(PlayerHand.class);
+        when(mockPlayerHandActiveA.getId()).thenReturn("A1");
+        when(mockPlayerHandActiveA.isStated()).thenReturn(false);
+
+        // 2. Állapot: Stated=false, ID=B1 (Második prioritású aktív játékos ID szerint)
+        PlayerHand mockPlayerHandActiveB = mock(PlayerHand.class);
+        when(mockPlayerHandActiveB.getId()).thenReturn("B1");
+        when(mockPlayerHandActiveB.isStated()).thenReturn(false);
+
+        // 3. Állapot: Stated=true, ID=A2 (Befejezett kéz)
+        PlayerHand mockPlayerHandStatedA = mock(PlayerHand.class);
+        when(mockPlayerHandStatedA.getId()).thenReturn("A2");
+        when(mockPlayerHandStatedA.isStated()).thenReturn(true);
+
+        // Eredeti, rendezetlen Map (Fontos: Helyezzük be őket kaotikus sorrendben)
+        Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
+        playersMap.put(mockPlayerHandStatedA.getId(), mockPlayerHandStatedA);   // A2, true
+        playersMap.put(mockPlayerHandActiveB.getId(), mockPlayerHandActiveB);   // B1, false
+        playersMap.put(mockPlayerHandActiveA.getId(), mockPlayerHandActiveA);   // A1, false
+
+        gameStateManager.sortPlayersMap(playersMap);
+
+        // Várt sorrend (false először, majd ID szerint: A1, B1, A2)
+        List<PlayerHand> sortedList = new ArrayList<>(playersMap.values());
+
+        // 1. Ellenőrzés: A (false, A1) az első
+        assertEquals(3, sortedList.size());
+        assertEquals("A1", sortedList.get(0).getId());
+        assertFalse(sortedList.get(0).isStated());
+
+        // 2. Ellenőrzés: A (false, B1) a második
+        assertEquals("B1", sortedList.get(1).getId());
+        assertFalse(sortedList.get(1).isStated());
+
+        // 3. Ellenőrzés: A (true, A2) a harmadik
+        assertEquals("A2", sortedList.get(2).getId());
+        assertTrue(sortedList.get(2).isStated());
+    }
+
+    @Test
+    void getGameStateOrThrow_shouldReturnGameStateWhenPresent() {
+        Optional<GameState> presentGameState = Optional.of(mockGameState);
+
+        GameState result = gameStateManager.getGameStateOrThrow(presentGameState);
+
+        assertEquals(mockGameState, result);
+    }
+
+    @Test
+    void getGameStateOrThrow_shouldThrowExceptionWhenEmpty() {
+        Optional<GameState> emptyGameState = Optional.empty();
+
+        ResponseStatusException exception = assertThrows(
+            ResponseStatusException.class,
+            () -> gameStateManager.getGameStateOrThrow(emptyGameState)
+        );
+
+        assertEquals("400 BAD_REQUEST \"CLIENT_ERROR_SPECIFIC\"", exception.getMessage());
+    }
+
+    @Test
+    void resetRoundState_shouldResetAllStateFieldsAndClearPlayersMap() {
+        // A PlayerHand.createEmptyHand() és hasonló metódusok statikusak,
+        // és valódi objektumokat hoznak létre. Ezeket nem kell mockolni.
+
+        // De a Map-nek mocknak kell lennie, hogy ellenőrizni tudjuk a .clear() hívást.
+        // Mivel a GameState.getPlayers() egy Map-et ad vissza, ezt a Map-et is mockolnunk kell.
+        Map<String, PlayerHand> mockPlayersMap = mock(Map.class);
+
+        when(mockGameState.getPlayers()).thenReturn(mockPlayersMap);
+
+        GameState result = gameStateManager.resetRoundState(mockGameState);
+
+        // 1. Kéz- és állapotobjektumok visszaállítása (mocked metódus hívások ellenőrzése)
+        verify(mockGameState, times(1)).setPlayer(any(PlayerHand.class));
+        verify(mockGameState, times(1)).setDealerMasked(any(DealerHandMasked.class));
+        verify(mockGameState, times(1)).setDealerUnmasked(any(DealerHandUnmasked.class));
+        verify(mockGameState, times(1)).setSplitPlayer(any(PlayerHand.class));
+
+        // 2. Primitív mezők visszaállítása
+        verify(mockGameState, times(1)).setAces(false);
+        verify(mockGameState, times(1)).setNatural21(0);
+        verify(mockGameState, times(1)).setWinner(0);
+        verify(mockGameState, times(1)).setHandCounter(0);
+        verify(mockGameState, times(1)).setSplitReq(0);
+        verify(mockGameState, times(1)).setRoundActive(false);
+
+        // Ellenőrizzük, hogy a List.of() által létrehozott üres, immutable listával tér vissza.
+        verify(mockGameState, times(1)).setBetList(eq(Collections.emptyList()));
+
+        // Ellenőrizzük, hogy a getPlayers() által visszaadott Map-en meghívtuk a clear()-t.
+        verify(mockPlayersMap, times(1)).clear();
+
+        // A metódusnak a bemeneti (módosított) GameState-tel kell visszatérnie.
+        assertEquals(mockGameState, result);
+    }
+
+    @Test
+    void areStatedFalseHands_shouldReturnTrueIfAnyHandIsNotStated() {
+        // Aktív kéz: isStated = false
+        when(mockPlayerHand1.isStated()).thenReturn(false);
+
+        // Befejezett kéz: isStated = true
+        when(mockPlayerHand2.isStated()).thenReturn(true);
+
+        Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
+        playersMap.put("A", mockPlayerHand2); // Befejezett
+        playersMap.put("B", mockPlayerHand1); // Aktív
+
+        boolean result = gameStateManager.areStatedFalseHands(playersMap);
+
+        assertTrue(result);
+    }
+
+    @Test
+    void areStatedFalseHands_shouldReturnFalseIfAllHandsAreStated() {
+        // Kéz 1: isStated = true
+        when(mockPlayerHand1.isStated()).thenReturn(true);
+
+        // Kéz 2: isStated = true
+        when(mockPlayerHand2.isStated()).thenReturn(true);
+
+        Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
+        playersMap.put("A", mockPlayerHand1);
+        playersMap.put("B", mockPlayerHand2);
+
+        boolean result = gameStateManager.areStatedFalseHands(playersMap);
+
+        assertFalse(result);
+    }
+
+    @Test
+    void dealSplitCard_whenIsFirstIsTrueAndIsAceAce_shouldSetCanSplitFalse() {
+        final int betAmount = 100;
+
+        Card mockAce1 = mock(Card.class);
+        when(mockAce1.rank()).thenReturn(Rank.ACE);
+        Card mockAce2 = mock(Card.class);
+        when(mockAce2.rank()).thenReturn(Rank.ACE);
+
+        when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
+        when(mockGameState.getDeck()).thenReturn(mockDeck);
+        when(mockGameState.getBet()).thenReturn(betAmount);
+        when(mockGameState.getPlayersIndex()).thenReturn(mockPlayersIndex);
+        when(mockDeck.dealCard()).thenReturn(mockAce2);
+
+        when(mockPlayerHand.getHand()).thenReturn(mockCurrentHand);
+        when(mockPlayerHand.getId()).thenReturn("P1");
+
+        when(mockGameRuleEngine.canSplit(mockCurrentHand)).thenReturn(true);
+
+        when(mockCurrentHand.getFirst()).thenReturn(mockAce1);
+        when(mockCurrentHand.getLast()).thenReturn(mockAce2);
+
+        gameStateManager.dealSplitCard(mockGameState, true, mock(Card.class));
+
+        verify(mockGameRuleEngine, times(1)).canSplit(mockCurrentHand);
+        verify(mockPlayerHand, times(1)).setCanSplit(false);
+        verify(mockPlayerHand, never()).setCanSplit(true);
+    }
+
+
+}
