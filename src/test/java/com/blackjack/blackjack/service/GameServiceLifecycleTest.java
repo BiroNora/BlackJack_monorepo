@@ -145,6 +145,42 @@ public class GameServiceLifecycleTest {
     }
 
     @Test
+    void testInitializeNewRoundShouldDealFourCardsAndSetInitialStates() {
+        GameState resetGameState = mock(GameState.class);
+        PlayerHand mockPlayerHand = mock(PlayerHand.class);
+        DealerHandUnmasked mockDealerUnmasked = mock(DealerHandUnmasked.class);
+        DealerHandMasked mockDealerMasked = mock(DealerHandMasked.class);
+        LinkedList<Card> playerHandList = new LinkedList<>();
+        LinkedList<Card> dealerUnmaskedHandList = new LinkedList<>();
+
+        when(gameStateManager.resetRoundState(mockGameState)).thenReturn(resetGameState);
+        when(resetGameState.getPlayer()).thenReturn(mockPlayerHand);
+        when(mockPlayerHand.getHand()).thenReturn(playerHandList);
+        when(resetGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
+        when(mockDealerUnmasked.getHand()).thenReturn(dealerUnmaskedHandList);
+        when(resetGameState.getDealerMasked()).thenReturn(mockDealerMasked);
+
+        doReturn(testCardTen).doReturn(testCardAce).doReturn(testCardTen).doReturn(testCardTen)
+            .when(this.gameService).safeDealCard(any());
+
+        when(gameRuleEngine.canSplit(any())).thenReturn(false);
+        when(gameRuleEngine.initNatural21State(any())).thenReturn(WinnerState.NONE.getValue()); // Nincs Natural BJ
+
+        try (MockedStatic<HandValueCalculator> mockedCalc = mockStatic(HandValueCalculator.class)) {
+            when(HandValueCalculator.calculateSum(any())).thenReturn(10);
+
+            gameService.initializeNewRound(optionalMockGameState);
+
+            verify(this.gameService, times(4)).safeDealCard(any());
+            assertEquals(2, playerHandList.size());
+            verify(resetGameState).setRoundActive(true);
+            verify(mockPlayerHand).setCanSplit(false);
+            verify(mockDealerMasked).setSum(10);
+            verify(gameStateService).saveGameState(resetGameState);
+        }
+    }
+
+    @Test
     void testPlayerHitShouldDealCardAndAddToPlayerHand() {
         when(mockGameState.isRoundActive()).thenReturn(true);
 
@@ -203,42 +239,6 @@ public class GameServiceLifecycleTest {
             assertEquals(2, dealerHandList.size());
             verify(gameRuleEngine).winnerStateUpdater(mockGameState);
             verify(gameStateService).saveGameState(mockGameState);
-        }
-    }
-
-    @Test
-    void testInitializeNewRoundShouldDealFourCardsAndSetInitialStates() {
-        GameState resetGameState = mock(GameState.class);
-        PlayerHand mockPlayerHand = mock(PlayerHand.class);
-        DealerHandUnmasked mockDealerUnmasked = mock(DealerHandUnmasked.class);
-        DealerHandMasked mockDealerMasked = mock(DealerHandMasked.class);
-        LinkedList<Card> playerHandList = new LinkedList<>();
-        LinkedList<Card> dealerUnmaskedHandList = new LinkedList<>();
-
-        when(gameStateManager.resetRoundState(mockGameState)).thenReturn(resetGameState);
-        when(resetGameState.getPlayer()).thenReturn(mockPlayerHand);
-        when(mockPlayerHand.getHand()).thenReturn(playerHandList);
-        when(resetGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
-        when(mockDealerUnmasked.getHand()).thenReturn(dealerUnmaskedHandList);
-        when(resetGameState.getDealerMasked()).thenReturn(mockDealerMasked);
-
-        doReturn(testCardTen).doReturn(testCardAce).doReturn(testCardTen).doReturn(testCardTen)
-            .when(this.gameService).safeDealCard(any());
-
-        when(gameRuleEngine.canSplit(any())).thenReturn(false);
-        when(gameRuleEngine.initNatural21State(any())).thenReturn(WinnerState.NONE.getValue()); // Nincs Natural BJ
-
-        try (MockedStatic<HandValueCalculator> mockedCalc = mockStatic(HandValueCalculator.class)) {
-            when(HandValueCalculator.calculateSum(any())).thenReturn(10);
-
-            gameService.initializeNewRound(optionalMockGameState);
-
-            verify(this.gameService, times(4)).safeDealCard(any());
-            assertEquals(2, playerHandList.size());
-            verify(resetGameState).setRoundActive(true);
-            verify(mockPlayerHand).setCanSplit(false);
-            verify(mockDealerMasked).setSum(10);
-            verify(gameStateService).saveGameState(resetGameState);
         }
     }
 
@@ -476,6 +476,27 @@ public class GameServiceLifecycleTest {
         verify(mockGameState, times(1)).setSplitPlayer(mockNewSplitPlayer);
         verify(gameStateManager, times(1)).deepCopyPlayerHand(mockNextHandInMap);
         verify(mockGameState, times(1)).addSplitReq(-1);
+    }
+
+    @Test
+    void restartGame_shouldResetStateClearBetAndSave() {
+        GameState mockResetGameState = mock(GameState.class);
+
+        when(gameStateManager.resetRoundState(mockGameState)).thenReturn(mockResetGameState);
+
+        GameState result = gameService.restartGame(optionalMockGameState);
+
+        // Ellenőrizzük, hogy meghívta a resetRoundState-et az eredeti állapottal.
+        verify(gameStateManager, times(1)).resetRoundState(mockGameState);
+
+        // Ellenőrizzük, hogy a resetelt GameState-en lett-e a tét nullára állítva.
+        verify(mockResetGameState, times(1)).setBet(0);
+
+        // Ellenőrizzük, hogy a gameStateService a resetelt állapotot mentette el.
+        verify(gameStateService, times(1)).saveGameState(mockResetGameState);
+
+        // A metódusnak a resetelt GameState-tel kell visszatérnie.
+        assertEquals(mockResetGameState, result);
     }
 
 }
