@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -13,9 +14,11 @@ public class GameStateManager {
         .comparing(PlayerHand::isStated)
         .thenComparing(PlayerHand::getId);
     private final GameRuleEngine gameRuleEngine;
+    private final PlayerHandFactory playerHandFactory;
 
-    public GameStateManager(GameRuleEngine gameRuleEngine) {
+    public GameStateManager(GameRuleEngine gameRuleEngine, PlayerHandFactory playerHandFactory) {
         this.gameRuleEngine = gameRuleEngine;
+        this.playerHandFactory = playerHandFactory;
     }
 
     public GameState getGameStateOrThrow(Optional<GameState> gameStateOptional) {
@@ -61,7 +64,7 @@ public class GameStateManager {
             playerHand.setBet(gameState.getBet());
             playerHand.setStated(false);
         } else {
-            playerHand = PlayerHand.createEmptyHand();
+            playerHand = playerHandFactory.createEmptyHand();
             String id = gameState.generateNextHandId();
             playerHand.setId(id);
             playerHand.getHand().add(cardToSplit);
