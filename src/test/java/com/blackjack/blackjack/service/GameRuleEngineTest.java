@@ -1,6 +1,5 @@
 package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -12,7 +11,6 @@ import org.mockito.quality.Strictness;
 
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.mock;
@@ -21,18 +19,10 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 public class GameRuleEngineTest {
-    @Mock private GameRuleEngine mockGameRuleEngine;
     @InjectMocks private GameRuleEngine gameRuleEngine;
     @Mock private GameState mockGameState;
-    @Mock private PlayerHand mockPlayerHand1;
-    @Mock private PlayerHand mockPlayerHand2;
     @Mock private PlayerHand mockPlayerHand;
-    @Mock private PlayerHandFactory mockPlayerHandFactory;
     @Mock private DealerHandUnmasked mockDealerHand;
-    @Mock private Deck mockDeck;
-    @Mock private Map<String, Boolean> mockPlayersIndex;
-    @Mock private LinkedList<Card> mockCurrentHand;
-    @Mock private Card mockCardToSplit;
 
     private final Card testCardAce = new Card(Suit.HEARTS, Rank.ACE);
     private final Card testCardTen = new Card(Suit.HEARTS, Rank.TEN);
