@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -20,7 +21,8 @@ public class GameStateManagerTest {
     @Mock private GameState mockGameState;
     @Mock private PlayerHand mockPlayerHand1;
     @Mock private PlayerHand mockPlayerHand2;
-    @Mock private PlayerHand mockPlayerHand; // Az eredeti kéz
+    @Mock private PlayerHand mockPlayerHand;
+    @Mock private PlayerHandFactory mockPlayerHandFactory;
     @Mock private Deck mockDeck;
     @Mock private Map<String, Boolean> mockPlayersIndex;
     @Mock private LinkedList<Card> mockCurrentHand;
@@ -165,7 +167,7 @@ public class GameStateManagerTest {
     }
 
     @Test
-    void dealSplitCard_whenIsFirstIsTrueAndIsAceAce_shouldSetCanSplitFalse() {
+    void dealSplitCard_whenIsFirstIsTrueWithAceAce_shouldSetCanSplitFalse() {
         final int betAmount = 100;
 
         Card mockAce1 = mock(Card.class);
@@ -194,5 +196,61 @@ public class GameStateManagerTest {
         verify(mockPlayerHand, never()).setCanSplit(true);
     }
 
+    @Test
+    void dealSplitCard_whenIsFirstIsTrue_NoAceAce() {
+        final int betAmount = 100;
 
+        when(mockDrawnCard.rank()).thenReturn(Rank.EIGHT);
+        when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
+        when(mockGameState.getDeck()).thenReturn(mockDeck);
+        when(mockGameState.getBet()).thenReturn(betAmount);
+        when(mockGameState.getPlayersIndex()).thenReturn(mockPlayersIndex);
+
+        when(mockDeck.dealCard()).thenReturn(mockDrawnCard);
+
+        when(mockPlayerHand.getHand()).thenReturn(mockCurrentHand);
+        when(mockPlayerHand.getId()).thenReturn("P1");
+        when(mockCurrentHand.getFirst()).thenReturn(testCardTen);
+
+        final boolean expectedSplitPossible = false;
+        when(mockGameRuleEngine.canSplit(mockCurrentHand)).thenReturn(expectedSplitPossible);
+
+        PlayerHand result = gameStateManager.dealSplitCard(mockGameState, true, mockCardToSplit);
+
+        verify(mockDeck, times(1)).dealCard();
+        verify(mockCurrentHand, times(1)).add(mockDrawnCard);
+        verify(mockGameRuleEngine, times(1)).canSplit(mockCurrentHand);
+        verify(mockPlayerHand, times(1)).setCanSplit(expectedSplitPossible);
+        verify(mockPlayerHand, times(1)).setBet(betAmount);
+        verify(mockPlayerHand, times(1)).setStated(false);
+        verify(mockPlayersIndex, times(1)).put("P1", false);
+
+        assertEquals(mockPlayerHand, result);
+    }
+
+    @Test
+    void dealSplitCard_whenIsFirstIsFalse_createsNewHand() {
+        final int betAmount = 100;
+        final String newHandId = "P1-2";
+
+        LinkedList<Card> mockNewHandCardList = mock(LinkedList.class);
+        when(mockPlayerHandFactory.createEmptyHand()).thenReturn(mockPlayerHand2);
+        when(mockPlayerHand2.getHand()).thenReturn(mockNewHandCardList);
+        when(mockPlayerHand2.getId()).thenReturn(newHandId);
+
+        when(mockGameState.getBet()).thenReturn(betAmount);
+        when(mockGameState.getPlayersIndex()).thenReturn(mockPlayersIndex);
+        when(mockGameState.generateNextHandId()).thenReturn(newHandId);
+
+        PlayerHand result = gameStateManager.dealSplitCard(mockGameState, false, testCardTen);
+
+        verify(mockPlayerHandFactory, times(1)).createEmptyHand();
+        verify(mockGameState, times(1)).generateNextHandId();
+        verify(mockPlayerHand2, times(1)).setId(newHandId);
+        verify(mockNewHandCardList, times(1)).add(testCardTen);
+        verify(mockPlayerHand2, times(1)).setBet(betAmount);
+        verify(mockPlayersIndex, times(1)).put(newHandId, false);
+
+        assertEquals(mockPlayerHand2, result);
+    }
 }
