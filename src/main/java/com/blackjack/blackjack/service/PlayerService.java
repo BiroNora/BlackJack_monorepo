@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import org.springframework.stereotype.Service;
@@ -17,7 +18,7 @@ public class PlayerService {
     @Transactional
     public Player deductBet(Player player, int betAmount) {
         if (player.getTokens() < betAmount) {
-            throw new IllegalArgumentException("Insufficient tokens.");
+            throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_BET");
         }
 
         player.setTokens(player.getTokens() - betAmount);
