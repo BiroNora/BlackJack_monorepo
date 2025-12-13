@@ -17,16 +17,12 @@ import static org.mockito.Mockito.*;
 public class GameServiceLogicTest {
     @Mock
     private GameState mockGameState;
-
     @Mock
     private PlayerHand mockPlayerHand;
-
     @Mock
     private DealerHandUnmasked mockDealerUnmasked;
-
     @Mock
     private GameStateService gameStateService;
-
     @InjectMocks
     private GameService gameService;
 

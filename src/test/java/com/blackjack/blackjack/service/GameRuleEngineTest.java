@@ -19,14 +19,17 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
 public class GameRuleEngineTest {
-    @InjectMocks private GameRuleEngine gameRuleEngine;
-    @Mock private GameState mockGameState;
-    @Mock private PlayerHand mockPlayerHand;
-    @Mock private DealerHandUnmasked mockDealerHand;
-
     private final Card testCardAce = new Card(Suit.HEARTS, Rank.ACE);
     private final Card testCardTen = new Card(Suit.HEARTS, Rank.TEN);
     private final Card mockDrawnCard = mock(Card.class);
+    @InjectMocks
+    private GameRuleEngine gameRuleEngine;
+    @Mock
+    private GameState mockGameState;
+    @Mock
+    private PlayerHand mockPlayerHand;
+    @Mock
+    private DealerHandUnmasked mockDealerHand;
 
     private void setupMocks(int playerSize, int playerSum, int dealerSize, int dealerSum) {
         @SuppressWarnings("unchecked")

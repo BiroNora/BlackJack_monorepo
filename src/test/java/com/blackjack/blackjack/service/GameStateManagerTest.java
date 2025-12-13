@@ -16,21 +16,32 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class GameStateManagerTest {
-    @Mock private GameRuleEngine mockGameRuleEngine;
-    @InjectMocks private GameStateManager gameStateManager;
-    @Mock private GameState mockGameState;
-    @Mock private PlayerHand mockPlayerHand1;
-    @Mock private PlayerHand mockPlayerHand2;
-    @Mock private PlayerHand mockPlayerHand;
-    @Mock private PlayerHandFactory mockPlayerHandFactory;
-    @Mock private Deck mockDeck;
-    @Mock private Map<String, Boolean> mockPlayersIndex;
-    @Mock private LinkedList<Card> mockCurrentHand;
-    @Mock private Card mockCardToSplit;
-
     private final Card testCardAce = new Card(Suit.HEARTS, Rank.ACE);
     private final Card testCardTen = new Card(Suit.HEARTS, Rank.TEN);
     private final Card mockDrawnCard = mock(Card.class);
+
+    @InjectMocks
+    private GameStateManager gameStateManager;
+    @Mock
+    private GameRuleEngine mockGameRuleEngine;
+    @Mock
+    private GameState mockGameState;
+    @Mock
+    private PlayerHand mockPlayerHand1;
+    @Mock
+    private PlayerHand mockPlayerHand2;
+    @Mock
+    private PlayerHand mockPlayerHand;
+    @Mock
+    private PlayerHandFactory mockPlayerHandFactory;
+    @Mock
+    private Deck mockDeck;
+    @Mock
+    private Map<String, Boolean> mockPlayersIndex;
+    @Mock
+    private LinkedList<Card> mockCurrentHand;
+    @Mock
+    private Card mockCardToSplit;
 
     private PlayerHand createMockHand(String id, boolean isStated) {
         PlayerHand hand = mock(PlayerHand.class);
@@ -276,6 +287,7 @@ public class GameStateManagerTest {
 
         assertTrue(isThereFalseStatedHand);
     }
+
     @Test
     void findNextActivePlayerId_shouldReturnSmallestActiveId() {
         Map<String, Boolean> activePlayersMap = new HashMap<>();

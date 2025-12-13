@@ -1,6 +1,8 @@
 package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.model.GameState;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -10,8 +12,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,9 +25,10 @@ import static org.mockito.Mockito.*;
  */
 @ExtendWith(MockitoExtension.class)
 public class GameStateServiceTest {
+    private static final String GAME_STATE_ATTR_NAME = "gameState";
+    private final UUID testClientId = UUID.randomUUID();
     @InjectMocks
     private GameStateService gameStateService;
-
     // Session
     @Mock
     private ServletRequestAttributes servletRequestAttributes;
@@ -35,13 +36,9 @@ public class GameStateServiceTest {
     private HttpServletRequest httpServletRequest;
     @Mock
     private HttpSession httpSession;
-
-    private final UUID testClientId = UUID.randomUUID();
     private GameState testGameState;
-    private static final String GAME_STATE_ATTR_NAME = "gameState";
 
-
-   @BeforeEach
+    @BeforeEach
     void setUp() {
         testGameState = new GameState();
         testGameState.setClientId(testClientId);

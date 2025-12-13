@@ -13,12 +13,11 @@ import static org.junit.jupiter.api.Assertions.*;
 
 @ExtendWith(MockitoExtension.class)
 public class CookieServiceTest {
-    @InjectMocks
-    private CookieService cookieService;
-
-    private final UUID TEST_UUID = UUID.fromString("11111111-2222-3333-4444-555555555555");
     private static final String CLIENT_ID_COOKIE_NAME = "blackjack_client_uuid";
     private static final int ONE_YEAR_IN_SECONDS = 365 * 24 * 60 * 60;
+    private final UUID TEST_UUID = UUID.fromString("11111111-2222-3333-4444-555555555555");
+    @InjectMocks
+    private CookieService cookieService;
 
     // A BeforeEach metódus itt csak az InjectMocks inicializálását igényli, de benne hagyjuk
     // a konzisztencia érdekében, ha később függőségek kerülnének bele.

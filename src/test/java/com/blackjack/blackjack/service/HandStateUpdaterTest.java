@@ -15,7 +15,7 @@ public class HandStateUpdaterTest {
         assertEquals(HandState.BUST, state);
     }
 
-   @Test
+    @Test
     void testNaturalBlackjackState() {
         HandState state = HandStateUpdater.updateHandState(21, 2);
         assertEquals(HandState.BLACKJACK, state);

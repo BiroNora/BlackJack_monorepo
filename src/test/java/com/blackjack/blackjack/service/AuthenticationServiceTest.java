@@ -22,19 +22,15 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class AuthenticationServiceTest {
+    private final UUID TEST_CLIENT_ID = UUID.randomUUID();
     @InjectMocks
     private AuthenticationService authenticationService;
-
     @Mock
     private PlayerRepository playerRepository;
-
     @Mock
     private GameStateService gameStateService;
-
     @Mock
     private HttpSession mockSession;
-
-    private final UUID TEST_CLIENT_ID = UUID.randomUUID();
     private Player testPlayer;
     private GameState testGameState;
 

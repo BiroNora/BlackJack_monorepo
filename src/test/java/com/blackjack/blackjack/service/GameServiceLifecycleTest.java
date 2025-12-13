@@ -18,10 +18,12 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class GameServiceLifecycleTest {
+    private final Optional<GameState> optionalMockGameState = Optional.of(mock(GameState.class));
+    private final Card testCardTen = new Card(Suit.HEARTS, Rank.TEN);
+    private final Card testCardAce = new Card(Suit.HEARTS, Rank.ACE);
     @Spy
     @InjectMocks
     private GameService gameService;
-
     @Mock
     private GameStateService gameStateService;
     @Mock
@@ -30,11 +32,7 @@ public class GameServiceLifecycleTest {
     private GameStateManager gameStateManager;
     @Mock
     private DeckService deckService;
-
     private GameState mockGameState;
-    private final Optional<GameState> optionalMockGameState = Optional.of(mock(GameState.class));
-    private final Card testCardTen = new Card(Suit.HEARTS, Rank.TEN);
-    private final Card testCardAce = new Card(Suit.HEARTS, Rank.ACE);
 
     @BeforeEach
     void setUp() {

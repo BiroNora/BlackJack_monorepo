@@ -16,9 +16,9 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 public class DeckServiceTest {
+    private final Card testCard = new Card(Suit.HEARTS, Rank.TEN);
     @InjectMocks
     private DeckService deckService;
-    private final Card testCard = new Card(Suit.HEARTS, Rank.TEN);
 
     @Test
     void testCreateNewDeckShouldReturnNewDeckInstance() {

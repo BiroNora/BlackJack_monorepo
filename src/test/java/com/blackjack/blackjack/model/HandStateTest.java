@@ -6,7 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 public class HandStateTest {
-   public static HandState valueOf(int value) {
+    public static HandState valueOf(int value) {
         for (HandState state : HandState.values()) {
             if (state.getValue() == value) {
                 return state;
