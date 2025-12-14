@@ -19,5 +19,7 @@ public class GameStateStart {
     private DealerHandMasked dealerMasked;
     private int deckLen;
     private int bet;
+
+    @JsonProperty("is_round_active")
     private boolean isRoundActive;
 }
