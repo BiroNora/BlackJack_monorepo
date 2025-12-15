@@ -7,6 +7,6 @@ import org.springframework.stereotype.Component;
 public class DefaultPlayerHandFactory implements PlayerHandFactory {
     @Override
     public PlayerHand createEmptyHand() {
-        return new PlayerHand();
+        return PlayerHand.createEmptyHand();
     }
 }
