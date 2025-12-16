@@ -38,11 +38,11 @@ public class GameRuleEngineTest {
         @SuppressWarnings("unchecked")
         List<Card> mockDealerHandList = mock(List.class);
 
-        when(mockPlayerHand.getHand()).thenReturn(mockPlayerHandList);
+        when(mockPlayerHand.hand()).thenReturn(mockPlayerHandList);
         when(mockPlayerHandList.size()).thenReturn(playerSize);
         when(mockPlayerHand.getSum()).thenReturn(playerSum);
 
-        when(mockDealerHand.getHand()).thenReturn(mockDealerHandList);
+        when(mockDealerHand.hand()).thenReturn(mockDealerHandList);
         when(mockDealerHandList.size()).thenReturn(dealerSize);
         when(mockDealerHand.getSum()).thenReturn(dealerSum);
 

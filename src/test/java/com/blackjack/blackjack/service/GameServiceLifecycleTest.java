@@ -153,9 +153,9 @@ public class GameServiceLifecycleTest {
 
         when(gameStateManager.resetRoundState(mockGameState)).thenReturn(resetGameState);
         when(resetGameState.getPlayer()).thenReturn(mockPlayerHand);
-        when(mockPlayerHand.getHand()).thenReturn(playerHandList);
+        when(mockPlayerHand.hand()).thenReturn(playerHandList);
         when(resetGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
-        when(mockDealerUnmasked.getHand()).thenReturn(dealerUnmaskedHandList);
+        when(mockDealerUnmasked.hand()).thenReturn(dealerUnmaskedHandList);
         when(resetGameState.getDealerMasked()).thenReturn(mockDealerMasked);
 
         doReturn(testCardTen).doReturn(testCardAce).doReturn(testCardTen).doReturn(testCardTen)
@@ -187,7 +187,7 @@ public class GameServiceLifecycleTest {
         PlayerHand mockPlayerHand = mock(PlayerHand.class);
         LinkedList<Card> mockHandList = new LinkedList<>();
         when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
-        when(mockPlayerHand.getHand()).thenReturn(mockHandList);
+        when(mockPlayerHand.hand()).thenReturn(mockHandList);
 
         gameService.playerHit(optionalMockGameState);
 
@@ -220,7 +220,7 @@ public class GameServiceLifecycleTest {
             when(mockGameState.getDealerUnmasked()).thenReturn(mockDealerHand);
 
             LinkedList<Card> dealerHandList = new LinkedList<>();
-            when(mockDealerHand.getHand()).thenReturn(dealerHandList);
+            when(mockDealerHand.hand()).thenReturn(dealerHandList);
 
             // 1. Dealer kezdeti összege (alacsony, 16)
             // 2. Dealer második összege (még alacsony, 16)
@@ -288,12 +288,12 @@ public class GameServiceLifecycleTest {
 
         when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
         when(mockGameState.getPlayers()).thenReturn(mockPlayersMap);
-        when(mockPlayerHand.isCanSplit()).thenReturn(true);
-        when(mockPlayerHand.getHand()).thenReturn(mockHandList);
+        when(mockPlayerHand.canSplit()).thenReturn(true);
+        when(mockPlayerHand.hand()).thenReturn(mockHandList);
 
         PlayerHand updatedHand = mock(PlayerHand.class);
         PlayerHand secondHand = mock(PlayerHand.class);
-        when(secondHand.getId()).thenReturn("split-1");
+        when(secondHand.id()).thenReturn("split-1");
 
         when(gameStateManager.dealSplitCard(eq(mockGameState), eq(true), isNull()))
             .thenReturn(updatedHand);
@@ -322,7 +322,7 @@ public class GameServiceLifecycleTest {
         when(mockGameState.getPlayersIndex()).thenReturn(mockPlayersIndex);
 
         when(gameStateManager.areStatedFalseHands(mockPlayersMap)).thenReturn(true);
-        when(mockPlayerHand.getId()).thenReturn("player-main");
+        when(mockPlayerHand.id()).thenReturn("player-main");
 
         gameService.addToPlayersListByStand(optionalMockGameState);
 
@@ -360,8 +360,8 @@ public class GameServiceLifecycleTest {
         LinkedList<Card> handWithTwoCards = new LinkedList<>(List.of(testCardTen, testCardAce));
 
         PlayerHand mockSplitPlayer = mock(PlayerHand.class);
-        when(mockSplitPlayer.getHand()).thenReturn(handWithTwoCards); // MÉRET: 2
-        when(mockSplitPlayer.getId()).thenReturn(nextHandId);
+        when(mockSplitPlayer.hand()).thenReturn(handWithTwoCards); // MÉRET: 2
+        when(mockSplitPlayer.id()).thenReturn(nextHandId);
 
         PlayerHand mockCurrentPlayer = mock(PlayerHand.class);
 
@@ -403,8 +403,8 @@ public class GameServiceLifecycleTest {
         PlayerHand mockPlayer = mock(PlayerHand.class);
         LinkedList<Card> handWithTwoCards = new LinkedList<>(List.of(testCardTen, testCardAce));
 
-        when(mockPlayer.getHand()).thenReturn(handWithTwoCards);
-        when(mockPlayer.getId()).thenReturn(currentPlayerId);
+        when(mockPlayer.hand()).thenReturn(handWithTwoCards);
+        when(mockPlayer.id()).thenReturn(currentPlayerId);
 
         Map<String, Boolean> playersIndex = Map.of(currentPlayerId, false);
         when(mockGameState.getPlayersIndex()).thenReturn(playersIndex);
@@ -440,8 +440,8 @@ public class GameServiceLifecycleTest {
 
         // 1.1 Mock Current Player (Az a kéz, ami betöltődik az ESET 3 előtt)
         PlayerHand mockCurrentPlayer = mock(PlayerHand.class);
-        when(mockCurrentPlayer.getId()).thenReturn(playerId);
-        when(mockCurrentPlayer.getHand()).thenReturn(handWithTwoCards);
+        when(mockCurrentPlayer.id()).thenReturn(playerId);
+        when(mockCurrentPlayer.hand()).thenReturn(handWithTwoCards);
 
         // 1.2 Mock Next Hand (Az a kéz, amit az ESET 3 kiválaszt a players map-ből)
         PlayerHand mockNextHandInMap = mock(PlayerHand.class);

@@ -31,7 +31,7 @@ public class GameServiceLogicTest {
         final int initialBet = 50;
         final int expectedReward = 100; // 50 * 2.0
 
-        when(mockPlayerHand.getBet()).thenReturn(initialBet);
+        when(mockPlayerHand.bet()).thenReturn(initialBet);
         when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
         when(mockGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
 
@@ -56,7 +56,7 @@ public class GameServiceLogicTest {
         final int initialBet = 40; // 40 * 2.5 = 100
         final int expectedReward = 100;
 
-        when(mockPlayerHand.getBet()).thenReturn(initialBet);
+        when(mockPlayerHand.bet()).thenReturn(initialBet);
         when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
         when(mockGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
 
@@ -81,7 +81,7 @@ public class GameServiceLogicTest {
         final int initialBet = 75;
         final int expectedReward = 75; // 75 * 1.0
 
-        when(mockPlayerHand.getBet()).thenReturn(initialBet);
+        when(mockPlayerHand.bet()).thenReturn(initialBet);
         when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
         when(mockGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
 
@@ -106,7 +106,7 @@ public class GameServiceLogicTest {
         final int initialBet = 100;
         final int expectedReward = 0; // 100 * 0.0
 
-        when(mockPlayerHand.getBet()).thenReturn(initialBet);
+        when(mockPlayerHand.bet()).thenReturn(initialBet);
         when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
         when(mockGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
 
@@ -131,7 +131,7 @@ public class GameServiceLogicTest {
         final int initialBet = 100;
         final int expectedReward = 0;
 
-        when(mockPlayerHand.getBet()).thenReturn(initialBet);
+        when(mockPlayerHand.bet()).thenReturn(initialBet);
         when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
         when(mockGameState.getDealerUnmasked()).thenReturn(mockDealerUnmasked);
 

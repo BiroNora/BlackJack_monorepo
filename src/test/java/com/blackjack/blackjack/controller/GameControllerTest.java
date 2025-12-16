@@ -322,10 +322,10 @@ public class GameControllerTest {
             // PlayerHand újraépítése a kezdeti kártyákkal
             .player(PlayerHand.builder()
                 .id(CLIENT_UUID.toString())
-                .hand(initialGameState.getPlayer().getHand())
+                .hand(initialGameState.getPlayer().hand())
                 .bet(PLAYER_BET)
-                .canSplit(initialGameState.getPlayer().isCanSplit())
-                .stated(initialGameState.getPlayer().isStated())
+                .canSplit(initialGameState.getPlayer().canSplit())
+                .stated(initialGameState.getPlayer().stated())
                 .build())
             .dealerUnmasked(DealerHandUnmasked.builder()
                 .hand(new LinkedList<>(Arrays.asList(dealerCard1, dealerCard2, dealerHitCard)))
@@ -343,10 +343,10 @@ public class GameControllerTest {
             .isRoundActive(false)
             .player(PlayerHand.builder()
                 .id(CLIENT_UUID.toString())
-                .hand(STOOD_GAME_STATE.getPlayer().getHand()) // Kártyák átvétele
+                .hand(STOOD_GAME_STATE.getPlayer().hand()) // Kártyák átvétele
                 .bet(0) // Nullázza a fogadást
-                .canSplit(STOOD_GAME_STATE.getPlayer().isCanSplit())
-                .stated(STOOD_GAME_STATE.getPlayer().isStated())
+                .canSplit(STOOD_GAME_STATE.getPlayer().canSplit())
+                .stated(STOOD_GAME_STATE.getPlayer().stated())
                 .build())
             .build();
 

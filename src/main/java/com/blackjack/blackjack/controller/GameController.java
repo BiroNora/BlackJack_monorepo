@@ -149,7 +149,7 @@ public class GameController {
             .player(updatedGameState.getPlayer())
             .dealerUnmasked(updatedGameState.getDealerUnmasked())
             .deckLen(updatedGameState.getDeckLen())
-            .bet(updatedGameState.getPlayer().getBet())
+            .bet(updatedGameState.getPlayer().bet())
             .winner(updatedGameState.getWinner())
             .isRoundActive(updatedGameState.isRoundActive())
             .build();
@@ -174,7 +174,7 @@ public class GameController {
             "CLIENT_ERROR_SPECIFIC"
         ));
 
-        int betToDeduct = initialGameState.getPlayer().getBet();
+        int betToDeduct = initialGameState.getPlayer().bet();
 
         if (player.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
@@ -232,7 +232,7 @@ public class GameController {
             .player(updatedGameState.getPlayer())
             .natural21(updatedGameState.getNatural21())
             .deckLen(updatedGameState.getDeckLen())
-            .bet(updatedGameState.getPlayer().getBet())
+            .bet(updatedGameState.getPlayer().bet())
             .isRoundActive(updatedGameState.isRoundActive())
             .dealerMasked(updatedGameState.getDealerMasked())
             .dealerUnmasked(updatedGameState.getDealerUnmasked())
@@ -274,7 +274,7 @@ public class GameController {
             .player(updatedGameState.getPlayer())
             .dealerUnmasked(updatedGameState.getDealerUnmasked())
             .deckLen(updatedGameState.getDeckLen())
-            .bet(updatedGameState.getPlayer().getBet())
+            .bet(updatedGameState.getPlayer().bet())
             .winner(updatedGameState.getWinner())
             .isRoundActive(updatedGameState.isRoundActive())
             .build();
@@ -300,7 +300,7 @@ public class GameController {
             "CLIENT_ERROR_SPECIFIC"
         ));
 
-        int betToDeduct = initialGameState.getPlayer().getBet();
+        int betToDeduct = initialGameState.getPlayer().bet();
 
         if (player.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_SPLIT");
@@ -478,7 +478,7 @@ public class GameController {
             .winner(updatedGameState.getWinner())
             .splitReq(updatedGameState.getSplitReq())
             .deckLen(updatedGameState.getDeckLen())
-            .bet(updatedGameState.getPlayer().getBet())
+            .bet(updatedGameState.getPlayer().bet())
             .isRoundActive(updatedGameState.isRoundActive())
             .build();
 
@@ -502,7 +502,7 @@ public class GameController {
             "CLIENT_ERROR_SPECIFIC"
         ));
 
-        int betToDeduct = initialGameState.getPlayer().getBet();
+        int betToDeduct = initialGameState.getPlayer().bet();
 
         if (player.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");

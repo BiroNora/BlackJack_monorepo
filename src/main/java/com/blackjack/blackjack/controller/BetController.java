@@ -60,7 +60,7 @@ public class BetController {
         Optional<GameState> gameStateOptional = context.gameStateOptional();
         logger.info(">>>>>> BetController ÉRKEZÓ BET BET GameState_1 ********** Fő Bet: {} | Player Bet: {}",
             gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
-            gameStateOptional.get().getPlayer().getBet());     // <-- Ez kerül a második {} helyére
+            gameStateOptional.get().getPlayer().bet());     // <-- Ez kerül a második {} helyére
 
         int betAmount = betRequest.bet();
         if (betAmount < MINIMUM_BET) {
@@ -81,11 +81,11 @@ public class BetController {
 
         logger.info(">>>>>> BetController gameservice híyás előtt BET BET GameState_21 ********** Fő Bet: {} | Player Bet: {}",
             gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
-            gameStateOptional.get().getPlayer().getBet());     // <-- Ez kerül a második {} helyére
+            gameStateOptional.get().getPlayer().bet());     // <-- Ez kerül a második {} helyére
         GameState updatedGameState = gameService.placeBet(gameStateOptional, betAmount);
         logger.info(">>>>>> BetController gameservice híyás után BET BET GameState_22 ********** Fő Bet: {} | Player Bet: {}",
             gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
-            gameStateOptional.get().getPlayer().getBet());     // <-- Ez kerül a második {} helyére
+            gameStateOptional.get().getPlayer().bet());     // <-- Ez kerül a második {} helyére
 
         int deckLength;
         if (updatedGameState.getDeck() == null) {

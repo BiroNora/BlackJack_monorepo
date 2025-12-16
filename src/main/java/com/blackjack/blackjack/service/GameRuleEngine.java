@@ -14,8 +14,8 @@ public class GameRuleEngine {
         int playerSum = playerHand.getSum();
         int dealerSum = dealerHand.getSum();
 
-        boolean playerNatural = (playerHand.getHand().size() == 2) && (playerSum == 21);
-        boolean dealerNatural = (dealerHand.getHand().size() == 2) && (dealerSum == 21);
+        boolean playerNatural = (playerHand.hand().size() == 2) && (playerSum == 21);
+        boolean dealerNatural = (dealerHand.hand().size() == 2) && (dealerSum == 21);
 
         WinnerState naturalState;
 

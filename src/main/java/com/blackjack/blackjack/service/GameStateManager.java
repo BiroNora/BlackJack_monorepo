@@ -11,8 +11,8 @@ import java.util.*;
 @Service
 public class GameStateManager {
     private static final Comparator<PlayerHand> SPLIT_HAND_COMPARATOR = Comparator
-        .comparing(PlayerHand::isStated)
-        .thenComparing(PlayerHand::getId);
+        .comparing(PlayerHand::stated)
+        .thenComparing(PlayerHand::id);
     private final GameRuleEngine gameRuleEngine;
     private final PlayerHandFactory playerHandFactory;
 
@@ -84,7 +84,7 @@ public class GameStateManager {
             // 🚨 Feltételezés: A PlayerHand is @Builder(toBuilder=true)
 
             // 1. Készítünk egy módosítható másolatot a kártyákról
-            LinkedList<Card> currentHand = new LinkedList<>(oldPlayerHand.getHand());
+            LinkedList<Card> currentHand = new LinkedList<>(oldPlayerHand.hand());
             currentHand.add(dealtCard); // Hozzáadjuk a húzott lapot
 
             // 2. Kiszámoljuk a split-elhetőséget (ideális esetben ez a GameRuleEngine-ben történik)
@@ -133,7 +133,7 @@ public class GameStateManager {
         // A playersIndex módosítása:
         // 🚨 A Map is immutable módon frissüljön!
         Map<String, Boolean> newPlayersIndex = new LinkedHashMap<>(oldState.getPlayersIndex());
-        newPlayersIndex.put(updatedPlayerHand.getId(), false);
+        newPlayersIndex.put(updatedPlayerHand.id(), false);
 
         // Frissítjük a GameState Builder-t a módosított Map-pel
         GameState finalState = newStateBuilder
@@ -148,7 +148,7 @@ public class GameStateManager {
             return false;
         }
         return playersMap.values().stream()
-            .anyMatch(hand -> !hand.isStated());
+            .anyMatch(hand -> !hand.stated());
     }
 
     public Optional<String> findNextActivePlayerId(Map<String, Boolean> playersIndex) {
@@ -168,14 +168,14 @@ public class GameStateManager {
             return null;
         }
 
-        LinkedList<Card> copiedHand = new LinkedList<>(original.getHand());
+        LinkedList<Card> copiedHand = new LinkedList<>(original.hand());
 
         return PlayerHand.builder()
-            .id(original.getId())
+            .id(original.id())
             .hand(copiedHand)
-            .canSplit(original.isCanSplit())
-            .stated(original.isStated())
-            .bet(original.getBet())
+            .canSplit(original.canSplit())
+            .stated(original.stated())
+            .bet(original.bet())
             .build();
     }
 
@@ -189,7 +189,7 @@ public class GameStateManager {
         playersMap.clear();
 
         for (PlayerHand hand : sortedHands) {
-            playersMap.put(hand.getId(), hand);
+            playersMap.put(hand.id(), hand);
         }
     }
 }

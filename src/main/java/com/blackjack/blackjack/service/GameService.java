@@ -41,7 +41,7 @@ public class GameService {
         PlayerHand oldPlayerHand = oldState.getPlayer();
 
         // PlayerHand tét: Hozzáadjuk az új tétet a PlayerHand jelenlegi tétjéhez.
-        int newPlayerHandBet = oldPlayerHand.getBet() + betAmount;
+        int newPlayerHandBet = oldPlayerHand.bet() + betAmount;
         PlayerHand updatedPlayerHand = oldPlayerHand.toBuilder()
             .bet(newPlayerHandBet)
             .build();
@@ -255,7 +255,7 @@ public class GameService {
 
         PlayerHand oldPlayerHand = currentState.getPlayer();
 
-        LinkedList<Card> newHandList = new LinkedList<>(oldPlayerHand.getHand());
+        LinkedList<Card> newHandList = new LinkedList<>(oldPlayerHand.hand());
         newHandList.add(newCard);
 
         PlayerHand newPlayerHand = oldPlayerHand.toBuilder()
@@ -282,7 +282,7 @@ public class GameService {
             while (dealerSum < 17) {
                 DealResultWithState result = safeDealCard(gameStateOptional);
                 Card newCard = result.dealtCard();
-                currentState.getDealerUnmasked().getHand().add(newCard); // Mutáció (a safeDealCard a Deck-et is menti)
+                currentState.getDealerUnmasked().hand().add(newCard); // Mutáció (a safeDealCard a Deck-et is menti)
                 dealerSum = currentState.getDealerUnmasked().getSum();
             }
         }
@@ -305,11 +305,11 @@ public class GameService {
         PlayerHand playerHand = gameState.getPlayer();
         DealerHandUnmasked dealerUnmasked = gameState.getDealerUnmasked();
 
-        int bet = playerHand.getBet();
+        int bet = playerHand.bet();
 
         int globalWinnerState = gameState.getWinner();
         int initialNatural21 = gameState.getNatural21();
-        int dealerUnmaskedNatural21 = dealerUnmasked.getNatural21();
+        int dealerUnmaskedNatural21 = dealerUnmasked.natural21();
 
         double rewardAmount = 0.0;
 
@@ -368,7 +368,7 @@ public class GameService {
         double roundedCost = Math.ceil(halfBet);
 
 
-        int natural21 = oldState.getDealerUnmasked().getNatural21();
+        int natural21 = oldState.getDealerUnmasked().natural21();
 
         GameState.GameStateBuilder newStateBuilder = oldState.toBuilder();
         PlayerHand.PlayerHandBuilder newPlayerHandBuilder = oldState.getPlayer().toBuilder();
@@ -400,14 +400,14 @@ public class GameService {
         PlayerHand oldPlayerHand = oldState.getPlayer();
 
         // 2. Pre-check: Ha nem lehetséges, visszatérünk a régi, változatlan állapottal
-        if (!oldPlayerHand.isCanSplit() || oldState.getPlayers() == null || oldState.getPlayers().size() > 3) {
+        if (!oldPlayerHand.canSplit() || oldState.getPlayers() == null || oldState.getPlayers().size() > 3) {
             return oldState;
         }
 
         // --- IMMUTABLE ÁLLAPOT KEZELÉSE ---
 
         // 3. Különválasztjuk a splitelendő lapot (Immutable List Manipuláció)
-        List<Card> oldHandCards = oldPlayerHand.getHand();
+        List<Card> oldHandCards = oldPlayerHand.hand();
 
         // A kiválasztott lap (index 1)
         Card cardToSplit = oldHandCards.get(1);
@@ -452,7 +452,7 @@ public class GameService {
 
         // Másolatot készítünk az utolsó állás Map-jéről
         Map<String, PlayerHand> newPlayersMap = new LinkedHashMap<>(state2_CardDealt.getPlayers());
-        newPlayersMap.put(secondPlayer.getId(), secondPlayer);
+        newPlayersMap.put(secondPlayer.id(), secondPlayer);
 
         // 8. Kiszámoljuk az utolsó állapotváltozókat
         int newSplitReq = state2_CardDealt.getSplitReq() + 1;
@@ -492,12 +492,12 @@ public class GameService {
             // 3. Players térkép immutábilis frissítése: új Map létrehozása
             // A Map-ek frissítését mindig klónozással kell kezdeni immutábilis környezetben!
             Map<String, PlayerHand> newPlayersMap = new HashMap<>(oldState.getPlayers());
-            newPlayersMap.put(updatedPlayerHand.getId(), updatedPlayerHand);
+            newPlayersMap.put(updatedPlayerHand.id(), updatedPlayerHand);
 
             // 4. PlayersIndex térkép immutábilis frissítése
             // Feltételezve, hogy a getPlayersIndex() Map<String, Boolean> típusú
             Map<String, Boolean> newPlayersIndexMap = new HashMap<>(oldState.getPlayersIndex());
-            String ID = updatedPlayerHand.getId();
+            String ID = updatedPlayerHand.id();
             newPlayersIndexMap.put(ID, true);
 
             // 5. Végleges GameState objektum létrehozása az ÚJ referenciákkal
@@ -539,12 +539,12 @@ public class GameService {
         PlayerHand nextActiveHand = null;
 
         // ESET 1: VISSZATÖLTÉS (Cache Védelme)
-        if (splitPlayer != null && splitPlayer.getId() != null && splitPlayer.getId().equals(nextHandId)) {
+        if (splitPlayer != null && splitPlayer.id() != null && splitPlayer.id().equals(nextHandId)) {
             // A 'player' Hand-et a splitPlayer-re állítjuk.
             nextActiveHand = splitPlayer;
         }
         // ESET 2: Gyors kiút (A lap már be van töltve, nincs változtatás a PlayerHand-en)
-        else if (player != null && player.getId().equals(nextHandId)) {
+        else if (player != null && player.id().equals(nextHandId)) {
             nextActiveHand = player;
         }
         // ESET 3: ELSŐ FUTÁS (Lap kiemelése és splitReq csökkentése)
@@ -584,7 +584,7 @@ public class GameService {
         // 6. KÁRTYA OSZTÁS / HAND BŐVÍTÉS (Ha a Hand mérete < 2)
         PlayerHand playerToDealTo = currentGameState.getPlayer();
 
-        if (playerToDealTo.getHand().size() < 2) {
+        if (playerToDealTo.hand().size() < 2) {
 
             // Állapotláncolás: A safeDealCard megváltoztatja a Deck állapotát!
             // A gameStateOptional már tartalmazza az aktuális currentGameState-et a Player frissítéssel
@@ -595,7 +595,7 @@ public class GameService {
             currentGameState = result.newGameState();
 
             // --- PlayerHand lap hozzáadása (immutábilisan) ---
-            LinkedList<Card> newHandList = new LinkedList<>(playerToDealTo.getHand());
+            LinkedList<Card> newHandList = new LinkedList<>(playerToDealTo.hand());
             newHandList.add(cardToAdd);
 
             boolean canSplit = gameRuleEngine.canSplit(newHandList);

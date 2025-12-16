@@ -45,8 +45,8 @@ public class GameStateManagerTest {
 
     private PlayerHand createMockHand(String id, boolean isStated) {
         PlayerHand hand = mock(PlayerHand.class);
-        when(hand.getId()).thenReturn(id);
-        when(hand.isStated()).thenReturn(isStated);
+        when(hand.id()).thenReturn(id);
+        when(hand.stated()).thenReturn(isStated);
         return hand;
     }
 
@@ -54,24 +54,24 @@ public class GameStateManagerTest {
     void sortPlayersMap_shouldSortByStatedThenById() {
         // 1. Állapot: Stated=false, ID=A1 (Legmagasabb prioritású aktív játékos ID szerint)
         PlayerHand mockPlayerHandActiveA = mock(PlayerHand.class);
-        when(mockPlayerHandActiveA.getId()).thenReturn("A1");
-        when(mockPlayerHandActiveA.isStated()).thenReturn(false);
+        when(mockPlayerHandActiveA.id()).thenReturn("A1");
+        when(mockPlayerHandActiveA.stated()).thenReturn(false);
 
         // 2. Állapot: Stated=false, ID=B1 (Második prioritású aktív játékos ID szerint)
         PlayerHand mockPlayerHandActiveB = mock(PlayerHand.class);
-        when(mockPlayerHandActiveB.getId()).thenReturn("B1");
-        when(mockPlayerHandActiveB.isStated()).thenReturn(false);
+        when(mockPlayerHandActiveB.id()).thenReturn("B1");
+        when(mockPlayerHandActiveB.stated()).thenReturn(false);
 
         // 3. Állapot: Stated=true, ID=A2 (Befejezett kéz)
         PlayerHand mockPlayerHandStatedA = mock(PlayerHand.class);
-        when(mockPlayerHandStatedA.getId()).thenReturn("A2");
-        when(mockPlayerHandStatedA.isStated()).thenReturn(true);
+        when(mockPlayerHandStatedA.id()).thenReturn("A2");
+        when(mockPlayerHandStatedA.stated()).thenReturn(true);
 
         // Eredeti, rendezetlen Map (Fontos: Helyezzük be őket kaotikus sorrendben)
         Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
-        playersMap.put(mockPlayerHandStatedA.getId(), mockPlayerHandStatedA);   // A2, true
-        playersMap.put(mockPlayerHandActiveB.getId(), mockPlayerHandActiveB);   // B1, false
-        playersMap.put(mockPlayerHandActiveA.getId(), mockPlayerHandActiveA);   // A1, false
+        playersMap.put(mockPlayerHandStatedA.id(), mockPlayerHandStatedA);   // A2, true
+        playersMap.put(mockPlayerHandActiveB.id(), mockPlayerHandActiveB);   // B1, false
+        playersMap.put(mockPlayerHandActiveA.id(), mockPlayerHandActiveA);   // A1, false
 
         gameStateManager.sortPlayersMap(playersMap);
 
@@ -80,16 +80,16 @@ public class GameStateManagerTest {
 
         // 1. Ellenőrzés: A (false, A1) az első
         assertEquals(3, sortedList.size());
-        assertEquals("A1", sortedList.get(0).getId());
-        assertFalse(sortedList.get(0).isStated());
+        assertEquals("A1", sortedList.get(0).id());
+        assertFalse(sortedList.get(0).stated());
 
         // 2. Ellenőrzés: A (false, B1) a második
-        assertEquals("B1", sortedList.get(1).getId());
-        assertFalse(sortedList.get(1).isStated());
+        assertEquals("B1", sortedList.get(1).id());
+        assertFalse(sortedList.get(1).stated());
 
         // 3. Ellenőrzés: A (true, A2) a harmadik
-        assertEquals("A2", sortedList.get(2).getId());
-        assertTrue(sortedList.get(2).isStated());
+        assertEquals("A2", sortedList.get(2).id());
+        assertTrue(sortedList.get(2).stated());
     }
 
     @Test
@@ -153,10 +153,10 @@ public class GameStateManagerTest {
     @Test
     void areStatedFalseHands_shouldReturnTrueIfAnyHandIsNotStated() {
         // Aktív kéz: isStated = false
-        when(mockPlayerHand1.isStated()).thenReturn(false);
+        when(mockPlayerHand1.stated()).thenReturn(false);
 
         // Befejezett kéz: isStated = true
-        when(mockPlayerHand2.isStated()).thenReturn(true);
+        when(mockPlayerHand2.stated()).thenReturn(true);
 
         Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
         playersMap.put("A", mockPlayerHand2); // Befejezett
@@ -170,10 +170,10 @@ public class GameStateManagerTest {
     @Test
     void areStatedFalseHands_shouldReturnFalseIfAllHandsAreStated() {
         // Kéz 1: isStated = true
-        when(mockPlayerHand1.isStated()).thenReturn(true);
+        when(mockPlayerHand1.stated()).thenReturn(true);
 
         // Kéz 2: isStated = true
-        when(mockPlayerHand2.isStated()).thenReturn(true);
+        when(mockPlayerHand2.stated()).thenReturn(true);
 
         Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
         playersMap.put("A", mockPlayerHand1);
@@ -199,8 +199,8 @@ public class GameStateManagerTest {
         when(mockGameState.getPlayersIndex()).thenReturn(mockPlayersIndex);
         when(mockDeck.dealCard()).thenReturn(mockAce2);
 
-        when(mockPlayerHand.getHand()).thenReturn(mockCurrentHand);
-        when(mockPlayerHand.getId()).thenReturn("P1");
+        when(mockPlayerHand.hand()).thenReturn(mockCurrentHand);
+        when(mockPlayerHand.id()).thenReturn("P1");
 
         when(mockGameRuleEngine.canSplit(mockCurrentHand)).thenReturn(true);
 
@@ -226,8 +226,8 @@ public class GameStateManagerTest {
 
         when(mockDeck.dealCard()).thenReturn(mockDrawnCard);
 
-        when(mockPlayerHand.getHand()).thenReturn(mockCurrentHand);
-        when(mockPlayerHand.getId()).thenReturn("P1");
+        when(mockPlayerHand.hand()).thenReturn(mockCurrentHand);
+        when(mockPlayerHand.id()).thenReturn("P1");
         when(mockCurrentHand.getFirst()).thenReturn(testCardTen);
 
         final boolean expectedSplitPossible = false;
@@ -253,8 +253,8 @@ public class GameStateManagerTest {
 
         LinkedList<Card> mockNewHandCardList = mock(LinkedList.class);
         when(mockPlayerHandFactory.createEmptyHand()).thenReturn(mockPlayerHand2);
-        when(mockPlayerHand2.getHand()).thenReturn(mockNewHandCardList);
-        when(mockPlayerHand2.getId()).thenReturn(newHandId);
+        when(mockPlayerHand2.hand()).thenReturn(mockNewHandCardList);
+        when(mockPlayerHand2.id()).thenReturn(newHandId);
 
         when(mockGameState.getBet()).thenReturn(betAmount);
         when(mockGameState.getPlayersIndex()).thenReturn(mockPlayersIndex);
@@ -274,16 +274,16 @@ public class GameStateManagerTest {
 
     @Test
     void areStatedFalseHands_withFalseState() {
-        when(mockPlayerHand1.isStated()).thenReturn(true);
-        when(mockPlayerHand2.isStated()).thenReturn(false);
+        when(mockPlayerHand1.stated()).thenReturn(true);
+        when(mockPlayerHand2.stated()).thenReturn(false);
 
         Map<String, PlayerHand> playersMap = new HashMap<>();
         playersMap.put("A", mockPlayerHand1);
         playersMap.put("B", mockPlayerHand2);
         boolean isThereFalseStatedHand = gameStateManager.areStatedFalseHands(playersMap);
 
-        verify(mockPlayerHand1, times(1)).isStated();
-        verify(mockPlayerHand2, times(1)).isStated();
+        verify(mockPlayerHand1, times(1)).stated();
+        verify(mockPlayerHand2, times(1)).stated();
 
         assertTrue(isThereFalseStatedHand);
     }
@@ -345,19 +345,19 @@ public class GameStateManagerTest {
 
         PlayerHand copiedHand = gameStateManager.deepCopyPlayerHand(originalHand);
 
-        assertEquals(originalHand.getId(), copiedHand.getId());
-        assertEquals(originalHand.isCanSplit(), copiedHand.isCanSplit());
-        assertEquals(originalHand.isStated(), copiedHand.isStated());
-        assertEquals(originalHand.getBet(), copiedHand.getBet());
+        assertEquals(originalHand.id(), copiedHand.id());
+        assertEquals(originalHand.canSplit(), copiedHand.canSplit());
+        assertEquals(originalHand.stated(), copiedHand.stated());
+        assertEquals(originalHand.bet(), copiedHand.bet());
 
-        assertEquals(1, copiedHand.getHand().size());
-        assertEquals(testCardAce, copiedHand.getHand().getFirst());
+        assertEquals(1, copiedHand.hand().size());
+        assertEquals(testCardAce, copiedHand.hand().getFirst());
 
-        originalHand.getHand().add(testCardTen);
+        originalHand.hand().add(testCardTen);
 
-        assertEquals(1, copiedHand.getHand().size());
-        assertEquals(2, originalHand.getHand().size());
-        assertNotSame(originalHand.getHand(), copiedHand.getHand());
+        assertEquals(1, copiedHand.hand().size());
+        assertEquals(2, originalHand.hand().size());
+        assertNotSame(originalHand.hand(), copiedHand.hand());
     }
 
     @Test
@@ -368,10 +368,10 @@ public class GameStateManagerTest {
         PlayerHand stated_P3 = createMockHand("P-003", true);  // Elvárt 3. hely (ID alapján kisebb)
 
         Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
-        playersMap.put(stated_P4.getId(), stated_P4);
-        playersMap.put(active_P2.getId(), active_P2);
-        playersMap.put(stated_P3.getId(), stated_P3);
-        playersMap.put(active_P1.getId(), active_P1);
+        playersMap.put(stated_P4.id(), stated_P4);
+        playersMap.put(active_P2.id(), active_P2);
+        playersMap.put(stated_P3.id(), stated_P3);
+        playersMap.put(active_P1.id(), active_P1);
 
         List<String> expectedOrder = List.of(
             "P-001", // Active + kisebb ID
@@ -388,7 +388,7 @@ public class GameStateManagerTest {
 
         assertEquals(expectedOrder, actualOrder);
 
-        verify(active_P1, times(2)).isStated();
-        verify(stated_P4, atLeastOnce()).getId();
+        verify(active_P1, times(2)).stated();
+        verify(stated_P4, atLeastOnce()).id();
     }
 }

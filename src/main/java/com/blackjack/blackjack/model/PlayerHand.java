@@ -9,18 +9,11 @@ import lombok.extern.jackson.Jacksonized;
 import java.io.Serializable;
 import java.util.LinkedList;
 
-@Value
 @Builder(toBuilder = true)
-@AllArgsConstructor
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Jacksonized
-public class PlayerHand implements Hand, Serializable {
-    String id;
-    LinkedList<Card> hand;
-    boolean canSplit;
-    boolean stated;
-    int bet;
-
+public record PlayerHand(String id, LinkedList<Card> hand, boolean canSplit, boolean stated,
+                         int bet) implements Hand, Serializable {
     public static PlayerHand createEmptyHand() {
         return PlayerHand.builder()
             .id("NONE")
