@@ -15,7 +15,7 @@ public class DeckTest {
 
     @BeforeEach
     void setUp() {
-        deck = new Deck();
+        deck = Deck.createNewDeck();
     }
 
     @Test
@@ -27,7 +27,11 @@ public class DeckTest {
     @Test
     void testDealCardReducesDeckSize() {
         final int initialSize = deck.getDeckLength();
-        Card dealtCard = deck.dealCard();
+        DealResult result = deck.dealCard();
+
+        Card dealtCard = result.dealtCard();
+        Deck newDeck = result.newDeck();
+        assertEquals(initialSize - 1, newDeck.getDeckLength());
 
         assertNotNull(dealtCard);
         assertEquals(initialSize - 1, deck.getDeckLength());
@@ -36,10 +40,10 @@ public class DeckTest {
     @Test
     void testDealtCardIsRemovedByOneCount() {
         // Azonosítjuk, hogy melyik lap lesz a következő a pakliban (Index 0).
-        Card cardToDeal = deck.getDeck().get(0);
+        Card cardToDeal = deck.deck().get(0);
 
         // Megszámoljuk az osztandó lap kezdeti előfordulását a pakliban.
-        long initialCount = deck.getDeck().stream()
+        long initialCount = deck.deck().stream()
             .filter(card -> card.equals(cardToDeal))
             .count();
 
@@ -49,7 +53,7 @@ public class DeckTest {
         deck.dealCard();
 
         // Megszámoljuk a lap új előfordulását az eltávolítás után
-        long finalCount = deck.getDeck().stream()
+        long finalCount = deck.deck().stream()
             .filter(card -> card.equals(cardToDeal))
             .count();
 
@@ -77,7 +81,7 @@ public class DeckTest {
             .collect(Collectors.toList());
 
         // Lekérjük a tesztelendő, kevert pakli első 5 lapját
-        List<Card> shuffledFirstFive = deck.getDeck().stream().limit(5).collect(Collectors.toList());
+        List<Card> shuffledFirstFive = deck.deck().stream().limit(5).collect(Collectors.toList());
 
         // Ellenőrizzük, hogy a kevert lista nem azonos a rendezett referencia listával.
         // Ez 99.9%-ban jelzi a sikeres keverést.

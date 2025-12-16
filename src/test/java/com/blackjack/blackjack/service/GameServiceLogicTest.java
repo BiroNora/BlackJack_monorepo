@@ -38,7 +38,7 @@ public class GameServiceLogicTest {
         // Kulcsfontosságú beállítás: Játékos nyert, de nem Blackjackkel
         when(mockGameState.getWinner()).thenReturn(WinnerState.PLAYER_WON.getValue());
         when(mockGameState.getNatural21()).thenReturn(WinnerState.NONE.getValue());
-        when(mockDealerUnmasked.getNatural21()).thenReturn(WinnerState.NONE.getValue()); // Dealer sem Blackjack
+        when(mockDealerUnmasked.natural21()).thenReturn(WinnerState.NONE.getValue()); // Dealer sem Blackjack
 
         // ACT
         GameService.TransactionResult result = gameService.calculateRewards(mockGameState);
@@ -63,7 +63,7 @@ public class GameServiceLogicTest {
         // Kulcsfontosságú beállítás: Játékos Blackjack-el nyert
         when(mockGameState.getNatural21()).thenReturn(WinnerState.BLACKJACK_PLAYER_WON.getValue());
         when(mockGameState.getWinner()).thenReturn(WinnerState.BLACKJACK_PLAYER_WON.getValue());
-        when(mockDealerUnmasked.getNatural21()).thenReturn(WinnerState.NONE.getValue());
+        when(mockDealerUnmasked.natural21()).thenReturn(WinnerState.NONE.getValue());
 
         // ACT
         GameService.TransactionResult result = gameService.calculateRewards(mockGameState);
@@ -88,7 +88,7 @@ public class GameServiceLogicTest {
         // Kulcsfontosságú beállítás: Általános PUSH (döntetlen)
         when(mockGameState.getWinner()).thenReturn(WinnerState.PUSH.getValue());
         when(mockGameState.getNatural21()).thenReturn(WinnerState.NONE.getValue());
-        when(mockDealerUnmasked.getNatural21()).thenReturn(WinnerState.NONE.getValue());
+        when(mockDealerUnmasked.natural21()).thenReturn(WinnerState.NONE.getValue());
 
         // ACT
         GameService.TransactionResult result = gameService.calculateRewards(mockGameState);
@@ -113,7 +113,7 @@ public class GameServiceLogicTest {
         // Kulcsfontosságú beállítás: Dealer nyert
         when(mockGameState.getWinner()).thenReturn(WinnerState.DEALER_WON.getValue()); // Vagy BUST, vagy DEALER_WON
         when(mockGameState.getNatural21()).thenReturn(WinnerState.NONE.getValue());
-        when(mockDealerUnmasked.getNatural21()).thenReturn(WinnerState.NONE.getValue());
+        when(mockDealerUnmasked.natural21()).thenReturn(WinnerState.NONE.getValue());
 
         // ACT
         GameService.TransactionResult result = gameService.calculateRewards(mockGameState);
@@ -138,7 +138,7 @@ public class GameServiceLogicTest {
         // Kulcsfontosságú beállítás: Dealer Blackjack Nyert
         when(mockGameState.getWinner()).thenReturn(WinnerState.DEALER_WON.getValue()); // Bármi lehet, de a Dealer BJ a döntő
         when(mockGameState.getNatural21()).thenReturn(WinnerState.NONE.getValue());
-        when(mockDealerUnmasked.getNatural21()).thenReturn(WinnerState.BLACKJACK_DEALER_WON.getValue());
+        when(mockDealerUnmasked.natural21()).thenReturn(WinnerState.BLACKJACK_DEALER_WON.getValue());
 
         // ACT
         GameService.TransactionResult result = gameService.calculateRewards(mockGameState);

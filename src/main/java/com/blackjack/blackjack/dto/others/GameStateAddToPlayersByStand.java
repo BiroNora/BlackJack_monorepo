@@ -5,13 +5,11 @@ import com.blackjack.blackjack.model.DealerHandUnmasked;
 import com.blackjack.blackjack.model.PlayerHand;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 
 import java.util.Map;
 
 @Builder(toBuilder = true)
-@AllArgsConstructor
 public record GameStateAddToPlayersByStand(boolean aces, PlayerHand player, Map<String, PlayerHand> players,
                                            int splitReq, int deckLen, int bet, boolean isRoundActive,
                                            DealerHandMasked dealerMasked, DealerHandUnmasked dealerUnmasked) {

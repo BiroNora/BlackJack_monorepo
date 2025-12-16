@@ -33,7 +33,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @ExtendWith(MockitoExtension.class)
 public class BetControllerTest {
     private final UUID CLIENT_UUID = UUID.randomUUID();
-    private final Player TEST_PLAYER = new Player(CLIENT_UUID, 1000);
+    private final Player TEST_PLAYER = Player.builder()
+        .id(UUID.randomUUID())
+        .clientId(CLIENT_UUID)
+        .sessionId("test-session-id")
+        .tokens(1000)
+        .idempotencyKey(UUID.randomUUID())
+        .build();
     private final UUID testClientId = TEST_PLAYER.getClientId();
     private final GameState TEST_GAME_STATE = new GameState();
     private MockMvc mockMvc;
@@ -72,8 +78,13 @@ public class BetControllerTest {
     void placeBet_shouldReturnOkAndDeductTokens_whenBetIsValid() throws Exception {
         int BET_AMOUNT = 100;
         int EXPECTED_TOKENS = 900;
-
-        Player UPDATED_PLAYER = new Player(CLIENT_UUID, EXPECTED_TOKENS);
+        final Player UPDATED_PLAYER = Player.builder()
+            .id(UUID.randomUUID())
+            .clientId(CLIENT_UUID)
+            .sessionId("test-session-id")
+            .tokens(EXPECTED_TOKENS)
+            .idempotencyKey(UUID.randomUUID())
+            .build();
 
         when(playerService.deductBet(any(Player.class), eq(BET_AMOUNT))).thenReturn(UPDATED_PLAYER);
         when(gameService.placeBet(any(), eq(BET_AMOUNT))).thenReturn(TEST_GAME_STATE);
@@ -107,7 +118,13 @@ public class BetControllerTest {
         final int AMOUNT_TO_RETURN_NEGATIVE = -100;
         final int EXPECTED_TOKENS = 1100;
 
-        Player UPDATED_PLAYER = new Player(CLIENT_UUID, EXPECTED_TOKENS);
+        final Player UPDATED_PLAYER = Player.builder()
+            .id(UUID.randomUUID())
+            .clientId(CLIENT_UUID)
+            .sessionId("test-session-id")
+            .tokens(EXPECTED_TOKENS)
+            .idempotencyKey(UUID.randomUUID())
+            .build();
 
         when(gameService.retakeBet(any())).thenReturn(AMOUNT_TO_RETURN_NEGATIVE);
         when(playerService.deductBet(any(Player.class), eq(AMOUNT_TO_RETURN_NEGATIVE))).thenReturn(UPDATED_PLAYER);

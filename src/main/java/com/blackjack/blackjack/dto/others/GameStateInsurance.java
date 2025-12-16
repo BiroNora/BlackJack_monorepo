@@ -5,11 +5,9 @@ import com.blackjack.blackjack.model.DealerHandUnmasked;
 import com.blackjack.blackjack.model.PlayerHand;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-@AllArgsConstructor
 public record GameStateInsurance(PlayerHand player, @JsonProperty("natural_21") int natural21, int deckLen, int bet,
                                  boolean isRoundActive, DealerHandMasked dealerMasked,
                                  DealerHandUnmasked dealerUnmasked) {
