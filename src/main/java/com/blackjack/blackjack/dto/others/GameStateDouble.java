@@ -1,13 +1,10 @@
 package com.blackjack.blackjack.dto.others;
 
 import com.blackjack.blackjack.model.PlayerHand;
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 
-@Value
 @Builder(toBuilder = true)
 @AllArgsConstructor
-public class GameStateDouble {
-    PlayerHand player;
-    int deckLen;
-    boolean isRoundActive;
+public record GameStateDouble(PlayerHand player, int deckLen, boolean isRoundActive) {
 }

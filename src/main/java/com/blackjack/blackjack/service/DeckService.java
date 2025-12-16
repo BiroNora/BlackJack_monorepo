@@ -1,10 +1,10 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.model.DealResult;
 import com.blackjack.blackjack.model.Deck;
-import com.blackjack.blackjack.model.DealResult; // 🚨 Új import
-import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Service;
 
 /**
  * Felelős a Deck objektumokkal való interakcióért,

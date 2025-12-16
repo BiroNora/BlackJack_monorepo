@@ -27,9 +27,6 @@ public class GameService {
         this.playerHandFactory = playerHandFactory;
     }
 
-    public record DealResultWithState(Card dealtCard, GameState newGameState) {
-    }
-
     public GameState placeBet(Optional<GameState> gameStateOptional, int betAmount) {
         GameState oldState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         logger.info("Az aktuálisan betöltött GameState bet mezője (oldState.getBet()): {}", oldState.getBet());
@@ -40,7 +37,6 @@ public class GameService {
         int newTotalBet = oldState.getBet() + betAmount;
         PlayerHand oldPlayerHand = oldState.getPlayer();
 
-        // PlayerHand tét: Hozzáadjuk az új tétet a PlayerHand jelenlegi tétjéhez.
         int newPlayerHandBet = oldPlayerHand.bet() + betAmount;
         PlayerHand updatedPlayerHand = oldPlayerHand.toBuilder()
             .bet(newPlayerHandBet)
@@ -394,118 +390,78 @@ public class GameService {
     }
 
     public GameState splitHand(Optional<GameState> gameStateOptional) {
-
-        // 1. Betöltjük a régi állapotot (oldState)
         GameState oldState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         PlayerHand oldPlayerHand = oldState.getPlayer();
 
-        // 2. Pre-check: Ha nem lehetséges, visszatérünk a régi, változatlan állapottal
         if (!oldPlayerHand.canSplit() || oldState.getPlayers() == null || oldState.getPlayers().size() > 3) {
             return oldState;
         }
 
-        // --- IMMUTABLE ÁLLAPOT KEZELÉSE ---
-
-        // 3. Különválasztjuk a splitelendő lapot (Immutable List Manipuláció)
         List<Card> oldHandCards = oldPlayerHand.hand();
 
-        // A kiválasztott lap (index 1)
         Card cardToSplit = oldHandCards.get(1);
 
-        // Létrehozzuk az új kártyalistát az első kézhez (MÓDOSÍTHATÓ MÁSOLAT a remove-hoz)
         LinkedList<Card> primaryHandCards = new LinkedList<>(oldHandCards);
         primaryHandCards.remove(1);
 
-        // 4. Frissítjük a PlayerHand objektumot az eltávolított lappal (Immutable)
         PlayerHand primaryHandNewState = oldPlayerHand.toBuilder()
             .hand(primaryHandCards)
-            // Megtartjuk az összes többi beállítást (pl. tét)
             .build();
 
-        // State 1: A GameState frissítve az első kéz új állapotával (egy lap hiányzik)
         GameState state1_PrimaryHandUpdated = oldState.toBuilder()
             .player(primaryHandNewState)
             .build();
 
-        // 5. Osztunk egy lapot az első kéznek (DealCard hívás)
-        // Ez a hívás frissíti a DECK-et, a PRIMARY HAND-et, és visszaadja az ÚJ GameState-et.
         GameState state2_CardDealt = gameStateManager.dealSplitCard(state1_PrimaryHandUpdated, true, null);
 
-        // 6. Létrehozzuk a Második (Splitelt) Kézdarabot (Immutable)
-
-        // 🚨 Kezeljük a Hand Counter inkrementálást (volt gameState.generateNextHandId())
         int newHandCounter = state2_CardDealt.getHandCounter() + 1;
         String secondPlayerId = String.format("P-%03d", newHandCounter);
 
-        // Feltételezve, hogy létezik egy immutable template (playerHandFactory.createEmptyHand())
         PlayerHand secondPlayerTemplate = playerHandFactory.createEmptyHand();
 
-        // Létrehozzuk a második PlayerHand objektumot
         PlayerHand secondPlayer = secondPlayerTemplate.toBuilder()
             .id(secondPlayerId)
-            .hand(new LinkedList<>(List.of(cardToSplit))) // Az eltávolított lap az új kézben
-            .bet(state2_CardDealt.getBet()) // Az aktuális tét
-            // Feltételezve, hogy a többi mezőt a template kezeli
+            .hand(new LinkedList<>(List.of(cardToSplit)))
+            .bet(state2_CardDealt.getBet())
             .build();
 
-        // 7. Frissítjük a players Map-et (Immutable Map Módosítás)
-
-        // Másolatot készítünk az utolsó állás Map-jéről
         Map<String, PlayerHand> newPlayersMap = new LinkedHashMap<>(state2_CardDealt.getPlayers());
         newPlayersMap.put(secondPlayer.id(), secondPlayer);
 
-        // 8. Kiszámoljuk az utolsó állapotváltozókat
         int newSplitReq = state2_CardDealt.getSplitReq() + 1;
 
-        // 9. Végső GameState összeállítása
         GameState finalState = state2_CardDealt.toBuilder()
-            .handCounter(newHandCounter) // 🚨 Frissítjük a Hand Counter-t
-            .players(newPlayersMap) // Az új Map-et beállítjuk
-            .splitReq(newSplitReq) // Az új splitReq értéket beállítjuk
-            // A sortPlayersMap() funkciót kihagyjuk, mivel az a Map mutálására irányul,
-            // ami ellentmond az immutabilitásnak. (LinkedHashMap biztosítja a beszúrási sorrendet.)
+            .handCounter(newHandCounter)
+            .players(newPlayersMap)
+            .splitReq(newSplitReq)
             .build();
 
-        // 10. Mentjük az új, teljes állapotot
         gameStateService.saveGameState(finalState);
 
         return finalState;
     }
 
     public GameState addToPlayersListByStand(Optional<GameState> gameStateOptional) {
-        // 1. Állapot lekérése (a metódus teljes időtartamára változatlan marad)
         GameState oldState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         PlayerHand playerHand = oldState.getPlayer();
 
-        // Ellenőrző logika
         boolean isActive = gameStateManager.areStatedFalseHands(oldState.getPlayers());
         logger.info(">>>>y isActive: {}", isActive);
 
         if (isActive) {
-            // --- IMMUTÁBILIS FRISSÍTÉSEK ---
-
-            // 2. PlayerHand immutábilis frissítése: stated = true
             PlayerHand updatedPlayerHand = playerHand.toBuilder()
                 .stated(true)
                 .build();
 
-            // 3. Players térkép immutábilis frissítése: új Map létrehozása
-            // A Map-ek frissítését mindig klónozással kell kezdeni immutábilis környezetben!
             Map<String, PlayerHand> newPlayersMap = new HashMap<>(oldState.getPlayers());
             newPlayersMap.put(updatedPlayerHand.id(), updatedPlayerHand);
 
-            // 4. PlayersIndex térkép immutábilis frissítése
-            // Feltételezve, hogy a getPlayersIndex() Map<String, Boolean> típusú
             Map<String, Boolean> newPlayersIndexMap = new HashMap<>(oldState.getPlayersIndex());
             String ID = updatedPlayerHand.id();
             newPlayersIndexMap.put(ID, true);
 
-            // 5. Végleges GameState objektum létrehozása az ÚJ referenciákkal
             GameState newState = oldState.toBuilder()
-                // Frissített player objektumot használunk, mert ott van a stated(true)
                 .player(updatedPlayerHand)
-
-                // Új térkép referenciákat használunk
                 .players(newPlayersMap)
                 .playersIndex(newPlayersIndexMap)
                 .build();
@@ -514,13 +470,11 @@ public class GameService {
             return newState;
 
         } else {
-            // Ha nem aktív, nincs frissítés
             return oldState;
         }
     }
 
     public GameState addSplitPlayerToGame(Optional<GameState> gameStateOptional) {
-        // 1. Állapot lekérése (ez az alap, amitől indulunk)
         GameState oldState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         GameState currentGameState = oldState; // Ezt a referenciát láncoljuk!
 
@@ -528,91 +482,63 @@ public class GameService {
         Optional<String> nextIdOptional = gameStateManager.findNextActivePlayerId(playersIndex);
 
         if (nextIdOptional.isEmpty()) {
-            return currentGameState; // Nincs mit tenni, visszatérünk a régivel
+            return currentGameState;
         }
 
         String nextHandId = nextIdOptional.get();
         PlayerHand player = currentGameState.getPlayer();
         PlayerHand splitPlayer = currentGameState.getSplitPlayer();
 
-        // Ideiglenes frissített PlayerHand, amit be akarunk állítani:
         PlayerHand nextActiveHand = null;
 
-        // ESET 1: VISSZATÖLTÉS (Cache Védelme)
         if (splitPlayer != null && splitPlayer.id() != null && splitPlayer.id().equals(nextHandId)) {
-            // A 'player' Hand-et a splitPlayer-re állítjuk.
             nextActiveHand = splitPlayer;
-        }
-        // ESET 2: Gyors kiút (A lap már be van töltve, nincs változtatás a PlayerHand-en)
-        else if (player != null && player.id().equals(nextHandId)) {
+        } else if (player != null && player.id().equals(nextHandId)) {
             nextActiveHand = player;
-        }
-        // ESET 3: ELSŐ FUTÁS (Lap kiemelése és splitReq csökkentése)
-        else if (currentGameState.getPlayers().containsKey(nextHandId)) {
-
-            // --- Players Map immutábilis kezelése (kiemelés) ---
+        } else if (currentGameState.getPlayers().containsKey(nextHandId)) {
             Map<String, PlayerHand> oldPlayersMap = currentGameState.getPlayers();
 
-            // Másolat készítése és a Hand eltávolítása (immutábilisan)
             Map<String, PlayerHand> newPlayersMap = new HashMap<>(oldPlayersMap);
             PlayerHand nextHand = newPlayersMap.remove(nextHandId); // Mutábilis Map művelet a KLÓNON!
 
             nextActiveHand = nextHand;
 
-            // --- GameState immutábilis frissítése a PlayerHand és Map változásokkal ---
             currentGameState = currentGameState.toBuilder()
-                // Frissítjük a 'players' térképet az új, csökkentett térképpel
                 .players(newPlayersMap)
-
-                // Beállítjuk a splitPlayer-t az aktuális nextHand másolatával (toBuilder/build az immutabilitás miatt!)
                 .splitPlayer(nextHand.toBuilder().build())
-
-                // SplitReq immutábilis csökkentése. Feltételezve, hogy a 'splitReq' int!
                 .splitReq(currentGameState.getSplitReq() - 1)
                 .build();
         }
 
-        // --- ÁLLAPOT FRISSÍTÉSE NEXT ACTIVE HAND-re ---
-        // A Player mező frissítése a GameState-ben a kiválasztott Hand-re
         if (nextActiveHand != null) {
             currentGameState = currentGameState.toBuilder()
                 .player(nextActiveHand)
                 .build();
         }
 
-
-        // 6. KÁRTYA OSZTÁS / HAND BŐVÍTÉS (Ha a Hand mérete < 2)
         PlayerHand playerToDealTo = currentGameState.getPlayer();
 
         if (playerToDealTo.hand().size() < 2) {
-
-            // Állapotláncolás: A safeDealCard megváltoztatja a Deck állapotát!
-            // A gameStateOptional már tartalmazza az aktuális currentGameState-et a Player frissítéssel
             DealResultWithState result = safeDealCard(Optional.of(currentGameState));
             Card cardToAdd = result.dealtCard();
 
-            // A safeDealCard által létrehozott új GameState-re frissítjük az állapotláncot!
             currentGameState = result.newGameState();
 
-            // --- PlayerHand lap hozzáadása (immutábilisan) ---
             LinkedList<Card> newHandList = new LinkedList<>(playerToDealTo.hand());
             newHandList.add(cardToAdd);
 
             boolean canSplit = gameRuleEngine.canSplit(newHandList);
 
-            // Új PlayerHand objektum létrehozása az új kártyával és canSplit értékkel
             PlayerHand finalPlayerHand = playerToDealTo.toBuilder()
                 .hand(newHandList)
                 .canSplit(canSplit)
                 .build();
 
-            // Végleges GameState frissítése az új PlayerHand-del
             currentGameState = currentGameState.toBuilder()
                 .player(finalPlayerHand)
                 .build();
         }
 
-        // 7. Végleges mentés és visszatérés
         gameStateService.saveGameState(currentGameState);
         return currentGameState;
     }
@@ -650,7 +576,9 @@ public class GameService {
         return finalState;
     }
 
+    public record DealResultWithState(Card dealtCard, GameState newGameState) {
+    }
+
     public record TransactionResult(GameState gameState, int transactionResult) {
-        // A record automatikusan biztosítja a konstruktort és a gettereket.
     }
 }

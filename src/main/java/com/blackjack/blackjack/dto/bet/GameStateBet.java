@@ -1,14 +1,11 @@
 package com.blackjack.blackjack.dto.bet;
 
-import lombok.*;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 
 import java.util.List;
 
-@Value
 @Builder(toBuilder = true)
 @AllArgsConstructor
-public class GameStateBet {
-    int bet;
-    List<Integer> betList;
-    int deckLen;
+public record GameStateBet(int bet, List<Integer> betList, int deckLen) {
 }

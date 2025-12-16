@@ -12,6 +12,8 @@ import com.blackjack.blackjack.service.GameService;
 import com.blackjack.blackjack.service.GameStateService;
 import com.blackjack.blackjack.service.PlayerService;
 import jakarta.servlet.http.HttpSession;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -26,8 +28,6 @@ import java.util.UUID;
 
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api")
@@ -79,13 +79,8 @@ public class BetController {
 
         int updatedTokens = updatedPlayer.getTokens();
 
-        logger.info(">>>>>> BetController gameservice híyás előtt BET BET GameState_21 ********** Fő Bet: {} | Player Bet: {}",
-            gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
-            gameStateOptional.get().getPlayer().bet());     // <-- Ez kerül a második {} helyére
         GameState updatedGameState = gameService.placeBet(gameStateOptional, betAmount);
-        logger.info(">>>>>> BetController gameservice híyás után BET BET GameState_22 ********** Fő Bet: {} | Player Bet: {}",
-            gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
-            gameStateOptional.get().getPlayer().bet());     // <-- Ez kerül a második {} helyére
+
 
         int deckLength;
         if (updatedGameState.getDeck() == null) {

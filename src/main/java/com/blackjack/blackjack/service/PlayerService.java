@@ -18,6 +18,7 @@ public class PlayerService {
      * Levonja a tétet a játékos tokenjeiből,
      * immutábilis módon létrehozva egy új Player objektumot a frissített állapottal.
      * * @param oldPlayer Az eredeti (régi) Player objektum.
+     *
      * @param betAmount A levonandó tét összege.
      * @return Az újonnan mentett Player objektum.
      */
@@ -41,6 +42,7 @@ public class PlayerService {
     /**
      * Hozzáadja a nyereményt a játékos tokenjeihez.
      * * @param oldPlayer Az eredeti (régi) Player objektum.
+     *
      * @param rewardAmount A hozzáadandó jutalom összege.
      * @return Az újonnan mentett Player objektum.
      */
@@ -59,6 +61,7 @@ public class PlayerService {
     /**
      * Visszaállítja a játékos tokenjeit egy kezdő értékre.
      * * @param oldPlayer Az eredeti (régi) Player objektum.
+     *
      * @param initialTokens A beállítandó kezdő token mennyiség.
      * @return Az újonnan mentett Player objektum.
      */

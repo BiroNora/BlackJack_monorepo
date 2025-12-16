@@ -24,11 +24,6 @@ public enum WinnerState {
         this.value = value;
     }
 
-    @JsonValue
-    public int getValue() {
-        return value;
-    }
-
     public static WinnerState valueOf(int value) {
         for (WinnerState state : WinnerState.values()) {
             if (state.value == value) {
@@ -36,5 +31,10 @@ public enum WinnerState {
             }
         }
         throw new IllegalArgumentException("Unknown WinnerState value: " + value);
+    }
+
+    @JsonValue
+    public int getValue() {
+        return value;
     }
 }

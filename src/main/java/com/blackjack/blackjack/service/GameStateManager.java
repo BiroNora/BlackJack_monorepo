@@ -143,6 +143,7 @@ public class GameStateManager {
         // A hívónak kell majd mentenie a finalState-et.
         return finalState;
     }
+
     public boolean areStatedFalseHands(Map<String, PlayerHand> playersMap) {
         if (playersMap == null || playersMap.isEmpty()) {
             return false;

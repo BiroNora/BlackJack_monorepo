@@ -3,7 +3,7 @@ package com.blackjack.blackjack.model;
 import com.blackjack.blackjack.service.HandStateUpdater;
 import com.blackjack.blackjack.service.HandValueCalculator;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-import lombok.*;
+import lombok.Builder;
 import lombok.extern.jackson.Jacksonized;
 
 import java.io.Serializable;
