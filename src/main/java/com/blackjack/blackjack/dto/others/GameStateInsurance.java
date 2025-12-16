@@ -5,26 +5,22 @@ import com.blackjack.blackjack.model.DealerHandUnmasked;
 import com.blackjack.blackjack.model.PlayerHand;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Data
-@Builder
-@NoArgsConstructor
+@Value
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class GameStateInsurance {
-    private PlayerHand player;
+    PlayerHand player;
 
     @JsonProperty("natural_21")
-    private int natural21;
-    private int deckLen;
-    private int bet;
-    private boolean isRoundActive;
+    int natural21;
+    int deckLen;
+    int bet;
+    boolean isRoundActive;
 
-    private DealerHandMasked dealerMasked;
-    private DealerHandUnmasked dealerUnmasked;
+    DealerHandMasked dealerMasked;
+    DealerHandUnmasked dealerUnmasked;
 
     @JsonProperty("dealer_unmasked")
     @JsonInclude(JsonInclude.Include.NON_NULL)

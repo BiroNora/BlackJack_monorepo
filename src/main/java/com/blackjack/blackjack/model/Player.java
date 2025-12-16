@@ -4,8 +4,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
@@ -16,8 +15,10 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "players")
-@Data
-@NoArgsConstructor
+@Getter
+@Builder(toBuilder = true)
+@NoArgsConstructor // JPA miatt
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
 public class Player {
     @Id
     @UuidGenerator(style = UuidGenerator.Style.AUTO)
@@ -42,13 +43,4 @@ public class Player {
     @Column(name = "idempotency_key", unique = true, nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID idempotencyKey;
-
-    public Player(int initialTokens) {
-        this.tokens = initialTokens;
-    }
-
-    public Player(UUID clientId, int initialTokens) {
-        this.clientId = clientId;
-        this.tokens = initialTokens;
-    }
 }

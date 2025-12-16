@@ -13,7 +13,7 @@ import java.util.*;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Data
-@Builder
+@Builder(toBuilder = true)
 @NoArgsConstructor
 @AllArgsConstructor
 public class GameState implements Serializable {

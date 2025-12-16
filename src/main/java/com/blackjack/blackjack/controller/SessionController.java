@@ -5,8 +5,11 @@ import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.init.ForceRestartRequest;
 import com.blackjack.blackjack.dto.init.InitializationRequest;
 import com.blackjack.blackjack.dto.init.InitializationResponse;
+import com.blackjack.blackjack.model.DealerHandMasked;
+import com.blackjack.blackjack.model.DealerHandUnmasked;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
+import com.blackjack.blackjack.model.PlayerHand;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
@@ -23,6 +26,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.OffsetDateTime;
 import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -50,70 +55,85 @@ public class SessionController {
         String currentSessionId = session.getId();
         logger.info("Session initialialization started. Session ID: {}", currentSessionId);
 
-        // Kliens által küldött tartós azonosító (localStorage)
         UUID clientIdFromStorage = requestRecord.clientId();
         logger.info("  -> Frontend ID (localStorage/Request Body): {}", clientIdFromStorage);
 
-        Player player = null;
+        Player playerToSave;
 
         // --- 1. PRIOTITÁS: Keresés a Request Body-ban lévő ID alapján (TARTÓS ID) ---
         if (clientIdFromStorage != null) {
             Optional<Player> existingPlayer = playerRepository.findByClientId(clientIdFromStorage);
 
             if (existingPlayer.isPresent()) {
-                player = existingPlayer.get();
+                Player existing = existingPlayer.get();
                 logger.info("1. Prioritás: Meglévő Player betöltve a tartós ID ({}) alapján.", clientIdFromStorage);
 
-                // Frissítjük a Session ID-t az ÚJ/AKTÍV Session ID-ra
-                player.setSessionId(currentSessionId);
-                player.setLastActivity(OffsetDateTime.now());
+                playerToSave = existing.toBuilder()
+                    .sessionId(currentSessionId)
+                    .lastActivity(OffsetDateTime.now())
+                    .build();
 
             } else {
                 // --- 2. ÚJ PLAYER LÉTREHOZÁSA (INSERT Logika) ---
-                player = new Player();
-                player.setClientId(clientIdFromStorage);
+                playerToSave = Player.builder()
+                    .clientId(clientIdFromStorage)
+                    .sessionId(currentSessionId)
+                    .tokens(INITIAL_TOKENS)
+                    .lastActivity(OffsetDateTime.now())
+                    .idempotencyKey(UUID.randomUUID())
+                    .build();
 
-                logger.info("2. Prioritás: Új Player objektum létrehozva. Client ID beállítva: {}", player.getClientId());
-
-                player.setSessionId(currentSessionId);
-                player.setTokens(INITIAL_TOKENS);
-                player.setLastActivity(OffsetDateTime.now());
-                player.setIdempotencyKey(UUID.randomUUID());
+                logger.info("2. Prioritás: Új Player objektum létrehozva. Client ID beállítva: {}", playerToSave.getClientId());
             }
-        }
-
-        // --- BIZTOSÍTÉK: Ha a Frontend valamiért nem küldött Client ID-t ---
-        if (player == null) {
+        } else {
+            // --- BIZTOSÍTÉK: Ha a Frontend valamiért nem küldött Client ID-t ---
             logger.error("SÚLYOS HIBA: A frontend nem küldött 'clientId'-t a request body-ban! Kényszerített új Client ID létrehozása.");
-            // Létrehozunk egy új Player rekordot véletlenszerű ID-val, hogy ne törjön el az alkalmazás
+
             UUID forcedNewClientId = UUID.randomUUID();
-            player = new Player();
-            player.setClientId(forcedNewClientId);
-            player.setSessionId(currentSessionId);
-            player.setTokens(INITIAL_TOKENS);
-            player.setLastActivity(OffsetDateTime.now());
-            player.setIdempotencyKey(UUID.randomUUID());
+
+            playerToSave = Player.builder()
+                .clientId(forcedNewClientId)
+                .sessionId(currentSessionId)
+                .tokens(INITIAL_TOKENS)
+                .lastActivity(OffsetDateTime.now())
+                .idempotencyKey(UUID.randomUUID())
+                .build();
         }
 
 
         // 3. Mentés/Frissítés az adatbázisban
-        Player savedPlayer = playerRepository.save(player);
+        Player savedPlayer = playerRepository.save(playerToSave);
         logger.info("Player DB-ben frissítve/mentve. A rekord Client ID-ja: {}", savedPlayer.getClientId());
 
-        // --- 🔑 KRITIKUS JAVÍTÁS: Client ID mentése az HttpSession-be (Redis) ---
         session.setAttribute("clientId", savedPlayer.getClientId().toString());
         logger.info("A Client ID ({}) sikeresen elmentve az HttpSession-be (Redis) 'clientId' néven.", savedPlayer.getClientId());
 
-        // *** 🃏 HIÁNYZÓ LOGIKA BEILLESZTÉSE: A GameState Létrehozása és Mentése ***
-        GameState initialGameState = new GameState(); // Feltételezve, hogy a konstruktor beállítja az alapértékeket (pl. deck len: 104, bet: 0, tokens: 1000)
+        // *** 🃏 KRITIKUS JAVÍTÁS: A GameState Létrehozása a Builderrel ***
 
-        // MENTÉS: E NÉLKÜL a '/api/bet' nem találja a GameState objektumot!
+        PlayerHand initialPlayerHand = PlayerHand.createEmptyHand();
+        DealerHandMasked initialDealerMasked = DealerHandMasked.builder().build();
+        DealerHandUnmasked initialDealerUnmasked = DealerHandUnmasked.createEmptyHand();
+
+        Map<String, PlayerHand> initialPlayersMap = new LinkedHashMap<>();
+        initialPlayersMap.put(savedPlayer.getClientId().toString(), initialPlayerHand);
+
+        GameState initialGameState = GameState.builder()
+            .clientId(savedPlayer.getClientId())
+            .sessionId(currentSessionId)
+            .bet(0)
+            .betList(Collections.emptyList())
+            .isRoundActive(false)
+            .player(initialPlayerHand)
+            .dealerMasked(initialDealerMasked)
+            .dealerUnmasked(initialDealerUnmasked)
+            .players(initialPlayersMap)
+            .build();
+
         session.setAttribute("gameState", initialGameState);
         logger.info("A GameState objektum sikeresen elmentve az HttpSession-be 'gameState' néven.");
-        // HttpOnly süti beállítása a tartós azonosításhoz (ha szükséges)
         setClientIdCookie(response, savedPlayer.getClientId());
 
-        // 4. 🛡️ Spring Security Konfiguráció
+        // 4. 🛡️ Spring Security Konfiguráció (Változatlan)
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             savedPlayer.getClientId().toString(),
             null,
@@ -124,6 +144,7 @@ public class SessionController {
         // 5. DTO Összeállítása
         InitializationResponse.GameStateInit gameStateData =
             InitializationResponse.GameStateInit.builder()
+                // VISSZAÁLLÍTVA: A GameConstants konstans értékét használjuk, nem a GameState.getDeckLen()-t
                 .deckLen(INITIAL_DECK_LENGTH)
                 .build();
 
@@ -145,12 +166,6 @@ public class SessionController {
         logger.info("Force Restart indítva kliens ID alapján: {}", clientIdString);
 
         // 0. Validálás
-        if (clientIdString == null || clientIdString.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(
-                ApiResponse.builder().status("error").gameStateHint("CLIENT_ID_REQUIRED").build()
-            );
-        }
-
         UUID clientId;
         try {
             clientId = UUID.fromString(clientIdString);
@@ -170,47 +185,60 @@ public class SessionController {
             );
         }
 
-        Player player = playerOptional.get();
+        Player oldPlayer = playerOptional.get();
         logger.info("Player betöltve a DB-ből. Jelenlegi session ID: {}", session.getId());
 
 
-        // 2. KRITIKUS: Session és Security Konzisztencia Helyreállítása
-        // Ha a kliens nem küldött érvényes Session ID-t (és a Spring új Session-t hozott létre),
-        // kényszerítjük a DB-ből betöltött Player ID-jának az új Session-höz való hozzárendelését.
-
-        // A. Spring Security Context beállítása a tartós azonosítóval
+        // 2. KRITIKUS: Session és Security Konzisztencia Helyreállítása (Változatlan)
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-            player.getClientId().toString(),
+            oldPlayer.getClientId().toString(),
             null,
             Collections.emptyList()
         );
         SecurityContextHolder.getContext().setAuthentication(authentication);
-
-        // B. Session Attribútum Frissítése
-        session.setAttribute("clientId", player.getClientId().toString());
+        session.setAttribute("clientId", oldPlayer.getClientId().toString());
 
         // 3. Játékállapot Resetelése (Session/Redis Tisztítás)
-
-        // Töröljük a régi, potenciálisan hibás/inkonzisztens GameState-et a Session-ből
         session.removeAttribute("gameState");
         logger.info("Régi gameState eltávolítva a Session-ből.");
 
-        // Létrehozzuk az új, tiszta játékállapotot
-        GameState newGameState = new GameState();
+        // *** JAVÍTÁS: A GameState újrainicializálása ***
 
-        // MENTÉS: Ezt az új állapotot mentjük az aktuális HTTP sessionbe (és a Redisbe)
+        PlayerHand initialPlayerHand = PlayerHand.createEmptyHand();
+        DealerHandMasked initialDealerMasked = DealerHandMasked.builder().build();
+        DealerHandUnmasked initialDealerUnmasked = DealerHandUnmasked.createEmptyHand();
+
+        Map<String, PlayerHand> newPlayersMap = new LinkedHashMap<>();
+        newPlayersMap.put(oldPlayer.getClientId().toString(), initialPlayerHand);
+
+        GameState newGameState = GameState.builder()
+            .clientId(oldPlayer.getClientId())
+            .sessionId(session.getId())
+            .bet(0)
+            .betList(Collections.emptyList())
+            .isRoundActive(false)
+            .player(initialPlayerHand)
+            .dealerMasked(initialDealerMasked)
+            .dealerUnmasked(initialDealerUnmasked)
+            .players(newPlayersMap)
+            .build();
+
         session.setAttribute("gameState", newGameState);
         logger.info("Új, tiszta gameState objektum mentve a Session-be.");
 
         // 4. Player utolsó aktivitásának frissítése a DB-ben
-        player.setSessionId(session.getId());
-        player.setLastActivity(OffsetDateTime.now());
-        Player savedPlayer = playerRepository.save(player); // DB frissítés
+        Player updatedPlayer = oldPlayer.toBuilder()
+            .sessionId(session.getId())
+            .lastActivity(OffsetDateTime.now())
+            .build();
 
-        // 5. Válasz összeállítása (tokent érintetlenül hagyjuk)
+        Player savedPlayer = playerRepository.save(updatedPlayer); // DB frissítés
+
+        // 5. Válasz összeállítása
         GameStateBet gameStateData = GameStateBet.builder()
             .bet(newGameState.getBet())
             .betList(newGameState.getBetList())
+            // VISSZAÁLLÍTVA: A GameConstants konstans értékét használjuk
             .deckLen(INITIAL_DECK_LENGTH)
             .build();
 
@@ -225,7 +253,7 @@ public class SessionController {
     }
 
 
-    // --- Segédmetódusok ---
+    // --- Segédmetódusok (Változatlan) ---
     private void setClientIdCookie(HttpServletResponse response, UUID clientId) {
         Cookie cookie = new Cookie(CLIENT_ID_COOKIE_NAME, clientId.toString());
         cookie.setMaxAge(365 * 24 * 60 * 60); // 1 year

@@ -13,7 +13,7 @@ import java.util.List;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
+@Builder(toBuilder = true)
 public class DealerHandMasked implements Hand, Serializable {
     private List<Card> hand;
     private int sum;

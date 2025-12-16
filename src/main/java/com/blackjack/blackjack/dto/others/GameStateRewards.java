@@ -3,22 +3,18 @@ package com.blackjack.blackjack.dto.others;
 import com.blackjack.blackjack.model.DealerHandUnmasked;
 import com.blackjack.blackjack.model.PlayerHand;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
-@Data
-@Builder
-@NoArgsConstructor
+@Value
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class GameStateRewards {
-    private PlayerHand player;
+    PlayerHand player;
 
     @JsonProperty("dealer_unmasked")
-    private DealerHandUnmasked dealerUnmasked;
-    private int deckLen;
-    private int bet;
-    private int winner;
-    private boolean isRoundActive;
+    DealerHandUnmasked dealerUnmasked;
+    int deckLen;
+    int bet;
+    int winner;
+    boolean isRoundActive;
 }

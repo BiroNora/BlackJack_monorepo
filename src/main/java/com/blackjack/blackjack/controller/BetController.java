@@ -26,10 +26,13 @@ import java.util.UUID;
 
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @RestController
 @RequestMapping("/api")
 public class BetController {
+    private static final Logger logger = LoggerFactory.getLogger(GameService.class);
     private final GameStateService gameStateService;
     private final PlayerService playerService;
     private final GameService gameService;
@@ -55,6 +58,9 @@ public class BetController {
 
         Player player = context.player();
         Optional<GameState> gameStateOptional = context.gameStateOptional();
+        logger.info(">>>>>> BetController ÉRKEZÓ BET BET GameState_1 ********** Fő Bet: {} | Player Bet: {}",
+            gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
+            gameStateOptional.get().getPlayer().getBet());     // <-- Ez kerül a második {} helyére
 
         int betAmount = betRequest.bet();
         if (betAmount < MINIMUM_BET) {
@@ -73,7 +79,13 @@ public class BetController {
 
         int updatedTokens = updatedPlayer.getTokens();
 
+        logger.info(">>>>>> BetController gameservice híyás előtt BET BET GameState_21 ********** Fő Bet: {} | Player Bet: {}",
+            gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
+            gameStateOptional.get().getPlayer().getBet());     // <-- Ez kerül a második {} helyére
         GameState updatedGameState = gameService.placeBet(gameStateOptional, betAmount);
+        logger.info(">>>>>> BetController gameservice híyás után BET BET GameState_22 ********** Fő Bet: {} | Player Bet: {}",
+            gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
+            gameStateOptional.get().getPlayer().getBet());     // <-- Ez kerül a második {} helyére
 
         int deckLength;
         if (updatedGameState.getDeck() == null) {

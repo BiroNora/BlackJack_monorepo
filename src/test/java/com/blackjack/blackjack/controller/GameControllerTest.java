@@ -15,10 +15,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Mockito;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import static org.hamcrest.Matchers.is;
 
 import java.util.*;
 
@@ -48,13 +50,13 @@ public class GameControllerTest {
     @InjectMocks
     private GameController gameController;
     @Mock private AuthenticationService authenticationService;
+    @Mock private SessionContext mockContext;
     @Mock private GameService gameService;
     @Mock private PlayerService playerService;
     @Mock private GameStateService gameStateService;
     @Mock private PlayerRepository playerRepository;
     private MockHttpSession springMockSession;
     private MockMvc mockMvc;
-    private SessionContext mockContext;
 
     @BeforeEach
     void setup() {
@@ -65,17 +67,16 @@ public class GameControllerTest {
 
         // 2. Spring-specifikus session létrehozása
         this.springMockSession = new MockHttpSession();
-        this.springMockSession.setAttribute("gameState", MOCKED_INITIAL_GAME_STATE); // Beállítjuk a kiinduló állapotot
+        this.springMockSession.setAttribute("gameState", MOCKED_INITIAL_GAME_STATE);
 
-        // 3. SessionContext létrehozása
-        this.mockContext = new SessionContext(
-            testClientId,
-            TEST_PLAYER,
-            springMockSession,
-            Optional.of(MOCKED_INITIAL_GAME_STATE)
-        );
+        // 3. Beállítjuk a mockContext alapértelmezett viselkedését, mielőtt a controller hívná.
+        Mockito.lenient().when(this.mockContext.player()).thenReturn(TEST_PLAYER);
+        Mockito.lenient().when(this.mockContext.gameStateOptional()).thenReturn(Optional.of(MOCKED_INITIAL_GAME_STATE));
+        Mockito.lenient().when(this.mockContext.clientId()).thenReturn(testClientId);
+        Mockito.lenient().when(this.mockContext.session()).thenReturn(springMockSession);
 
         // 4. AuthenticationService beállítása
+        // Ez a hívás adja vissza a BEÁLLÍTOTT MOCK-ot a controllernek.
         when(authenticationService.validateAndGetContext(any(HttpSession.class)))
             .thenReturn(this.mockContext);
     }
@@ -258,5 +259,157 @@ public class GameControllerTest {
 
         GameState savedState = (GameState) springMockSession.getAttribute("gameState");
         Assertions.assertEquals(UPDATED_GAME_STATE, savedState);
+    }
+
+
+    @Test
+    void standAndRewards_whenPlayerWins_thenRewardsProcessed() throws Exception {
+        // --- ARRANGE: ÁLLANDÓK DEFINIÁLÁSA ---
+        final UUID PLAYER_ID = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        final UUID CLIENT_UUID = UUID.fromString("00000000-0000-0000-0000-000000000002");
+
+        final int INITIAL_TOKENS = 1000;
+        final int PLAYER_BET = 100;
+        final int EXPECTED_REWARD = 200;
+        final int EXPECTED_FINAL_TOKENS = INITIAL_TOKENS + EXPECTED_REWARD;
+
+        // Kártyák és Sum változók
+        Card playerCard1 = new Card(Suit.HEARTS, Rank.TEN);
+        Card playerCard2 = new Card(Suit.DIAMONDS, Rank.TEN);
+        final int PLAYER_SUM = 20;
+
+        // Dealer lapok
+        Card dealerCard1 = new Card(Suit.SPADES, Rank.TEN);
+        Card dealerCard2 = new Card(Suit.CLUBS, Rank.SIX);
+        Card dealerHitCard = new Card(Suit.HEARTS, Rank.ACE);
+        final int FINAL_DEALER_SUM = 17;
+
+        // Deck mérete
+        Deck finalDeck = new Deck();
+        finalDeck.dealCard();
+        final int EXPECTED_DECK_LEN = finalDeck.getDeckLength();
+
+        // 1. Initial Player beállítása
+        Player initialPlayer = new Player(INITIAL_TOKENS);
+        initialPlayer.setId(PLAYER_ID);
+        initialPlayer.setClientId(CLIENT_UUID);
+        initialPlayer.setSessionId("mock-session-id");
+        initialPlayer.setIdempotencyKey(UUID.randomUUID());
+        when(this.mockContext.player()).thenReturn(initialPlayer);
+
+        // 2. Kezdeti GameState/PlayerHand létrehozása a mockhoz (initialGameState)
+        GameState initialGameState = GameState.builder()
+            .clientId(CLIENT_UUID)
+            .deck(new Deck())
+            .bet(PLAYER_BET)
+            .isRoundActive(true)
+            .player(PlayerHand.builder()
+                .id(CLIENT_UUID.toString())
+                .hand(new LinkedList<>(List.of(playerCard1, playerCard2)))
+                .bet(PLAYER_BET)
+                .canSplit(false)
+                .stated(false)
+                .build())
+            .dealerUnmasked(DealerHandUnmasked.createEmptyHand())
+            .build();
+
+        // 3. Mockolt VÉGSŐ GameState létrehozása (playerStand visszatérése)
+        GameState STOOD_GAME_STATE = initialGameState.toBuilder()
+            .deck(finalDeck)
+            .isRoundActive(true)
+            .winner(WinnerState.PLAYER_WON.getValue())
+            .bet(PLAYER_BET)
+            // PlayerHand újraépítése a kezdeti kártyákkal
+            .player(PlayerHand.builder()
+                .id(CLIENT_UUID.toString())
+                .hand(initialGameState.getPlayer().getHand())
+                .bet(PLAYER_BET)
+                .canSplit(initialGameState.getPlayer().isCanSplit())
+                .stated(initialGameState.getPlayer().isStated())
+                .build())
+            .dealerUnmasked(DealerHandUnmasked.builder()
+                .hand(new LinkedList<>(Arrays.asList(dealerCard1, dealerCard2, dealerHitCard)))
+                .build())
+            .build();
+
+        // Mockoljuk a GameService.playerStand hívását
+        // Használjuk az eq()-t a Mockito-konzisztencia miatt, ha a Controller any()-val hívná is, de mi pontosságot várunk.
+        when(gameService.playerStand(eq(Optional.of(initialGameState)))).thenReturn(STOOD_GAME_STATE);
+
+        // 4. Rewards számítás utáni állapot (calculateRewards visszatérése)
+        // KRITIKUS JAVÍTÁS (NPE ellen): PlayerHand újraépítése a builderrel, MEGTARTVA a KÁRTYA LISTÁT!
+        GameState REWARDED_GAME_STATE = STOOD_GAME_STATE.builder()
+            .bet(0)
+            .isRoundActive(false)
+            .player(PlayerHand.builder()
+                .id(CLIENT_UUID.toString())
+                .hand(STOOD_GAME_STATE.getPlayer().getHand()) // Kártyák átvétele
+                .bet(0) // Nullázza a fogadást
+                .canSplit(STOOD_GAME_STATE.getPlayer().isCanSplit())
+                .stated(STOOD_GAME_STATE.getPlayer().isStated())
+                .build())
+            .build();
+
+        GameService.TransactionResult rewardResult = new GameService.TransactionResult(REWARDED_GAME_STATE, EXPECTED_REWARD);
+        when(gameService.calculateRewards(eq(STOOD_GAME_STATE))).thenReturn(rewardResult);
+
+        // 5. Frissített Játékos objektum létrehozása ÉS Tokens frissítésének mockolása
+        Player expectedPlayerAfterUpdate = new Player(EXPECTED_FINAL_TOKENS);
+        expectedPlayerAfterUpdate.setId(PLAYER_ID);
+        expectedPlayerAfterUpdate.setClientId(CLIENT_UUID);
+        expectedPlayerAfterUpdate.setSessionId("mock-session-id");
+        expectedPlayerAfterUpdate.setIdempotencyKey(UUID.randomUUID());
+
+        // Mockoljuk a PlayerService.updateTokens hívását
+        when(playerService.updateTokens(any(Player.class), eq(EXPECTED_REWARD)))
+            .thenReturn(expectedPlayerAfterUpdate);
+
+        // 6. SessionContext mockolása:
+        Mockito.lenient().when(this.mockContext.player()).thenReturn(expectedPlayerAfterUpdate);
+
+
+        // --- ACT & ASSERT ---
+        mockMvc.perform(post("/api/stand_and_rewards")
+                .session(springMockSession))
+
+            .andExpect(status().isOk())
+
+            // JSON válasz ellenőrzései:
+            // JAVÍTÁS: Sima String összehasonlítás. (Ezt tette tönkre az is() a legutóbbi futásnál)
+            .andExpect(jsonPath("$.status").value("success"))
+
+            // JAVÍTÁS: Itt KELL az is(String) a típuskonverziós hiba elkerülésére (ami a legelső hiba volt).
+            .andExpect(jsonPath("$.game_state_hint").value(is("REWARDS_PROCESSED")))
+
+            .andExpect(jsonPath("$.current_tokens").value(EXPECTED_FINAL_TOKENS))
+
+            // JÁTÉKOS KÉZ ELLENŐRZÉSE
+            .andExpect(jsonPath("$.gameState.player.sum").value(PLAYER_SUM))
+            .andExpect(jsonPath("$.gameState.player.bet").value(0))
+            .andExpect(jsonPath("$.gameState.player.hand.length()").value(2))
+
+            // Dealer UNMASKED kéz ellenőrzése
+            .andExpect(jsonPath("$.gameState.dealer_unmasked.sum").value(FINAL_DEALER_SUM))
+            .andExpect(jsonPath("$.gameState.dealer_unmasked.hand.length()").value(3));
+
+
+        // --- VERIFY ---
+
+        // Ellenőrizze, hogy a GameService meghívásra került a "playerStand" metódussal
+        verify(gameService).playerStand(eq(Optional.of(initialGameState)));
+
+        // Ellenőrizze, hogy a GameService meghívásra került a "calculateRewards" metódussal
+        verify(gameService).calculateRewards(eq(STOOD_GAME_STATE));
+
+        // Ellenőrizze, hogy a PlayerService meghívásra került a "updateTokens" metódussal
+        verify(playerService).updateTokens(any(Player.class), eq(EXPECTED_REWARD));
+
+        // Ellenőrizze, hogy a GameStateService meghívásra került a "saveGameState" metódussal
+        verify(gameStateService).saveGameState(eq(REWARDED_GAME_STATE));
+
+        // Ellenőrizze a GameState-et a session-ben
+        GameState savedState = (GameState) springMockSession.getAttribute("gameState");
+        Assertions.assertEquals(REWARDED_GAME_STATE, savedState,
+            "A GameState MODELLT megfelelően be kell állítani a session attribútumban a jutalmazás utáni állapottal.");
     }
 }

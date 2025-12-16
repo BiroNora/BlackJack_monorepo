@@ -143,7 +143,7 @@ public class GameController {
             );
         }
 
-        session.setAttribute("gameState", stoodGameState);
+        session.setAttribute("gameState", updatedGameState);
 
         GameStateRewards gameStateData = GameStateRewards.builder()
             .player(updatedGameState.getPlayer())

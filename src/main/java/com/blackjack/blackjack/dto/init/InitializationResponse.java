@@ -1,21 +1,17 @@
 package com.blackjack.blackjack.dto.init;
 
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 
-@Data
-@Builder
-@NoArgsConstructor
+@Value
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class InitializationResponse {
-    private String status;
-    private String message;
-    private GameStateInit gameState;
-    private String gameStateHint;
-    private int tokens;
+    String status;
+    String message;
+    GameStateInit gameState;
+    String gameStateHint;
+    int tokens;
 
     // --- Belső DTO a gameState-nek ---
     @Data

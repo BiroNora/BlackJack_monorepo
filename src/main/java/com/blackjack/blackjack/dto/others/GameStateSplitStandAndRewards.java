@@ -3,26 +3,22 @@ package com.blackjack.blackjack.dto.others;
 import com.blackjack.blackjack.model.DealerHandUnmasked;
 import com.blackjack.blackjack.model.PlayerHand;
 import com.fasterxml.jackson.annotation.JsonProperty;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Data;
-import lombok.NoArgsConstructor;
+import lombok.*;
 
 import java.util.Map;
 
-@Data
-@Builder
-@NoArgsConstructor
+@Value
+@Builder(toBuilder = true)
 @AllArgsConstructor
 public class GameStateSplitStandAndRewards {
-    private PlayerHand player;
+    PlayerHand player;
 
     @JsonProperty("dealer_unmasked")
-    private DealerHandUnmasked dealerUnmasked;
-    private Map<String, PlayerHand> players;
-    private int winner;
-    private int splitReq;
-    private int deckLen;
-    private int bet;
-    private boolean isRoundActive;
+    DealerHandUnmasked dealerUnmasked;
+    Map<String, PlayerHand> players;
+    int winner;
+    int splitReq;
+    int deckLen;
+    int bet;
+    boolean isRoundActive;
 }

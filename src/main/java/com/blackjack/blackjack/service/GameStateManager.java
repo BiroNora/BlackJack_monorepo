@@ -28,54 +28,121 @@ public class GameStateManager {
         ));
     }
 
-    public GameState resetRoundState(GameState gameState) {
-        gameState.setPlayer(PlayerHand.createEmptyHand());
-        gameState.setDealerMasked(DealerHandMasked.createEmptyHand());
-        gameState.setDealerUnmasked(DealerHandUnmasked.createEmptyHand());
-        gameState.setSplitPlayer(PlayerHand.createEmptyHand());
-        gameState.setAces(false);
-        gameState.setNatural21(0);
-        gameState.setWinner(0);
-        gameState.setHandCounter(0);
-        gameState.setSplitReq(0);
-        gameState.setBetList(List.of());
-        gameState.setRoundActive(false);
-        gameState.getPlayers().clear();
+    public GameState resetRoundState(GameState oldState) {
+        PlayerHand resetPlayerHand = PlayerHand.createEmptyHand();
+        PlayerHand resetSplitPlayer = PlayerHand.createEmptyHand();
 
-        return gameState;
+        DealerHandMasked resetDealerMasked = DealerHandMasked.createEmptyHand();
+        DealerHandUnmasked resetDealerUnmasked = DealerHandUnmasked.createEmptyHand();
+
+        GameState newState = oldState.toBuilder()
+            .betList(List.of())
+            .player(resetPlayerHand)
+            .dealerMasked(resetDealerMasked)
+            .dealerUnmasked(resetDealerUnmasked)
+            .splitPlayer(resetSplitPlayer)
+            .aces(false)
+            .natural21(0)
+            .winner(0)
+            .handCounter(0)
+            .splitReq(0)
+            .isRoundActive(false)
+            .players(new HashMap<>())
+            .build();
+
+        return newState;
     }
 
-    public PlayerHand dealSplitCard(GameState gameState, boolean isFirst, Card cardToSplit) {
-        PlayerHand playerHand;
-        Card card1;
+    // A metódus most a frissített GameState-et adja vissza.
+// A hívó fél (pl. GameService) felelőssége lesz menteni.
+    public GameState dealSplitCard(GameState oldState, boolean isFirst, Card cardToSplit) {
+
+        // Kezdeti állapotváltozók beállítása a builder segítségével
+        GameState.GameStateBuilder newStateBuilder = oldState.toBuilder();
+
+        // Ideiglenes változók
+        PlayerHand updatedPlayerHand;
+        Deck newDeckState = oldState.getDeck(); // Alapértelmezett állapot, ha nincs laposztás
 
         if (isFirst) {
-            playerHand = gameState.getPlayer();
-            Deck deck = gameState.getDeck();
-            card1 = deck.dealCard();
-            playerHand.getHand().add(card1);
-            LinkedList<Card> currentHand = playerHand.getHand();
+            // --- Első osztás (lapot húzunk a pakliból) ---
+
+            Deck currentDeck = oldState.getDeck();
+
+            // 🚨 Változás 1: IMMUTABLE laposztás
+            DealResult result = currentDeck.dealCard();
+            Card dealtCard = result.getDealtCard();
+            newDeckState = result.getNewDeck(); // 🚨 Új pakli állapot
+
+            // Frissítjük a Deck állapotot a Builderben
+            newStateBuilder.deck(newDeckState);
+
+            // Régi kéz betöltése
+            PlayerHand oldPlayerHand = oldState.getPlayer();
+
+            // Létrehozzuk az új kéz állapotot (PlayerHand.toBuilder() is kell)
+            // 🚨 Feltételezés: A PlayerHand is @Builder(toBuilder=true)
+
+            // 1. Készítünk egy módosítható másolatot a kártyákról
+            LinkedList<Card> currentHand = new LinkedList<>(oldPlayerHand.getHand());
+            currentHand.add(dealtCard); // Hozzáadjuk a húzott lapot
+
+            // 2. Kiszámoljuk a split-elhetőséget (ideális esetben ez a GameRuleEngine-ben történik)
             boolean isSplitPossible = gameRuleEngine.canSplit(currentHand);
+            boolean finalCanSplit;
+
             if (currentHand.getFirst().rank() == Rank.ACE && currentHand.getLast().rank() == Rank.ACE) {
-                playerHand.setCanSplit(false);
+                finalCanSplit = false;
             } else {
-                playerHand.setCanSplit(isSplitPossible);
+                finalCanSplit = isSplitPossible;
             }
-            playerHand.setBet(gameState.getBet());
-            playerHand.setStated(false);
+
+            // Létrehozzuk az UPDATED PlayerHand objektumot
+            updatedPlayerHand = oldPlayerHand.toBuilder()
+                .hand(currentHand)
+                .canSplit(finalCanSplit) // Beállítjuk az új értéket
+                .bet(oldState.getBet())
+                .stated(false) // Beállítjuk az új értéket
+                .build();
+
+            // Frissítjük a GameState-et az UPDATED PlayerHand-del
+            newStateBuilder.player(updatedPlayerHand);
+
         } else {
-            playerHand = playerHandFactory.createEmptyHand();
-            String id = gameState.generateNextHandId();
-            playerHand.setId(id);
-            playerHand.getHand().add(cardToSplit);
-            playerHand.setBet(gameState.getBet());
+            // --- További osztások (új, split-elt kéz létrehozása) ---
+
+            // A PlayerHandFactory-nak is Builder-t kellene használnia.
+            PlayerHand newSplitHand = playerHandFactory.createEmptyHand();
+
+            // 🚨 Változás 2: Az állapotmódosítást a Builderben végezzük
+            String id = oldState.generateNextHandId(); // Feltételezzük, hogy ez a metódus már a builder mintához igazodik
+
+            // Létrehozzuk az új Split Hand objektumot
+            updatedPlayerHand = newSplitHand.toBuilder()
+                .id(id) // Új ID beállítása
+                .hand(new LinkedList<>(List.of(cardToSplit))) // Új kéz, a split lapokkal
+                .bet(oldState.getBet()) // Az eredeti tét beállítása
+                .build();
+
+            // 🚨 Változás 3: A splitPlayer mező frissítése a GameState-ben
+            newStateBuilder.splitPlayer(updatedPlayerHand);
         }
 
-        gameState.getPlayersIndex().put(playerHand.getId(), false);
+        // 4. Állapotmódosítás (Mindkét ág után fut)
 
-        return playerHand;
+        // A playersIndex módosítása:
+        // 🚨 A Map is immutable módon frissüljön!
+        Map<String, Boolean> newPlayersIndex = new LinkedHashMap<>(oldState.getPlayersIndex());
+        newPlayersIndex.put(updatedPlayerHand.getId(), false);
+
+        // Frissítjük a GameState Builder-t a módosított Map-pel
+        GameState finalState = newStateBuilder
+            .playersIndex(newPlayersIndex)
+            .build(); // 👈 Létrejön az új, végső GameState objektum
+
+        // A hívónak kell majd mentenie a finalState-et.
+        return finalState;
     }
-
     public boolean areStatedFalseHands(Map<String, PlayerHand> playersMap) {
         if (playersMap == null || playersMap.isEmpty()) {
             return false;
