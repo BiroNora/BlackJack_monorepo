@@ -29,8 +29,8 @@ public class DeckService {
 
         // A naplózáshoz az új állapotot használjuk a DealResult-ból
         logger.debug(">>>>>>>  #######  Dealt card: {} - Remaining deck size: {}",
-            result.getDealtCard(),
-            result.getNewDeck().getDeckLength());
+            result.dealtCard(),
+            result.newDeck().getDeckLength());
 
         return result;
     }

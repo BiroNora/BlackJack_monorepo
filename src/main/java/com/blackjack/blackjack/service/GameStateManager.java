@@ -71,8 +71,8 @@ public class GameStateManager {
 
             // 🚨 Változás 1: IMMUTABLE laposztás
             DealResult result = currentDeck.dealCard();
-            Card dealtCard = result.getDealtCard();
-            newDeckState = result.getNewDeck(); // 🚨 Új pakli állapot
+            Card dealtCard = result.dealtCard();
+            newDeckState = result.newDeck(); // 🚨 Új pakli állapot
 
             // Frissítjük a Deck állapotot a Builderben
             newStateBuilder.deck(newDeckState);

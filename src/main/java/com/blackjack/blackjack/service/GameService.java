@@ -27,7 +27,8 @@ public class GameService {
         this.playerHandFactory = playerHandFactory;
     }
 
-    public record DealResultWithState(Card dealtCard, GameState newGameState) {}
+    public record DealResultWithState(Card dealtCard, GameState newGameState) {
+    }
 
     public GameState placeBet(Optional<GameState> gameStateOptional, int betAmount) {
         GameState oldState = gameStateManager.getGameStateOrThrow(gameStateOptional);
@@ -93,29 +94,12 @@ public class GameService {
         return newState;
     }
 
-    // GameService.java
-
-// Megjegyzés: Ez a rekord a GameService osztályon belül kell, hogy legyen definiálva.
-// public record DealResultWithState(Card dealtCard, GameState newGameState) {}
-
-    /**
-     * Biztonságos laposztás immutábilis mintával.
-     * Visszaadja a kihúzott lapot és a frissített GameState-et (az új Deckkel).
-     * Megj: Mivel a hívó metódus (initializeNewRound) felelős a láncolásért, ez a metódus NEM menti az állapotot.
-     * FRISSÍTÉS: Mivel az Ön 'createNewDeck' metódusa ment, megtartjuk a mentést itt is,
-     * de ideális esetben a GameService.initializeNewRound mentene a végén.
-     */
     public DealResultWithState safeDealCard(Optional<GameState> gameStateOptional) {
-        // 1. Állapot lekérése
         GameState gameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
         Deck deck = gameState.getDeck();
 
-        // 2. Deck ellenőrzése és új Deck létrehozása, ha szükséges
         if (deck == null || deck.getDeckLength() == 0) {
             logger.info("--- DECK STATUS: Deck was NULL or empty. Initializing new deck.");
-
-            // A korábban megbeszélt módosítás: becsomagoljuk az aktuális állapotot Optional-ba
-            // és meghívjuk a createNewDeck-et, ami MENTI és visszaadja az ÚJ ÁLLAPOTOT!
             gameState = createNewDeck(Optional.of(gameState));
             deck = gameState.getDeck();
         }
@@ -123,47 +107,38 @@ public class GameService {
         logger.info("++++++++++ safeDealCard deck size before deal: {}", gameState.getDeck().getDeckLength());
 
         try {
-            // Laposztás immutábilisan (a DeckService adja vissza a DealResult-ot)
             DealResult result = deckService.dealCard(deck);
 
-            Card dealtCard = result.getDealtCard();
-            Deck newDeckState = result.getNewDeck();
+            Card dealtCard = result.dealtCard();
+            Deck newDeckState = result.newDeck();
 
-            // 3. Új GameState létrehozása az új Deck állapotával (immutábilis)
             GameState newState = gameState.toBuilder()
                 .deck(newDeckState)
                 .build();
 
-            // 4. Állapot mentése (mivel a createNewDeck is ment, ez a minta logikus)
             gameStateService.saveGameState(newState);
             logger.debug("--- DEAL SUCCESS: Dealt {}. Remaining size: {}", dealtCard, newDeckState.getDeckLength());
 
-            // 5. IMMUTÁBILIS VISSZATÉRÉS: Visszaadja a kártyát és a frissített állapotot
             return new DealResultWithState(dealtCard, newState);
 
         } catch (IllegalStateException e) {
             logger.warn("!!! DECK EXHAUSTED: IllegalStateException caught. Starting automatic reshuffle/new deck.");
 
-            // Új Deck létrehozása, ami MENTI az állapotot
             GameState newGameState = createNewDeck(gameStateOptional);
             Deck newDeck = newGameState.getDeck();
 
-            // Laposztás az újonnan létrehozott pakliból
             DealResult result = deckService.dealCard(newDeck);
 
-            Card dealtCard = result.getDealtCard();
-            Deck finalDeckState = result.getNewDeck();
+            Card dealtCard = result.dealtCard();
+            Deck finalDeckState = result.newDeck();
 
-            // Végleges állapot létrehozása a kihúzott lappal
             GameState finalState = newGameState.toBuilder()
                 .deck(finalDeckState)
                 .build();
 
-            // Állapot mentése
             gameStateService.saveGameState(finalState);
             logger.info("--- DEAL RESHUFFLE SUCCESS: Dealt {} from new deck. Remaining size: {}", dealtCard, finalDeckState.getDeckLength());
 
-            // IMMUTÁBILIS VISSZATÉRÉS: Visszaadja a kártyát és a végső állapotot
             return new DealResultWithState(dealtCard, finalState);
         }
     }
@@ -275,19 +250,19 @@ public class GameService {
 
         DealResultWithState result = safeDealCard(gameStateOptional);
         Card newCard = result.dealtCard();
-        PlayerHand oldPlayerHand = oldState.getPlayer();
 
-        // Klónozzuk a Hand List-et, hozzáadjuk a lapot
+        GameState currentState = result.newGameState();
+
+        PlayerHand oldPlayerHand = currentState.getPlayer();
+
         LinkedList<Card> newHandList = new LinkedList<>(oldPlayerHand.getHand());
         newHandList.add(newCard);
 
-        // 1. PlayerHand frissítése (PlayerHand-nek is kell toBuilder)
         PlayerHand newPlayerHand = oldPlayerHand.toBuilder()
             .hand(newHandList)
             .build();
 
-        // 2. GameState frissítése
-        GameState newState = oldState.toBuilder()
+        GameState newState = currentState.toBuilder()
             .player(newPlayerHand)
             .build();
 
