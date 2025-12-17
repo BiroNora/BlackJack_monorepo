@@ -4,65 +4,69 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
-import lombok.Data;
 import lombok.NoArgsConstructor;
+import lombok.Value;
+import lombok.extern.jackson.Jacksonized;
 
 import java.io.Serializable;
 import java.util.*;
 
-
 @JsonIgnoreProperties(ignoreUnknown = true)
-@Data
+@Value
 @Builder(toBuilder = true)
-@NoArgsConstructor
+@NoArgsConstructor(force = true)
 @AllArgsConstructor
+@Jacksonized
 public class GameState implements Serializable {
-    private UUID clientId;
-    private String sessionId; // Opcionális, de segíti a diagnosztikát
+    UUID clientId;
+    String sessionId; // Opcionális, de segíti a diagnosztikát
 
     // --- Játékmenet Kötelező Elemek ---
-    private Deck deck;
-    private int bet;
-    private List<Integer> betList;
-    private boolean isRoundActive;
+    Deck deck;
+    int bet;
+
+    @JsonProperty("bet_list")
+    List<Integer> betList;
+
+    @JsonProperty("is_round_active")
+    boolean isRoundActive;
 
     // --- Kéz (Hand) Objektumok ---
-    private PlayerHand player;
-    private DealerHandMasked dealerMasked;
-    private DealerHandUnmasked dealerUnmasked;
-    private PlayerHand splitPlayer;
+    PlayerHand player;
+
+    @JsonProperty("dealer_masked")
+    DealerHandMasked dealerMasked;
+
+    @JsonProperty("dealer_unmasked")
+    DealerHandUnmasked dealerUnmasked;
+    PlayerHand splitPlayer;
 
     // --- Speciális/Számláló Változók ---
-    private boolean aces;
+    boolean aces;
 
     @JsonProperty("natural_21")
-    private int natural21;
-    private int winner;
+    int natural21;
+    int winner;
 
     @Builder.Default
-    private Map<String, PlayerHand> players = new LinkedHashMap<>();
-    private int splitReq;
-    private int handCounter;
+    Map<String, PlayerHand> players = new LinkedHashMap<>();
+
+    @JsonProperty("split_req")
+    int splitReq;
+    int handCounter;
 
     @Builder.Default
-    private Map<String, Boolean> playersIndex = new HashMap<>();
+    Map<String, Boolean> playersIndex = new HashMap<>();
 
     public int getDeckLen() {
         return this.deck != null ? this.deck.getDeckLength() : 0;
     }
 
-    // --- Megjegyzés ---
-    // A deckLen (get_deck_len()) egy származtatott érték, amit a DTO-ban adunk vissza:
-    // deckLen = this.deck.getDeckLength();
-
-    public String generateNextHandId() {
-        this.handCounter++;
-        String formattedCount = String.format("%03d", this.handCounter);
-
-        return "P-" + formattedCount;
+    public int calculateNextHandCounter() {
+        return this.handCounter + 1;
     }
 
-    public int addSplitReq(int count) {
-        return this.splitReq += count;
+    public int calculateNewSplitReq(int count) {
+        return this.splitReq + count;
     }
 }

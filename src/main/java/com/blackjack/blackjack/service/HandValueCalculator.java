@@ -2,11 +2,13 @@ package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.model.Card;
 import com.blackjack.blackjack.model.Rank;
+import org.springframework.stereotype.Service;
 
 import java.util.List;
 
+@Service
 public class HandValueCalculator {
-    public static int calculateSum(List<Card> hand) {
+    public int calculateSum(List<Card> hand) {
         if (hand == null || hand.isEmpty()) {
             return 0;
         }

@@ -11,8 +11,10 @@ public class GameRuleEngine {
         PlayerHand playerHand = gameState.getPlayer();
         DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
 
-        int playerSum = playerHand.getSum();
-        int dealerSum = dealerHand.getSum();
+        assert playerHand != null;
+        int playerSum = playerHand.sum();
+        assert dealerHand != null;
+        int dealerSum = dealerHand.sum();
 
         boolean playerNatural = (playerHand.hand().size() == 2) && (playerSum == 21);
         boolean dealerNatural = (dealerHand.hand().size() == 2) && (dealerSum == 21);
@@ -36,8 +38,10 @@ public class GameRuleEngine {
         PlayerHand playerHand = gameState.getPlayer();
         DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
 
-        int playerSum = playerHand.getSum();
-        int dealerSum = dealerHand.getSum();
+        assert playerHand != null;
+        int playerSum = playerHand.sum();
+        assert dealerHand != null;
+        int dealerSum = dealerHand.sum();
         WinnerState winnerState;
 
         if (playerSum > 21) {

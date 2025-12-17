@@ -109,22 +109,17 @@ public class GameStateManager {
             newStateBuilder.player(updatedPlayerHand);
 
         } else {
-            // --- További osztások (új, split-elt kéz létrehozása) ---
-
-            // A PlayerHandFactory-nak is Builder-t kellene használnia.
             PlayerHand newSplitHand = playerHandFactory.createEmptyHand();
 
-            // 🚨 Változás 2: Az állapotmódosítást a Builderben végezzük
-            String id = oldState.generateNextHandId(); // Feltételezzük, hogy ez a metódus már a builder mintához igazodik
+            int nextCount = oldState.calculateNextHandCounter();
+            String id = String.format("P-%03d", nextCount);
 
-            // Létrehozzuk az új Split Hand objektumot
             updatedPlayerHand = newSplitHand.toBuilder()
-                .id(id) // Új ID beállítása
-                .hand(new LinkedList<>(List.of(cardToSplit))) // Új kéz, a split lapokkal
-                .bet(oldState.getBet()) // Az eredeti tét beállítása
+                .id(id)
+                .hand(new LinkedList<>(List.of(cardToSplit)))
+                .bet(oldState.getBet())
                 .build();
 
-            // 🚨 Változás 3: A splitPlayer mező frissítése a GameState-ben
             newStateBuilder.splitPlayer(updatedPlayerHand);
         }
 

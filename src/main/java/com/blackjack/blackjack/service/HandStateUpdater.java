@@ -1,9 +1,11 @@
 package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.model.HandState;
+import org.springframework.stereotype.Service;
 
+@Service
 public class HandStateUpdater {
-    public static HandState updateHandState(int sum, int handSize) {
+    public HandState updateHandState(int sum, int handSize) {
         if (sum > 21) {
             return HandState.BUST;
         }
