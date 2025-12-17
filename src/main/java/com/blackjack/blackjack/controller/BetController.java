@@ -9,6 +9,7 @@ import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.AuthenticationService;
 import com.blackjack.blackjack.service.GameService;
+import com.blackjack.blackjack.service.GameService.RetakeResult;
 import com.blackjack.blackjack.service.GameStateService;
 import com.blackjack.blackjack.service.PlayerService;
 import jakarta.servlet.http.HttpSession;
@@ -23,10 +24,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Optional;
-import java.util.UUID;
-
-import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
 
 @RestController
@@ -50,19 +47,15 @@ public class BetController {
     }
 
     @PostMapping("/bet")
-    public ResponseEntity<?> placeBet(
-        @RequestBody BetRequest betRequest,
-        HttpSession session) {
-
+    public ResponseEntity<?> placeBet(@RequestBody BetRequest betRequest, HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
-        logger.info(">>>>>> BetController ÉRKEZÓ BET BET GameState_1 ********** Fő Bet: {} | Player Bet: {}",
-            gameStateOptional.get().getBet(),                  // <-- Ez kerül az első {} helyére
-            gameStateOptional.get().getPlayer().bet());     // <-- Ez kerül a második {} helyére
+
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "GAME_NOT_FOUND"));
 
         int betAmount = betRequest.bet();
+
         if (betAmount < MINIMUM_BET) {
             throw new GameRuleException("BET_BELOW_MINIMUM");
         }
@@ -70,79 +63,45 @@ public class BetController {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_BET");
         }
 
-        Player updatedPlayer;
-        try {
-            updatedPlayer = playerService.deductBet(player, betAmount);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "DEDUCTION_FAILED");
-        }
+        Player updatedPlayer = playerService.deductBet(player, betAmount);
+        GameState updatedGameState = gameService.placeBet(currentState, betAmount);
 
-        int updatedTokens = updatedPlayer.getTokens();
-
-        GameState updatedGameState = gameService.placeBet(gameStateOptional, betAmount);
-
-
-        int deckLength;
-        if (updatedGameState.getDeck() == null) {
-            deckLength = INITIAL_DECK_LENGTH;
-        } else {
-            deckLength = updatedGameState.getDeckLen();
-        }
-
-        GameStateBet gameStateData = GameStateBet.builder()
-            .bet(updatedGameState.getBet())
-            .betList(updatedGameState.getBetList())
-            .deckLen(deckLength)
-            .build();
+        gameStateService.saveGameState(updatedGameState);
+        session.setAttribute("gameState", updatedGameState);
 
         return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
             .status("success")
-            .gameState(gameStateData)
-            .gameStateHint("BET_SUCCESSFULLY_PLACED")
-            .currentTokens(updatedTokens)
+            .gameState(buildBetDto(updatedGameState))
+            .currentTokens(updatedPlayer.getTokens())
             .build());
     }
 
     @PostMapping("/retake_bet")
-    public ResponseEntity<?> retakeBet(
-        HttpSession session) {
-
+    public ResponseEntity<?> retakeBet(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-
-        UUID currentClientId = context.clientId();
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "GAME_NOT_FOUND"));
 
-        int amountToReturn = gameService.retakeBet(gameStateOptional);
+        RetakeResult result = gameService.retakeBet(currentState);
 
-        Player updatedPlayer;
-        try {
-            updatedPlayer = playerService.deductBet(player, amountToReturn);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "RETURN_FAILED");
-        }
+        Player updatedPlayer = playerService.deductBet(player, result.amountReturned() * -1);
 
-        int updatedTokens = updatedPlayer.getTokens();
-
-        GameState updatedGameState = gameStateService.getGameState(currentClientId)
-            .orElseThrow(() -> new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR, "ERROR"));
-
-        int deckLength = (updatedGameState.getDeck() == null)
-            ? INITIAL_DECK_LENGTH
-            : updatedGameState.getDeckLen();
-
-        GameStateBet gameStateData = GameStateBet.builder()
-            .bet(updatedGameState.getBet())
-            .betList(updatedGameState.getBetList())
-            .deckLen(deckLength)
-            .build();
+        gameStateService.saveGameState(result.newState());
+        session.setAttribute("gameState", result.newState());
 
         return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
             .status("success")
-            .gameState(gameStateData)
-            .gameStateHint("BET_SUCCESSFULLY_RETRAKEN")
-            .currentTokens(updatedTokens)
+            .gameState(buildBetDto(result.newState()))
+            .currentTokens(updatedPlayer.getTokens())
             .build());
+    }
+
+    private GameStateBet buildBetDto(GameState state) {
+        return GameStateBet.builder()
+            .bet(state.getBet())
+            .betList(state.getBetList())
+            .deckLen(state.getDeckLen())
+            .build();
     }
 }

@@ -14,6 +14,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,6 +24,7 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 public class AuthenticationServiceTest {
     private final UUID TEST_CLIENT_ID = UUID.randomUUID();
+    private final String TEST_SESSION_ID = "test-session-123";
     @InjectMocks
     private AuthenticationService authenticationService;
     @Mock
@@ -37,10 +39,19 @@ public class AuthenticationServiceTest {
     @BeforeEach
     void setUp() {
         // Alapértelmezett mock objektumok előkészítése
-        testPlayer = new Player();
-        testPlayer.setClientId(TEST_CLIENT_ID);
-        // Dummy GameState a sikeres tesztekhez
-        testGameState = new GameState();
+        testPlayer = Player.builder()
+            .clientId(TEST_CLIENT_ID)
+            .sessionId(TEST_SESSION_ID)
+            .tokens(1000)
+            .build();
+
+        // GameState javítása Builderrel
+        testGameState = GameState.builder()
+            .clientId(TEST_CLIENT_ID)
+            .sessionId(TEST_SESSION_ID)
+            .isRoundActive(false)
+            .betList(List.of()) // Fontos az immutábilis üres lista
+            .build();
     }
 
     // --------------------------------------------------------------------------------

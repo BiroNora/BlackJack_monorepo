@@ -35,7 +35,7 @@ public class GameStateManager {
         DealerHandMasked resetDealerMasked = DealerHandMasked.createEmptyHand();
         DealerHandUnmasked resetDealerUnmasked = DealerHandUnmasked.createEmptyHand();
 
-        GameState newState = oldState.toBuilder()
+        return oldState.toBuilder()
             .betList(List.of())
             .player(resetPlayerHand)
             .dealerMasked(resetDealerMasked)
@@ -49,8 +49,6 @@ public class GameStateManager {
             .isRoundActive(false)
             .players(new HashMap<>())
             .build();
-
-        return newState;
     }
 
     // A metódus most a frissített GameState-et adja vissza.

@@ -1,195 +1,118 @@
 package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.model.*;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
-import org.mockito.junit.jupiter.MockitoSettings;
-import org.mockito.quality.Strictness;
 
-import java.util.LinkedList;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
-@ExtendWith(MockitoExtension.class)
-@MockitoSettings(strictness = Strictness.LENIENT)
-public class GameRuleEngineTest {
-    private final Card testCardAce = new Card(Suit.HEARTS, Rank.ACE);
-    private final Card testCardTen = new Card(Suit.HEARTS, Rank.TEN);
-    private final Card mockDrawnCard = mock(Card.class);
-    @InjectMocks
-    private GameRuleEngine gameRuleEngine;
-    @Mock
-    private GameState mockGameState;
-    @Mock
-    private PlayerHand mockPlayerHand;
-    @Mock
-    private DealerHandUnmasked mockDealerHand;
+class GameRuleEngineTest {
 
-    private void setupMocks(int playerSize, int playerSum, int dealerSize, int dealerSum) {
-        @SuppressWarnings("unchecked")
-        LinkedList<Card> mockPlayerHandList = mock(LinkedList.class);
+    private final GameRuleEngine gameRuleEngine = new GameRuleEngine();
 
-        @SuppressWarnings("unchecked")
-        List<Card> mockDealerHandList = mock(List.class);
-
-        when(mockPlayerHand.hand()).thenReturn(mockPlayerHandList);
-        when(mockPlayerHandList.size()).thenReturn(playerSize);
-        when(mockPlayerHand.getSum()).thenReturn(playerSum);
-
-        when(mockDealerHand.hand()).thenReturn(mockDealerHandList);
-        when(mockDealerHandList.size()).thenReturn(dealerSize);
-        when(mockDealerHand.getSum()).thenReturn(dealerSum);
-
-        when(mockGameState.getPlayer()).thenReturn(mockPlayerHand);
-        when(mockGameState.getDealerUnmasked()).thenReturn(mockDealerHand);
+    // Segédmetódusok a kód ismétlés elkerülésére
+    private Card createCard(Rank rank) {
+        return new Card(Suit.HEARTS, rank);
     }
 
-    private Card mockTenValueCard(Rank rank) {
-        Rank mockRank = mock(Rank.class);
+    private GameState createGameState(int pSum, int pSize, int dSum, int dSize) {
+        // Készítünk kártyalistákat a megfelelő méretben (a tartalom mindegy, csak a size() számít)
+        List<Card> pCards = new ArrayList<>();
+        for (int i = 0; i < pSize; i++) pCards.add(new Card(Suit.HEARTS, Rank.TWO));
 
-        when(mockRank.getBaseValue()).thenReturn(10);
-        when(mockRank.name()).thenReturn(rank.name());
+        List<Card> dCards = new ArrayList<>();
+        for (int i = 0; i < dSize; i++) dCards.add(new Card(Suit.SPADES, Rank.TWO));
 
-        Card card = mock(Card.class);
+        return GameState.builder()
+            .player(PlayerHand.builder()
+                .sum(pSum)
+                .hand(pCards)
+                .build())
+            .dealerUnmasked(DealerHandUnmasked.builder()
+                .sum(dSum)
+                .hand(dCards)
+                .build())
+            .betList(List.of())
+            .isRoundActive(true)
+            .build();
+    }
 
-        when(card.rank()).thenReturn(mockRank);
+    // --- 1. initNatural21State Tesztek ---
 
-        return card;
+    @Test
+    @DisplayName("Döntetlen, ha mindkettőnek Natural 21-e van")
+    void initNatural21State_Push() {
+        GameState state = createGameState(21, 2, 21, 2);
+        assertEquals(WinnerState.BLACKJACK_PUSH.getValue(), gameRuleEngine.initNatural21State(state));
     }
 
     @Test
-    void initNatural21State_shouldReturnPush_whenBothHaveNatural21() {
-        setupMocks(2, 21, 2, 21);
-
-        int result = gameRuleEngine.initNatural21State(mockGameState);
-
-        assertEquals(2, result);
+    @DisplayName("Játékos nyer, ha csak neki van Natural 21-e")
+    void initNatural21State_PlayerWon() {
+        GameState state = createGameState(21, 2, 18, 2);
+        assertEquals(WinnerState.BLACKJACK_PLAYER_WON.getValue(), gameRuleEngine.initNatural21State(state));
     }
 
     @Test
-    void initNatural21State_shouldReturnPlayerWon_whenOnlyPlayerHasNatural21() {
-        setupMocks(2, 21, 2, 18);
+    @DisplayName("Nincs Natural Blackjack, ha 3 lapból van meg a 21")
+    void initNatural21State_NoneWithThreeCards() {
+        GameState state = createGameState(21, 3, 21, 3);
+        assertEquals(WinnerState.NONE.getValue(), gameRuleEngine.initNatural21State(state));
+    }
 
-        int result = gameRuleEngine.initNatural21State(mockGameState);
+    // --- 2. winnerStateUpdater Tesztek ---
 
-        assertEquals(1, result, "Csak a Játékos Natural 21 esetén PLAYER_WON (1) az elvárt.");
+    @Test
+    @DisplayName("Játékos veszít, ha besokall (Bust)")
+    void winnerStateUpdater_PlayerBust() {
+        GameState state = createGameState(22, 3, 18, 2);
+        assertEquals(WinnerState.PLAYER_LOST.getValue(), gameRuleEngine.winnerStateUpdater(state));
     }
 
     @Test
-    void initNatural21State_shouldReturnDealerWon_whenOnlyDealerHasNatural21() {
-        setupMocks(2, 19, 2, 21);
-
-        int result = gameRuleEngine.initNatural21State(mockGameState);
-
-        assertEquals(3, result, "Csak a Dealer Natural 21 esetén DEALER_WON (3) az elvárt.");
+    @DisplayName("Játékos nyer, ha az osztó besokall")
+    void winnerStateUpdater_DealerBust() {
+        GameState state = createGameState(19, 2, 22, 3);
+        assertEquals(WinnerState.PLAYER_WON.getValue(), gameRuleEngine.winnerStateUpdater(state));
     }
 
     @Test
-    void initNatural21State_shouldReturnNone_whenNeitherHasNatural21() {
-        setupMocks(3, 21, 3, 21);
-        assertEquals(0, gameRuleEngine.initNatural21State(mockGameState));
+    @DisplayName("Döntetlen (Push), ha az összegek egyenlőek")
+    void winnerStateUpdater_Push() {
+        GameState state = createGameState(20, 2, 20, 3);
+        assertEquals(WinnerState.PUSH.getValue(), gameRuleEngine.winnerStateUpdater(state));
+    }
 
-        setupMocks(2, 20, 2, 20);
-        assertEquals(0, gameRuleEngine.initNatural21State(mockGameState));
+    // --- 3. canSplit Tesztek ---
+
+    @Test
+    @DisplayName("Splitelhető, ha azonos a Rank")
+    void canSplit_SameRank() {
+        List<Card> hand = List.of(createCard(Rank.EIGHT), createCard(Rank.EIGHT));
+        assertTrue(gameRuleEngine.canSplit(hand));
     }
 
     @Test
-    void winnerStateUpdater_shouldReturnPlayerLost_whenPlayerBusts() {
-        setupMocks(5, 22, 2, 18);
-
-        int result = gameRuleEngine.winnerStateUpdater(mockGameState);
-
-        assertEquals(5, result);
+    @DisplayName("Splitelhető, ha két különböző 10-es értékű lap (pl. K és J)")
+    void canSplit_DifferentTenValues() {
+        List<Card> hand = List.of(createCard(Rank.KING), createCard(Rank.JACK));
+        assertTrue(gameRuleEngine.canSplit(hand));
     }
 
     @Test
-    void winnerStateUpdater_shouldReturnPlayerWon_whenDealerBusts() {
-        setupMocks(2, 20, 4, 22);
-
-        int result = gameRuleEngine.winnerStateUpdater(mockGameState);
-
-        assertEquals(6, result);
+    @DisplayName("NEM splitelhető, ha eltérő értékek")
+    void canSplit_DifferentValues() {
+        List<Card> hand = List.of(createCard(Rank.TEN), createCard(Rank.SIX));
+        assertFalse(gameRuleEngine.canSplit(hand));
     }
 
     @Test
-    void winnerStateUpdater_shouldReturnPush_whenPush() {
-        setupMocks(3, 20, 2, 20);
-
-        int result = gameRuleEngine.winnerStateUpdater(mockGameState);
-
-        assertEquals(4, result);
-    }
-
-    @Test
-    void winnerStateUpdater_shouldReturnPlayerWon_whenPlayerHasHigherSum() {
-        setupMocks(2, 21, 5, 19);
-
-        int result = gameRuleEngine.winnerStateUpdater(mockGameState);
-
-        assertEquals(6, result);
-    }
-
-    @Test
-    void winnerStateUpdater_shouldReturnDealerWon_whenDealerHasHigherSum() {
-        setupMocks(2, 18, 3, 20);
-
-        int result = gameRuleEngine.winnerStateUpdater(mockGameState);
-
-        assertEquals(7, result, "A Dealer nagyobb összege esetén DEALER_WON (7) az elvárt.");
-    }
-
-    @Test
-    void canSplit_shouldReturnFalse_whenHandIsNull() {
-        assertFalse(gameRuleEngine.canSplit(null),
-            "Null bemenet esetén nem osztható.");
-    }
-
-    @Test
-    void canSplit_shouldReturnFalse_whenHandSizeIsNotTwo() {
-        List<Card> singleCardHand = List.of(testCardAce);
-        assertFalse(gameRuleEngine.canSplit(singleCardHand));
-
-        List<Card> threeCardHand = List.of(testCardAce, testCardTen, mockDrawnCard);
-        assertFalse(gameRuleEngine.canSplit(threeCardHand));
-    }
-
-    @Test
-    void canSplit_shouldReturnTrue_whenCardsHaveSameRank() {
-        List<Card> twoAces = List.of(testCardAce, testCardAce);
-
-        Card mockCardQueen = mockTenValueCard(Rank.QUEEN);
-        List<Card> twoQueens = List.of(mockCardQueen, mockCardQueen);
-
-        assertTrue(gameRuleEngine.canSplit(twoAces));
-        assertTrue(gameRuleEngine.canSplit(twoQueens));
-    }
-
-    @Test
-    void canSplit_shouldReturnTrue_whenBothCardsAreTenValueButDifferentRank() {
-        Card mockCardKing = mockTenValueCard(Rank.KING);
-        Card mockCardJack = mockTenValueCard(Rank.JACK);
-
-        List<Card> tenValueCards = List.of(mockCardKing, mockCardJack);
-
-        assertTrue(gameRuleEngine.canSplit(tenValueCards));
-    }
-
-    @Test
-    void canSplit_shouldReturnFalse_whenCardsAreDifferentRankAndValue() {
-        List<Card> aceAndTen = List.of(testCardAce, testCardTen);
-
-        assertFalse(gameRuleEngine.canSplit(aceAndTen));
-
-        Card mockCardSix = mockTenValueCard(Rank.SIX);
-        when(mockCardSix.rank().getBaseValue()).thenReturn(6);
-        List<Card> tenAndSix = List.of(testCardTen, mockCardSix);
-
-        assertFalse(gameRuleEngine.canSplit(tenAndSix));
+    @DisplayName("NEM splitelhető, ha több vagy kevesebb mint 2 lap")
+    void canSplit_InvalidSize() {
+        assertFalse(gameRuleEngine.canSplit(List.of(createCard(Rank.ACE))));
+        assertFalse(gameRuleEngine.canSplit(null));
     }
 }

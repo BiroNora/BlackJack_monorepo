@@ -9,7 +9,9 @@ import lombok.Value;
 import lombok.extern.jackson.Jacksonized;
 
 import java.io.Serializable;
-import java.util.*;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Value
@@ -49,14 +51,14 @@ public class GameState implements Serializable {
     int winner;
 
     @Builder.Default
-    Map<String, PlayerHand> players = new LinkedHashMap<>();
+    Map<String, PlayerHand> players = Map.of();
 
     @JsonProperty("split_req")
     int splitReq;
     int handCounter;
 
     @Builder.Default
-    Map<String, Boolean> playersIndex = new HashMap<>();
+    Map<String, Boolean> playersIndex = Map.of();
 
     public int getDeckLen() {
         return this.deck != null ? this.deck.getDeckLength() : 0;

@@ -11,6 +11,7 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class HandValueCalculatorTest {
+    private HandValueCalculator handValueCalculator;
     /**
      * Test case 1: Standard sum without Aces (should be a simple addition).
      * Cards: 8, 9, 2
@@ -24,7 +25,7 @@ public class HandValueCalculatorTest {
             new Card(Suit.DIAMONDS, Rank.TWO)   // 2
         );
 
-        int sum = HandValueCalculator.calculateSum(hand);
+        int sum = handValueCalculator.calculateSum(hand);
         assertEquals(19, sum);
     }
 
@@ -40,7 +41,7 @@ public class HandValueCalculatorTest {
             new Card(Suit.CLUBS, Rank.KING)    // 10
         );
 
-        int sum = HandValueCalculator.calculateSum(hand);
+        int sum = handValueCalculator.calculateSum(hand);
         assertEquals(21, sum);
     }
 
@@ -57,7 +58,7 @@ public class HandValueCalculatorTest {
             new Card(Suit.CLUBS, Rank.TWO)     // 2
         );
 
-        int sum = HandValueCalculator.calculateSum(hand);
+        int sum = handValueCalculator.calculateSum(hand);
         assertEquals(18, sum);
     }
 
@@ -74,7 +75,7 @@ public class HandValueCalculatorTest {
             new Card(Suit.SPADES, Rank.NINE)    // 9
         );
 
-        int sum = HandValueCalculator.calculateSum(hand);
+        int sum = handValueCalculator.calculateSum(hand);
         assertEquals(20, sum);
     }
 
@@ -96,7 +97,7 @@ public class HandValueCalculatorTest {
             new Card(Suit.HEARTS, Rank.FIVE)    // 5
         );
 
-        int sum = HandValueCalculator.calculateSum(hand);
+        int sum = handValueCalculator.calculateSum(hand);
         assertEquals(17, sum);
     }
 
@@ -114,7 +115,7 @@ public class HandValueCalculatorTest {
             new Card(Suit.SPADES, Rank.NINE)   // 9
         );
 
-        int sum = HandValueCalculator.calculateSum(hand);
+        int sum = handValueCalculator.calculateSum(hand);
         assertEquals(12, sum);
     }
 }

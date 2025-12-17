@@ -24,7 +24,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Optional;
 
-import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_TOKENS;
 
 @RestController
@@ -35,7 +34,6 @@ public class GameController {
     private final AuthenticationService authenticationService;
     private final PlayerService playerService;
     private final GameStateService gameStateService;
-    private final PlayerRepository playerRepository;
 
     public GameController(GameService gameService, AuthenticationService authenticationService, PlayerService playerService, GameStateService gameStateService, PlayerRepository playerRepository
     ) {
@@ -43,7 +41,6 @@ public class GameController {
         this.authenticationService = authenticationService;
         this.playerService = playerService;
         this.gameStateService = gameStateService;
-        this.playerRepository = playerRepository;
     }
 
     @PostMapping("/create_deck")
@@ -51,9 +48,13 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameState updatedGameState = gameService.createNewDeck(gameStateOptional);
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No GameState found"));
+
+        GameState updatedGameState = gameService.createNewDeck(currentState);
+        gameStateService.saveGameState(updatedGameState);
+
         session.setAttribute("gameState", updatedGameState);
 
         GameStateBet gameStateData = GameStateBet.builder()
@@ -71,15 +72,25 @@ public class GameController {
     }
 
     @PostMapping("/start_game")
-    public ResponseEntity<?> initializeNewRound(
-        HttpSession session) {
+    public ResponseEntity<?> initializeNewRound(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameState updatedGameState = gameService.initializeNewRound(gameStateOptional);
+        // 1. Kicsomagoljuk az Optional-t (itt dobunk hibát, ha nincs állapot)
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No GameState found"));
+
+        // 2. Meghívjuk a már átalakított, tiszta Service metódust
+        // Ez a metódus már GameState-et vár, nem Optional-t, és NEM ment belsőleg.
+        GameState updatedGameState = gameService.initializeNewRound(currentState);
+
+        // 3. MENTÉS: Itt rögzítjük az új kört az adatbázisban/Redisben
+        gameStateService.saveGameState(updatedGameState);
+
+        // 4. Szesszió frissítése
         session.setAttribute("gameState", updatedGameState);
 
+        // 5. Válasz összeállítása (DTO)
         GameStateStart gameStateData = GameStateStart.builder()
             .player(updatedGameState.getPlayer())
             .dealerMasked(updatedGameState.getDealerMasked())
@@ -97,13 +108,17 @@ public class GameController {
     }
 
     @PostMapping("/hit")
-    public ResponseEntity<?> playerHit(
-        HttpSession session) {
+    public ResponseEntity<?> playerHit(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameState updatedGameState = gameService.playerHit(gameStateOptional);
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No GameState found"));
+
+        GameState updatedGameState = gameService.playerHit(currentState);
+
+        gameStateService.saveGameState(updatedGameState);
+
         session.setAttribute("gameState", updatedGameState);
 
         GameStateStart gameStateData = GameStateStart.builder()
@@ -117,41 +132,40 @@ public class GameController {
         return ResponseEntity.ok(ApiResponse.<GameStateStart>builder()
             .status("success")
             .gameState(gameStateData)
-            .gameStateHint("HIT_RECIEVED")
+            .gameStateHint("HIT_RECEIVED") // Kijavítottam a typo-t: RECIEVED -> RECEIVED
             .currentTokens(player.getTokens())
             .build());
     }
 
     @PostMapping("/stand_and_rewards")
-    public ResponseEntity<?> standAndRewards(
-        HttpSession session) {
+    public ResponseEntity<?> standAndRewards(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No GameState found"));
 
-        GameState stoodGameState = gameService.playerStand(gameStateOptional);
+        GameState stoodGameState = gameService.playerStand(currentState);
+
         GameService.TransactionResult rewardResult = gameService.calculateRewards(stoodGameState);
-        GameState updatedGameState = rewardResult.gameState();
+        GameState finalGameState = rewardResult.gameState();
         int rewardAmount = rewardResult.transactionResult();
 
         try {
             playerService.updateTokens(player, rewardAmount);
         } catch (Exception e) {
-            throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR,
-                "INTERNAL_SERVER_ERROR"
-            );
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "TOKEN_UPDATE_FAILED");
         }
 
-        session.setAttribute("gameState", updatedGameState);
+        gameStateService.saveGameState(finalGameState);
+        session.setAttribute("gameState", finalGameState);
 
         GameStateRewards gameStateData = GameStateRewards.builder()
-            .player(updatedGameState.getPlayer())
-            .dealerUnmasked(updatedGameState.getDealerUnmasked())
-            .deckLen(updatedGameState.getDeckLen())
-            .bet(updatedGameState.getPlayer().bet())
-            .winner(updatedGameState.getWinner())
-            .isRoundActive(updatedGameState.isRoundActive())
+            .player(finalGameState.getPlayer())
+            .dealerUnmasked(finalGameState.getDealerUnmasked())
+            .deckLen(finalGameState.getDeckLen())
+            .bet(finalGameState.getBet())
+            .winner(finalGameState.getWinner())
+            .isRoundActive(finalGameState.isRoundActive())
             .build();
 
         return ResponseEntity.ok(ApiResponse.builder()
@@ -163,38 +177,45 @@ public class GameController {
     }
 
     @PostMapping("/double_request")
-    public ResponseEntity<?> doubleRequest(
-        HttpSession session) {
+    public ResponseEntity<?> doubleRequest(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameState initialGameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "CLIENT_ERROR_SPECIFIC"
-        ));
+        // 1. Kicsomagolás (Kezdeti állapot)
+        GameState initialGameState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "GAME_NOT_FOUND"));
 
         int betToDeduct = initialGameState.getPlayer().bet();
 
+        // 2. Ellenőrzések (Token és Szabályok)
         if (player.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
         }
-
-        try {
-            playerService.deductBet(player, betToDeduct);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+        if (initialGameState.getPlayer().hand().size() != 2) {
+            throw new GameRuleException("DOUBLE_ONLY_ALLOWED_ON_STARTING_HAND");
         }
 
-        GameState gameStateAfterHit = gameService.playerHit(gameStateOptional);
-        GameState updatedGameState = gameService.doubleRequest(gameStateAfterHit, betToDeduct);
-        gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
+        // 3. LOGIKAI LÁNC (Csak a memóriában dolgozunk)
+        // Első lépés: A kötelező HIT (Laposztás)
+        GameState stateAfterHit = gameService.playerHit(initialGameState);
 
+        // Második lépés: A tét megduplázása a kapott új állapoton
+        GameState finalState = gameService.applyDoubleBet(stateAfterHit, betToDeduct);
+
+        // Blackjack szabály: Double után Stand következik!
+        // Ha van playerStand metódusod, ide láncolhatod:
+        // finalState = gameService.playerStand(finalState);
+
+        // 4. MENTÉS ÉS TRANZAKCIÓ (Itt rögzítünk mindent)
+        playerService.deductBet(player, betToDeduct);
+        gameStateService.saveGameState(finalState);
+        session.setAttribute("gameState", finalState);
+
+        // 5. Válasz összeállítása
         GameStateDouble gameStateDouble = GameStateDouble.builder()
-            .player(updatedGameState.getPlayer())
-            .deckLen(updatedGameState.getDeckLen())
-            .isRoundActive(updatedGameState.isRoundActive())
+            .player(finalState.getPlayer())
+            .deckLen(finalState.getDeckLen())
+            .isRoundActive(finalState.isRoundActive())
             .build();
 
         return ResponseEntity.ok(ApiResponse.builder()
@@ -206,28 +227,32 @@ public class GameController {
     }
 
     @PostMapping("/ins_request")
-    public ResponseEntity<?> insuranceRequest(
-        HttpSession session) {
+    public ResponseEntity<?> insuranceRequest(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameService.TransactionResult insResult = gameService.insuranceRequest(gameStateOptional);
-        GameState updatedGameState = insResult.gameState();
-        int insCost = insResult.transactionResult();
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "Game not found"));
 
-        if (insCost < 0 && player.getTokens() < Math.abs(insCost)) {
+        int insuranceCost = (int) Math.ceil(currentState.getBet() / 2.0);
+        if (player.getTokens() < insuranceCost) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_INSURANCE");
         }
 
+        GameService.TransactionResult insResult = gameService.insuranceRequest(currentState);
+        GameState updatedGameState = insResult.gameState();
+        int transactionAmount = insResult.transactionResult();
+
         try {
-            playerService.updateTokens(player, insCost);
+            playerService.updateTokens(player, transactionAmount);
+            gameStateService.saveGameState(updatedGameState); // Most mentünk!
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "DATABASE_ERROR");
         }
 
         session.setAttribute("gameState", updatedGameState);
 
+        assert updatedGameState.getPlayer() != null;
         GameStateInsurance gameStateData = GameStateInsurance.builder()
             .player(updatedGameState.getPlayer())
             .natural21(updatedGameState.getNatural21())
@@ -242,7 +267,7 @@ public class GameController {
             .status("success")
             .currentTokens(player.getTokens())
             .gameState(gameStateData)
-            .gameStateHint("REWARDS_PROCESSED")
+            .gameStateHint("INSURANCE_PROCESSED")
             .build());
     }
 
@@ -429,7 +454,12 @@ public class GameController {
         Player player = context.player();
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameState updatedGameState = gameService.playerHit(gameStateOptional);
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "CLIENT_ERROR_SPECIFIC"
+        ));
+
+        GameState updatedGameState = gameService.playerHit(gameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
@@ -458,7 +488,12 @@ public class GameController {
         Player player = context.player();
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameState stoodGameState = gameService.playerStand(gameStateOptional);
+        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+            HttpStatus.BAD_REQUEST,
+            "CLIENT_ERROR_SPECIFIC"
+        ));
+
+        GameState stoodGameState = gameService.playerStand(gameState);
         GameService.TransactionResult rewardResult = gameService.calculateRewards(stoodGameState);
         GameState updatedGameState = rewardResult.gameState();
         int rewardAmount = rewardResult.transactionResult();
@@ -514,8 +549,8 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
-        GameState gameStateAfterHit = gameService.playerHit(gameStateOptional);
-        GameState updatedGameState = gameService.doubleRequest(gameStateAfterHit, betToDeduct);
+        GameState gameStateAfterHit = gameService.playerHit(initialGameState);
+        GameState updatedGameState = gameService.applyDoubleBet(gameStateAfterHit, betToDeduct);
         gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
@@ -540,33 +575,41 @@ public class GameController {
 
 
     @PostMapping("/set_restart")
-    public ResponseEntity<?> setRestart(
-        HttpSession session) {
+    public ResponseEntity<?> setRestart(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Player updatedPlayer;
 
+        // 1. Kontextus kicsomagolása (Ha nincs állapota, dobunk egy hibát)
+        GameState currentState = context.gameStateOptional()
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No game state to restart"));
+
+        // 2. TOKENEK RESETELÉSE
+        // Ezt érdemes egyben kezelni: ha a token reset sikerül, csak akkor megyünk tovább
+        Player updatedPlayer;
         try {
             updatedPlayer = playerService.resetTokens(player, INITIAL_TOKENS);
         } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "TOKEN_RESET_FAILED");
         }
 
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
-        GameState updatedGameState = gameService.restartGame(gameStateOptional);
+        // 3. JÁTÉKÁLLAPOT RESETELÉSE (Láncolt logika, nincs mentés a szervizben)
+        GameState updatedGameState = gameService.restartGame(currentState);
 
+        // 4. MENTÉS (Itt szinkronizáljuk a DB-t és a session-t)
+        gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
+        // 5. DTO Összeállítása
         GameStateBet gameStateData = GameStateBet.builder()
             .bet(updatedGameState.getBet())
             .betList(updatedGameState.getBetList())
-            .deckLen(INITIAL_DECK_LENGTH)
+            .deckLen(updatedGameState.getDeckLen()) // Használd a friss állapot hosszát
             .build();
 
         return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
             .status("success")
             .gameState(gameStateData)
-            .gameStateHint("BET_SUCCESSFULLY_PLACED")
+            .gameStateHint("GAME_AND_TOKENS_RESET_SUCCESS")
             .currentTokens(updatedPlayer.getTokens())
             .build());
     }

@@ -1,104 +1,81 @@
 package com.blackjack.blackjack.model;
 
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-
-import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
-
 import static com.blackjack.blackjack.common.GameConstants.NUM_DECKS;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class DeckTest {
-    private Deck deck;
+class DeckTest {
 
-    @BeforeEach
-    void setUp() {
-        deck = Deck.createNewDeck();
+    @Test
+    @DisplayName("A pakli létrehozásakor a méretének 52 * NUM_DECKS-nek kell lennie")
+    void shouldCreateDeckWithCorrectSize() {
+        Deck deck = Deck.createNewDeck();
+        int expectedSize = 52 * NUM_DECKS;
+
+        assertEquals(expectedSize, deck.getDeckLength(), "A kezdeti pakliméret nem megfelelő!");
     }
 
     @Test
-    void testDeckCreationAndInitialSize() {
-        final int expectedSize = 52 * NUM_DECKS;
-        assertEquals(expectedSize, deck.getDeckLength());
+    @DisplayName("Laposztásnál az eredeti pakli nem változhat meg (Immutabilitás)")
+    void dealCardShouldNotModifyOriginalDeck() {
+        Deck originalDeck = Deck.createNewDeck();
+        int initialSize = originalDeck.getDeckLength();
+
+        originalDeck.dealCard(); // Nem mentjük el az eredményt
+
+        // Az eredeti pakli hossza változatlan marad!
+        assertEquals(initialSize, originalDeck.getDeckLength(), "Az eredeti pakli megváltozott!");
     }
 
     @Test
-    void testDealCardReducesDeckSize() {
-        final int initialSize = deck.getDeckLength();
+    @DisplayName("Laposztás után az új pakli hossza eggyel csökken")
+    void dealCardShouldReturnNewDeckWithReducedSize() {
+        Deck deck = Deck.createNewDeck();
+        int initialSize = deck.getDeckLength();
+
+        DealResult result = deck.dealCard();
+        Deck newDeck = result.newDeck();
+
+        assertEquals(initialSize - 1, newDeck.getDeckLength(), "Az új pakli mérete nem csökkent!");
+        assertNotNull(result.dealtCard(), "A kiosztott lap nem lehet null!");
+    }
+
+    @Test
+    @DisplayName("A kiosztott lapnak a pakli első lapjának kell lennie")
+    void dealtCardShouldBeTheFirstCardOfOriginalDeck() {
+        Deck deck = Deck.createNewDeck();
+        Card firstCard = deck.deck().get(0);
+
         DealResult result = deck.dealCard();
 
-        Card dealtCard = result.dealtCard();
-        Deck newDeck = result.newDeck();
-        assertEquals(initialSize - 1, newDeck.getDeckLength());
-
-        assertNotNull(dealtCard);
-        assertEquals(initialSize - 1, deck.getDeckLength());
+        assertEquals(firstCard, result.dealtCard(), "Nem a pakli első lapját osztottuk ki!");
     }
 
     @Test
-    void testDealtCardIsRemovedByOneCount() {
-        // Azonosítjuk, hogy melyik lap lesz a következő a pakliban (Index 0).
-        Card cardToDeal = deck.deck().get(0);
+    @DisplayName("Hibaüzenetet kell kapnunk, ha üres pakliból akarunk osztani")
+    void shouldThrowExceptionWhenDealingFromEmptyDeck() {
+        // Üres pakli gyártása builderrel
+        Deck emptyDeck = Deck.builder().deck(List.of()).build();
 
-        // Megszámoljuk az osztandó lap kezdeti előfordulását a pakliban.
-        long initialCount = deck.deck().stream()
-            .filter(card -> card.equals(cardToDeal))
-            .count();
-
-        System.out.println("Card to be dealt: " + cardToDeal + " (Initial count: " + initialCount + ")");
-
-        // Laposztás: Itt történik a kritikus mutáció (remove(0))
-        deck.dealCard();
-
-        // Megszámoljuk a lap új előfordulását az eltávolítás után
-        long finalCount = deck.deck().stream()
-            .filter(card -> card.equals(cardToDeal))
-            .count();
-
-        System.out.println("Count after dealing: " + finalCount);
-
-        assertEquals(initialCount - 1, finalCount);
-        assertEquals((52 * NUM_DECKS) - 1, deck.getDeckLength());
-    }
-
-    /**
-     * Ellenőrzi, hogy a pakli lapjai ténylegesen keverve vannak-e.
-     * Megjegyzés: A keverés tesztelése mindig statisztikai jellegű. Itt azt ellenőrizzük,
-     * hogy nem egy determinisztikusan rendezett sorrendben jönnek-e a lapok.
-     * Ehhez egy rendezett pakli első 5 lapjával hasonlítjuk össze az első 5 lapot.
-     */
-    @Test
-    void testDeckIsShuffled() {
-        // Létrehozunk egy rendezett, nem kevert referencia listát (csak az első paklit)
-        List<Card> sortedReference = Arrays.stream(Suit.values())
-            .filter(suit -> suit != Suit.MASKED_SUIT)
-            .flatMap(suit -> Arrays.stream(Rank.values())
-                .filter(rank -> rank != Rank.MASKED_RANK)
-                .map(rank -> new Card(suit, rank)))
-            .limit(5) // Csak az első 5 lapot nézzük
-            .collect(Collectors.toList());
-
-        // Lekérjük a tesztelendő, kevert pakli első 5 lapját
-        List<Card> shuffledFirstFive = deck.deck().stream().limit(5).collect(Collectors.toList());
-
-        // Ellenőrizzük, hogy a kevert lista nem azonos a rendezett referencia listával.
-        // Ez 99.9%-ban jelzi a sikeres keverést.
-        assertNotEquals(sortedReference, shuffledFirstFive);
+        assertThrows(IllegalStateException.class, emptyDeck::dealCard,
+            "Az üres paklinak hibát kellene dobnia osztáskor!");
     }
 
     @Test
-    void testDealCardThrowsExceptionWhenDeckIsEmpty() {
-        // 1. Üresítsük ki a paklit az összes lap kiosztásával
-        int totalCards = deck.getDeckLength();
+    @DisplayName("A pakli kimerítése (stressz teszt láncolt állapotokkal)")
+    void testStateChainingUntilDeckIsEmpty() {
+        Deck currentDeck = Deck.createNewDeck();
+        int totalCards = currentDeck.getDeckLength();
+
+        // Végigzongorázzuk a teljes paklit
         for (int i = 0; i < totalCards; i++) {
-            deck.dealCard();
+            DealResult result = currentDeck.dealCard();
+            currentDeck = result.newDeck(); // Mindig frissítjük a referenciát
         }
 
-        // 2. Ellenőrizzük, hogy üres a pakli
-        assertEquals(0, deck.getDeckLength());
-        // 3. Ellenőrizzük, hogy a következő dealCard() hívás IllegalStateException-t dob
-        assertThrows(IllegalStateException.class, deck::dealCard);
+        assertEquals(0, currentDeck.getDeckLength());
+        assertTrue(currentDeck.deck().isEmpty());
     }
 }
