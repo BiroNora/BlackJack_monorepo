@@ -117,7 +117,6 @@ public class GameController {
         GameState updatedGameState = gameService.playerHit(currentState);
 
         gameStateService.saveGameState(updatedGameState);
-
         session.setAttribute("gameState", updatedGameState);
 
         GameStateStart gameStateData = GameStateStart.builder()
@@ -184,6 +183,7 @@ public class GameController {
         GameState initialGameState = context.gameStateOptional()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "GAME_NOT_FOUND"));
 
+        assert initialGameState.getPlayer() != null;
         int betToDeduct = initialGameState.getPlayer().bet();
 
         // 2. Ellenőrzések (Token és Szabályok)
@@ -292,6 +292,7 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
+        gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateRewards gameStateData = GameStateRewards.builder()
@@ -332,8 +333,8 @@ public class GameController {
         // Itt történik a split (immutábilis módon)
         GameState updatedGameState = gameService.splitHand(initialGameState);
 
-        // 3. Session frissítése (Nagyon fontos!)
         session.setAttribute("gameState", updatedGameState);
+        gameStateService.saveGameState(updatedGameState);
 
         // 4. DTO összeállítása (A splitHand-ben frissült adatokat használva)
         GameStateSplitHand responseState = GameStateSplitHand.builder()
@@ -364,6 +365,7 @@ public class GameController {
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
         GameState updatedGameState = gameService.addToPlayersListByStand(initialGameState);
+        gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateAddToPlayersByStand gameStateSplitHand = GameStateAddToPlayersByStand.builder()
@@ -395,6 +397,7 @@ public class GameController {
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
         GameState updatedGameState = gameService.addSplitPlayerToGame(initialGameState);
+        gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
@@ -425,6 +428,7 @@ public class GameController {
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
         GameState updatedGameState = gameService.addPlayerFromPlayers(initialGameState);
+        gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateAddPlayerFromPlayers gameStateAddPlayerFromPlayers = GameStateAddPlayerFromPlayers.builder()
@@ -451,14 +455,14 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
 
-        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+        GameState gameState = context.gameStateOptional().orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
             "CLIENT_ERROR_SPECIFIC"
         ));
 
         GameState updatedGameState = gameService.playerHit(gameState);
+        gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
@@ -485,14 +489,13 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
-
-        GameState gameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+        GameState gameState = context.gameStateOptional().orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
             "CLIENT_ERROR_SPECIFIC"
         ));
 
         GameState stoodGameState = gameService.playerStand(gameState);
+
         GameService.TransactionResult rewardResult = gameService.calculateRewards(stoodGameState);
         GameState updatedGameState = rewardResult.gameState();
         int rewardAmount = rewardResult.transactionResult();
@@ -503,7 +506,8 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
         }
 
-        session.setAttribute("gameState", stoodGameState);
+        gameStateService.saveGameState(updatedGameState);
+        session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitStandAndRewards gameStateData = GameStateSplitStandAndRewards.builder()
             .player(updatedGameState.getPlayer())
@@ -529,13 +533,12 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
-
-        GameState initialGameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
+        GameState initialGameState = context.gameStateOptional().orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
             "CLIENT_ERROR_SPECIFIC"
         ));
 
+        assert initialGameState.getPlayer() != null;
         int betToDeduct = initialGameState.getPlayer().bet();
 
         if (player.getTokens() < betToDeduct) {

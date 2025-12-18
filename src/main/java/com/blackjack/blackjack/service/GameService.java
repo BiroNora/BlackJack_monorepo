@@ -494,7 +494,7 @@ public class GameService {
             .isRoundActive(false)
             .player(rewardedPlayerHand)
             .build();
-        gameStateService.saveGameState(rewardedGameState);
+
         logger.info(">>>>>> rewardedGameState {}",
             rewardedGameState);
 
@@ -582,8 +582,6 @@ public class GameService {
         // FONTOS: stateAfterFirst-et adjuk át bemenetként!
         GameState finalState = gameStateManager.dealSplitCard(stateAfterFirstDeal, false, cardToSplit);
 
-        gameStateService.saveGameState(finalState);
-
         logger.info("+++++++++++ split completed. playersIndex: {}", finalState.getPlayersIndex());
         return finalState;
     }
@@ -620,15 +618,13 @@ public class GameService {
             newPlayersIndexMap.put(updatedPlayerHand.id(), true);
 
             // 3. Új GameState felépítése (unmodifiable wrapperekkel)
-            GameState newState = oldState.toBuilder()
+
+
+            return oldState.toBuilder()
                 .player(updatedPlayerHand)
                 .players(Collections.unmodifiableMap(newPlayersMap))
                 .playersIndex(Collections.unmodifiableMap(newPlayersIndexMap))
                 .build();
-
-            // 4. Mentés és visszatérés
-            gameStateService.saveGameState(newState);
-            return newState;
 
         } else {
             return oldState;
@@ -718,7 +714,6 @@ public class GameService {
                 .build();
         }
 
-        gameStateService.saveGameState(currentGameState);
         return currentGameState;
     }
 
@@ -732,18 +727,14 @@ public class GameService {
         Map.Entry<String, PlayerHand> firstEntry = playersMap.entrySet().iterator().next();
         String firstId = firstEntry.getKey();
         PlayerHand extractedHand = firstEntry.getValue();
-
+        logger.info(" A PLAYER addPlayerFromPlayers {}).", extractedHand);
         Map<String, PlayerHand> newPlayersMap = new LinkedHashMap<>(playersMap);
         newPlayersMap.remove(firstId);
 
-        GameState newGameState = currentGameState.toBuilder()
+        return currentGameState.toBuilder()
             .player(extractedHand)
             .players(newPlayersMap)
             .build();
-
-        gameStateService.saveGameState(newGameState);
-
-        return newGameState;
     }
 
     public GameState restartGame(GameState state) {
