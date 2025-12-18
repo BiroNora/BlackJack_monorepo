@@ -558,49 +558,34 @@ public class GameService {
     public GameState splitHand(GameState oldState) {
         PlayerHand oldPlayerHand = oldState.getPlayer();
 
-        assert oldPlayerHand != null;
-        if (!oldPlayerHand.canSplit() || oldState.getPlayers() == null || oldState.getPlayers().size() > 3) {
+        if (oldPlayerHand == null || !oldPlayerHand.canSplit() || oldState.getPlayers().size() > 3) {
             return oldState;
         }
 
+        // 1. Kimentjük a kártyát, amit lehasítunk
         Card cardToSplit = oldPlayerHand.hand().get(1);
-        int newHandCounter = oldState.calculateNextHandCounter();
-        String secondPlayerId = String.format("P-%03d", newHandCounter);
 
-
-        PlayerHand secondPlayer = playerHandFactory.createEmptyHand().toBuilder()
-            .id(secondPlayerId)
-            .hand(List.of(cardToSplit))
-            .bet(oldState.getBet())
-            .build();
-
-        List<Card> primaryHandCards = List.of(oldPlayerHand.hand().getFirst());
-
+        // 2. Előkészítjük az első kezet (csak az első lap marad benne)
         PlayerHand primaryHandNewState = oldPlayerHand.toBuilder()
-            .hand(primaryHandCards)
+            .hand(List.of(oldPlayerHand.hand().getFirst()))
             .build();
 
         GameState updatedState = oldState.toBuilder()
-            .player(primaryHandNewState) // Első kéz frissítve
-            .handCounter(newHandCounter)
+            .player(primaryHandNewState)
             .splitReq(oldState.calculateNewSplitReq(1))
             .build();
 
-        GameState stateAfterDeal = gameStateManager.dealSplitCard(updatedState, true, null);
+        // 3. ELSŐ HÍVÁS: Kiegészíti az első kezet 2. lappal + beírja az indexbe (P-001)
+        GameState stateAfterFirstDeal = gameStateManager.dealSplitCard(updatedState, true, null);
 
-        GameState finalState = stateAfterDeal.toBuilder()
-            .players(addNewPlayerToMap(stateAfterDeal.getPlayers(), secondPlayer))
-            .build();
+        // 4. MÁSODIK HÍVÁS: Létrehozza a második kezet a cardToSplit-ből + kiegészíti + beírja az indexbe (P-002)
+        // FONTOS: stateAfterFirst-et adjuk át bemenetként!
+        GameState finalState = gameStateManager.dealSplitCard(stateAfterFirstDeal, false, cardToSplit);
 
         gameStateService.saveGameState(finalState);
-        logger.info("+++++++++++ split hit finalStatefinalState {}", finalState);
-        return finalState;
-    }
 
-    private Map<String, PlayerHand> addNewPlayerToMap(Map<String, PlayerHand> currentPlayers, PlayerHand newPlayer) {
-        Map<String, PlayerHand> newMap = new LinkedHashMap<>(currentPlayers);
-        newMap.put(newPlayer.id(), newPlayer);
-        return Collections.unmodifiableMap(newMap);
+        logger.info("+++++++++++ split completed. playersIndex: {}", finalState.getPlayersIndex());
+        return finalState;
     }
 
     public boolean areStatedFalseHands(Map<String, PlayerHand> playersMap) {
@@ -651,6 +636,7 @@ public class GameService {
     }
 
     public Optional<String> findNextActivePlayerId(Map<String, Boolean> playersIndex) {
+        logger.info(" XXXXXXXX VVVVV playersIndex {}).", playersIndex);
         if (playersIndex == null || playersIndex.isEmpty()) {
             return Optional.empty();
         }
@@ -663,11 +649,11 @@ public class GameService {
     }
 
     public GameState addSplitPlayerToGame(GameState oldState) {
-        GameState currentGameState = oldState; // Ezt a referenciát láncoljuk!
+        GameState currentGameState = oldState;
 
         Map<String, Boolean> playersIndex = currentGameState.getPlayersIndex();
         Optional<String> nextIdOptional = findNextActivePlayerId(playersIndex);
-
+        logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
         if (nextIdOptional.isEmpty()) {
             return currentGameState;
         }
@@ -677,7 +663,7 @@ public class GameService {
         PlayerHand splitPlayer = currentGameState.getSplitPlayer();
 
         PlayerHand nextActiveHand = null;
-
+        logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
         if (splitPlayer != null && splitPlayer.id() != null && splitPlayer.id().equals(nextHandId)) {
             nextActiveHand = splitPlayer;
         } else if (player != null && player.id().equals(nextHandId)) {
@@ -686,7 +672,7 @@ public class GameService {
             Map<String, PlayerHand> oldPlayersMap = currentGameState.getPlayers();
 
             Map<String, PlayerHand> newPlayersMap = new HashMap<>(oldPlayersMap);
-            PlayerHand nextHand = newPlayersMap.remove(nextHandId); // Mutábilis Map művelet a KLÓNON!
+            PlayerHand nextHand = newPlayersMap.remove(nextHandId);
 
             nextActiveHand = nextHand;
 
@@ -705,6 +691,7 @@ public class GameService {
 
         PlayerHand playerToDealTo = currentGameState.getPlayer();
 
+        assert playerToDealTo != null;
         if (playerToDealTo.hand().size() < 2) {
             DealResultWithState result = safeDealCard(currentGameState);
             Card cardToAdd = result.dealtCard();
@@ -715,9 +702,14 @@ public class GameService {
             newHandList.add(cardToAdd);
 
             boolean canSplit = gameRuleEngine.canSplit(newHandList);
+            int sum = handValueCalculator.calculateSum(newHandList);
+            HandState playerState = handStateUpdater.updateHandState(sum, newHandList.size());
+
 
             PlayerHand finalPlayerHand = playerToDealTo.toBuilder()
                 .hand(newHandList)
+                .sum(sum)
+                .handState(playerState.getValue())
                 .canSplit(canSplit)
                 .build();
 
@@ -730,36 +722,25 @@ public class GameService {
         return currentGameState;
     }
 
-    public GameState addPlayerFromPlayers(Optional<GameState> gameStateOptional) {
-        // A GameState lekérése (ez immutable objektum)
-        GameState currentGameState = gameStateManager.getGameStateOrThrow(gameStateOptional);
-
-        // 1. Állapot Ellenőrzése és Korai Kilépés
-        // Mivel a players Map immutable (a @Value miatt), biztonságosan lekérdezhető.
+    public GameState addPlayerFromPlayers(GameState currentGameState) {
         Map<String, PlayerHand> playersMap = currentGameState.getPlayers();
 
         if (playersMap == null || playersMap.isEmpty()) {
-            return currentGameState; // Visszaadjuk a változatlan állapotot
+            return currentGameState;
         }
 
-        // 2. Az első elem azonosítása
         Map.Entry<String, PlayerHand> firstEntry = playersMap.entrySet().iterator().next();
         String firstId = firstEntry.getKey();
-        PlayerHand extractedHand = firstEntry.getValue(); // Csak az értéket vesszük ki, nem módosítjuk a Map-et még!
+        PlayerHand extractedHand = firstEntry.getValue();
 
-        // 3. Létrehozzuk az ÚJ, frissített Map-et
-        // Ezt a Map-et KELL MÓDOSÍTANI, nem az eredeti GameState-ben lévőt!
         Map<String, PlayerHand> newPlayersMap = new LinkedHashMap<>(playersMap);
-        newPlayersMap.remove(firstId); // ⬅️ Itt történik a módosítás a MÁSOLATON!
+        newPlayersMap.remove(firstId);
 
-        // 4. IMMUTABILIS ÁLLAPOT FRISSÍTÉS (ÚJ GameState gyártása)
-        // Ezt a lépést hívjuk "non-destructive update"-nek.
         GameState newGameState = currentGameState.toBuilder()
-            .player(extractedHand) // Beállítjuk az új PlayerHand-et
-            .players(newPlayersMap) // Beállítjuk a frissített Map másolatot
-            .build(); // Létrehozzuk a kész, új állapotot
+            .player(extractedHand)
+            .players(newPlayersMap)
+            .build();
 
-        // 5. Elmentjük az ÚJ állapotot és visszatérünk vele
         gameStateService.saveGameState(newGameState);
 
         return newGameState;

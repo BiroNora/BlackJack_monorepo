@@ -421,9 +421,10 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
-        GameState updatedGameState = gameService.addPlayerFromPlayers(gameStateOptional);
+        GameState updatedGameState = gameService.addPlayerFromPlayers(initialGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateAddPlayerFromPlayers gameStateAddPlayerFromPlayers = GameStateAddPlayerFromPlayers.builder()
@@ -511,10 +512,10 @@ public class GameController {
             .winner(updatedGameState.getWinner())
             .splitReq(updatedGameState.getSplitReq())
             .deckLen(updatedGameState.getDeckLen())
-            .bet(updatedGameState.getPlayer().bet())
+            .bet(updatedGameState.getBet())
             .isRoundActive(updatedGameState.isRoundActive())
             .build();
-
+        logger.info("RRRRRRRRRRRRRR >>>>>> rewardedGameState {}", gameStateData);
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())

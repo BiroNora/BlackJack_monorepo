@@ -2,12 +2,11 @@ package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 import java.util.*;
 
@@ -31,22 +30,16 @@ public class GameStateManager {
         this.deckService = deckService;
     }
 
-    public GameState getGameStateOrThrow(Optional<GameState> gameStateOptional) {
-        return gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "CLIENT_ERROR_SPECIFIC"
-        ));
-    }
-
     public GameState createNewDeck(GameState state) {
         Deck newDeck = deckService.createNewDeck();
         logger.info("+++++++++++ createNewDeck {}", newDeck);
         return state.toBuilder().deck(newDeck).build();
     }
 
-   public GameState dealSplitCard(GameState state, boolean isFirst, Card cardToSplit) {
+    public GameState dealSplitCard(GameState state, boolean isFirst, Card cardToSplit) {
         GameState.GameStateBuilder newStateBuilder = state.toBuilder();
         PlayerHand updatedHand;
+        String id;
 
         if (isFirst) {
             Deck currentDeck = state.getDeck();
@@ -61,6 +54,7 @@ public class GameStateManager {
 
             PlayerHand p = state.getPlayer();
             assert p != null;
+            id = p.id();
             List<Card> newHandCards = new ArrayList<>(p.hand());
             newHandCards.add(result.dealtCard());
 
@@ -82,9 +76,10 @@ public class GameStateManager {
 
         } else {
             int nextCount = state.calculateNextHandCounter();
-            String id = String.format("P-%03d", nextCount);
+            id = String.format("P-%03d", nextCount);
 
             assert state.getPlayer() != null;
+
             updatedHand = playerHandFactory.createEmptyHand().toBuilder()
                 .id(id)
                 .hand(List.of(cardToSplit))
@@ -96,13 +91,14 @@ public class GameStateManager {
             Map<String, PlayerHand> playersMap = new HashMap<>(state.getPlayers());
             playersMap.put(id, updatedHand);
 
-            Map<String, Boolean> indexMap = new LinkedHashMap<>(state.getPlayersIndex());
-            indexMap.put(id, false);
-
             newStateBuilder.players(Collections.unmodifiableMap(playersMap));
-            newStateBuilder.playersIndex(Collections.unmodifiableMap(indexMap));
+
         }
 
-       return newStateBuilder.build();
-   }
+        Map<String, Boolean> playersIndex = new LinkedHashMap<>(state.getPlayersIndex());
+        playersIndex.put(id, false);
+        newStateBuilder.playersIndex(Collections.unmodifiableMap(playersIndex));
+        logger.info("+++++++++++BBBBBB dealSplitCard playersIndex {}", playersIndex);
+        return newStateBuilder.build();
+    }
 }
