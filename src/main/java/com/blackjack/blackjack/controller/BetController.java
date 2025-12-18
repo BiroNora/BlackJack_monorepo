@@ -49,29 +49,24 @@ public class BetController {
     @PostMapping("/bet")
     public ResponseEntity<?> placeBet(@RequestBody BetRequest betRequest, HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-        Player player = context.player();
+        GameState currentState = context.gameStateOptional().orElseThrow();
 
-        GameState currentState = context.gameStateOptional()
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "GAME_NOT_FOUND"));
+        // 1. DTO generálása
+        GameStateBet betDto = gameService.placeBet(currentState, betRequest.bet());
 
-        int betAmount = betRequest.bet();
+        // 2. Szerver oldali állapot frissítése (Hogy a deckLen ne vesszen el a DB-ből)
+        GameState updatedGameState = currentState.toBuilder()
+            .bet(betDto.bet())
+            .betList(betDto.betList())
+            .build();
 
-        if (betAmount < MINIMUM_BET) {
-            throw new GameRuleException("BET_BELOW_MINIMUM");
-        }
-        if (player.getTokens() < betAmount) {
-            throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_BET");
-        }
-
-        Player updatedPlayer = playerService.deductBet(player, betAmount);
-        GameState updatedGameState = gameService.placeBet(currentState, betAmount);
-
+        Player updatedPlayer = playerService.deductBet(context.player(), betRequest.bet());
         gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
         return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
             .status("success")
-            .gameState(buildBetDto(updatedGameState))
+            .gameState(betDto) // A frontend megkapja a tétet és a deckLen-t
             .currentTokens(updatedPlayer.getTokens())
             .build());
     }
@@ -79,29 +74,25 @@ public class BetController {
     @PostMapping("/retake_bet")
     public ResponseEntity<?> retakeBet(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
-        Player player = context.player();
-        GameState currentState = context.gameStateOptional()
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "GAME_NOT_FOUND"));
+        GameState currentState = context.gameStateOptional().orElseThrow();
 
         RetakeResult result = gameService.retakeBet(currentState);
+        GameStateBet betDto = result.newState();
 
-        Player updatedPlayer = playerService.deductBet(player, result.amountReturned() * -1);
+        GameState updatedGameState = currentState.toBuilder()
+            .bet(betDto.bet())
+            .betList(betDto.betList())
+            .isRoundActive(!betDto.betList().isEmpty())
+            .build();
 
-        gameStateService.saveGameState(result.newState());
-        session.setAttribute("gameState", result.newState());
+        Player updatedPlayer = playerService.deductBet(context.player(), -result.amountReturned());
+        gameStateService.saveGameState(updatedGameState);
+        session.setAttribute("gameState", updatedGameState);
 
         return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
             .status("success")
-            .gameState(buildBetDto(result.newState()))
+            .gameState(betDto)
             .currentTokens(updatedPlayer.getTokens())
             .build());
-    }
-
-    private GameStateBet buildBetDto(GameState state) {
-        return GameStateBet.builder()
-            .bet(state.getBet())
-            .betList(state.getBetList())
-            .deckLen(state.getDeckLen())
-            .build();
     }
 }

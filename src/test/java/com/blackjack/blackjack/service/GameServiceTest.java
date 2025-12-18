@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -93,49 +94,69 @@ public class GameServiceTest {
 
     @Test
     void testPlaceBet_ShouldAccumulateBetsAndHistory() {
+        // 1. Kezdőállapot: deck null, minden üres
         GameState initialState = createBaseState(0).toBuilder()
             .bet(0)
             .betList(new ArrayList<>())
+            .deck(null)
             .build();
 
-        GameState state1 = gameService.placeBet(initialState, 50);
+        GameStateBet dto1 = gameService.placeBet(initialState, 50);
 
-        assertEquals(50, state1.getBet());
-        assertEquals(50, state1.getPlayer().bet());
-        assertEquals(List.of(50), state1.getBetList());
+        assertEquals(50, dto1.bet());
+        assertEquals(List.of(50), dto1.betList());
+        assertEquals(104, dto1.deckLen()); // A "virtuális" 104-es érték ellenőrzése
 
-        GameState state2 = gameService.placeBet(state1, 100);
+        GameState intermediateState = initialState.toBuilder()
+            .bet(dto1.bet())
+            .betList(dto1.betList())
+            .build();
 
-        assertEquals(150, state2.getBet());
-        assertEquals(150, state2.getPlayer().bet());
-        assertEquals(List.of(50, 100), state2.getBetList());
+        GameStateBet dto2 = gameService.placeBet(intermediateState, 100);
+
+        assertEquals(150, dto2.bet());
+        assertEquals(List.of(50, 100), dto2.betList());
+        assertEquals(104, dto2.deckLen());
     }
 
     @Test
-    void testRetakeBet_ShouldRemoveLastChipAndDeactivateIfEmpty() {
-        // GIVEN - 150-es tét (50 + 100)
-        GameState state = createBaseState(150).toBuilder()
+    void testRetakeBet_ShouldRemoveLastChipAndHandleStateTransition() {
+        GameState initialState = createBaseState(150).toBuilder()
+            .bet(150)
             .betList(new ArrayList<>(List.of(50, 100)))
             .isRoundActive(true)
+            .deck(null)
             .build();
 
-        // WHEN - Visszavesszük az utolsót
-        GameService.RetakeResult result1 = gameService.retakeBet(state);
+        GameService.RetakeResult result1 = gameService.retakeBet(initialState);
+        GameStateBet dto1 = result1.newState();
 
-        // THEN - A 100-ast kaptuk vissza, 50 maradt
         assertEquals(100, result1.amountReturned());
-        assertEquals(50, result1.newState().getBet());
-        assertEquals(List.of(50), result1.newState().getBetList());
-        assertTrue(result1.newState().isRoundActive());
+        assertEquals(50, dto1.bet());
+        assertEquals(List.of(50), dto1.betList());
+        assertEquals(104, dto1.deckLen()); // Itt is elvárjuk a 104-et!
 
-        // WHEN - Visszavesszük az utolsó zsetont is
-        GameService.RetakeResult result2 = gameService.retakeBet(result1.newState());
+        GameState intermediateState = initialState.toBuilder()
+            .bet(dto1.bet())
+            .betList(dto1.betList())
+            .isRoundActive(!dto1.betList().isEmpty())
+            .build();
 
-        // THEN - A kör lezárul (isRoundActive = false)
+        assertTrue(intermediateState.isRoundActive());
+
+        GameService.RetakeResult result2 = gameService.retakeBet(intermediateState);
+        GameStateBet dto2 = result2.newState();
+
+        GameState finalState = intermediateState.toBuilder()
+            .bet(dto2.bet())
+            .betList(dto2.betList())
+            .isRoundActive(!dto2.betList().isEmpty())
+            .build();
+
         assertEquals(50, result2.amountReturned());
-        assertEquals(0, result2.newState().getBet());
-        assertTrue(result2.newState().getBetList().isEmpty());
-        assertFalse(result2.newState().isRoundActive());
+        assertEquals(0, dto2.bet());
+        assertTrue(dto2.betList().isEmpty());
+        assertFalse(finalState.isRoundActive()); // Végre kikapcsolt
     }
 
     @Test
@@ -146,7 +167,7 @@ public class GameServiceTest {
 
         when(deckService.createNewDeck()).thenReturn(expectedDeck);
 
-        GameState resultState = gameService.createNewDeck(initialState);
+        GameState resultState = gameStateManager.createNewDeck(initialState);
 
         verify(deckService, times(1)).createNewDeck();
 
@@ -200,8 +221,6 @@ public class GameServiceTest {
         Card pCard2 = new Card(Suit.DIAMONDS, Rank.SIX);
         Card dCard2 = new Card(Suit.SPADES, Rank.ACE); // Ász az osztónak -> Insurance kell!
 
-        when(gameStateManager.resetRoundState(any())).thenReturn(baseState);
-
         when(deckService.dealCard(any()))
             .thenReturn(new DealResult(pCard1, baseState.getDeck()))
             .thenReturn(new DealResult(dCard1, baseState.getDeck()))
@@ -237,7 +256,6 @@ public class GameServiceTest {
 
         // Szerviz hívások ellenőrzése
         verify(deckService, times(4)).dealCard(any());
-        verify(gameStateManager).resetRoundState(any());
     }
 
     @Test
@@ -248,8 +266,6 @@ public class GameServiceTest {
         Card dCard1 = new Card(Suit.CLUBS, Rank.FIVE);
         Card pCard2 = new Card(Suit.DIAMONDS, Rank.ACE);
         Card dCard2 = new Card(Suit.SPADES, Rank.TEN);
-
-        when(gameStateManager.resetRoundState(any())).thenReturn(baseState);
 
         // Kártyaosztás sorrendje: P1, D1, P2, D2
         when(deckService.dealCard(any()))

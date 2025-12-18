@@ -8,10 +8,7 @@ import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
-import com.blackjack.blackjack.service.AuthenticationService;
-import com.blackjack.blackjack.service.GameService;
-import com.blackjack.blackjack.service.GameStateService;
-import com.blackjack.blackjack.service.PlayerService;
+import com.blackjack.blackjack.service.*;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -34,13 +31,15 @@ public class GameController {
     private final AuthenticationService authenticationService;
     private final PlayerService playerService;
     private final GameStateService gameStateService;
+    private final GameStateManager gameStateManager;
 
-    public GameController(GameService gameService, AuthenticationService authenticationService, PlayerService playerService, GameStateService gameStateService, PlayerRepository playerRepository
+    public GameController(GameService gameService, AuthenticationService authenticationService, PlayerService playerService, GameStateService gameStateService, PlayerRepository playerRepository, GameStateManager gameStateManager
     ) {
         this.gameService = gameService;
         this.authenticationService = authenticationService;
         this.playerService = playerService;
         this.gameStateService = gameStateService;
+        this.gameStateManager = gameStateManager;
     }
 
     @PostMapping("/create_deck")
@@ -52,7 +51,7 @@ public class GameController {
         GameState currentState = context.gameStateOptional()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No GameState found"));
 
-        GameState updatedGameState = gameService.createNewDeck(currentState);
+        GameState updatedGameState = gameStateManager.createNewDeck(currentState);
         gameStateService.saveGameState(updatedGameState);
 
         session.setAttribute("gameState", updatedGameState);
@@ -314,33 +313,30 @@ public class GameController {
 
     // SPLIT part
     @PostMapping("/split_request")
-    public ResponseEntity<?> splitRequest(
-        HttpSession session) {
+    public ResponseEntity<?> splitRequest(HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
-        GameState initialGameState = gameStateOptional.orElseThrow(() -> new ResponseStatusException(
-            HttpStatus.BAD_REQUEST,
-            "CLIENT_ERROR_SPECIFIC"
-        ));
-
+        // 1. Üzleti szabály ellenőrzése
         int betToDeduct = initialGameState.getPlayer().bet();
-
         if (player.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_SPLIT");
         }
 
-        try {
-            playerService.deductBet(player, betToDeduct);
-        } catch (Exception e) {
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "INTERNAL_SERVER_ERROR");
-        }
+        // 2. Tranzakció: Zseton levonás ÉS Játék állapot frissítés
+        // Ideális esetben ez egy @Transactional szervizhívásban történik együtt
+        playerService.deductBet(player, betToDeduct);
 
-        GameState updatedGameState = gameService.splitHand(gameStateOptional);
+        // Itt történik a split (immutábilis módon)
+        GameState updatedGameState = gameService.splitHand(initialGameState);
+
+        // 3. Session frissítése (Nagyon fontos!)
         session.setAttribute("gameState", updatedGameState);
 
-        GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
+        // 4. DTO összeállítása (A splitHand-ben frissült adatokat használva)
+        GameStateSplitHand responseState = GameStateSplitHand.builder()
             .player(updatedGameState.getPlayer())
             .dealerHandMasked(updatedGameState.getDealerMasked())
             .aces(updatedGameState.isAces())
@@ -353,8 +349,8 @@ public class GameController {
 
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
-            .currentTokens(player.getTokens())
-            .gameState(gameStateSplitHand)
+            .currentTokens(player.getTokens()) // A deductBet után frissült player objektum
+            .gameState(responseState)
             .gameStateHint("SPLT_REQUEST_PROCESSED")
             .build());
     }
@@ -364,9 +360,10 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
-        GameState updatedGameState = gameService.addToPlayersListByStand(gameStateOptional);
+        GameState updatedGameState = gameService.addToPlayersListByStand(initialGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateAddToPlayersByStand gameStateSplitHand = GameStateAddToPlayersByStand.builder()
@@ -394,9 +391,10 @@ public class GameController {
         HttpSession session) {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
-        Optional<GameState> gameStateOptional = context.gameStateOptional();
+        GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
+            new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
-        GameState updatedGameState = gameService.addSplitPlayerToGame(gameStateOptional);
+        GameState updatedGameState = gameService.addSplitPlayerToGame(initialGameState);
         session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
