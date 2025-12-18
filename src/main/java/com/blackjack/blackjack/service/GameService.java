@@ -102,7 +102,8 @@ public class GameService {
         }
     }
 
-    public GameState initializeNewRound(GameState state) {
+    // VALÓS FG
+    public GameState initializeNewRound1(GameState state) {
         // 1. Kör állapotának nullázása (resetRoundState immutábilis)
         GameState currentGameState = gameStateManager.resetRoundState(state)
             .toBuilder()
@@ -199,6 +200,109 @@ public class GameService {
             .natural21(initialOutcome)
             .isRoundActive(true)
             .aces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE)
+            .build();
+    }
+
+    // SPLITHEZ
+    public GameState initializeNewRound(GameState state) {
+        // 1. Kör állapotának nullázása
+        GameState currentGameState = gameStateManager.resetRoundState(state)
+            .toBuilder()
+            .isRoundActive(true)
+            .build();
+
+        // ----------------------------------------------------
+        // 2. KÁRTYA OSZTÁSI LÁNC (Hardcoded lapokkal a játékosnak)
+        // ----------------------------------------------------
+
+        // JÁTÉKOS 1. LAPJA: FIX KING
+        Card card1 = new Card(Suit.HEARTS, Rank.KING);
+        // Frissítjük a state-et (a pakliból elvileg kiesik egy lap a konzisztencia miatt)
+        currentGameState = safeDealCard(currentGameState).newGameState();
+
+        // OSZTÓ 1. LAPJA: Marad véletlen
+        DealResultWithState deal2 = safeDealCard(currentGameState);
+        Card card2 = deal2.dealtCard();
+        currentGameState = deal2.newGameState();
+
+        // JÁTÉKOS 2. LAPJA: FIX QUEEN (vagy King, a lényeg hogy 10-es érték)
+        Card card3 = new Card(Suit.DIAMONDS, Rank.QUEEN);
+        currentGameState = safeDealCard(currentGameState).newGameState();
+
+        // OSZTÓ 2. LAPJA: Marad véletlen
+        DealResultWithState deal4 = safeDealCard(currentGameState);
+        Card card4 = deal4.dealtCard();
+        currentGameState = deal4.newGameState();
+
+        // ----------------------------------------------------
+        // 3. ADATOK ELŐKÉSZÍTÉSE ÉS SZÁMÍTÁSOK
+        // ----------------------------------------------------
+        LinkedList<Card> playerStartHand = new LinkedList<>(List.of(card1, card3));
+        int playerSum = handValueCalculator.calculateSum(playerStartHand);
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size());
+
+        // Itt a canSplit true-t fog adni a King+Queen-re
+        boolean isSplitPossible = gameRuleEngine.canSplit(playerStartHand);
+
+        int nextCount = currentGameState.calculateNextHandCounter();
+        String handId = String.format("P-%03d", nextCount);
+
+        LinkedList<Card> dealerUnmaskedHand = new LinkedList<>(List.of(card2, card4));
+        int dealerFullSum = handValueCalculator.calculateSum(dealerUnmaskedHand);
+        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size());
+
+        // ----------------------------------------------------
+        // 4. IDEIGLENES OBJEKTUMOK ÉS BLACKJACK ELLENŐRZÉS
+        // ----------------------------------------------------
+        PlayerHand tempPlayer = currentGameState.getPlayer().toBuilder()
+            .id(handId)
+            .hand(playerStartHand)
+            .sum(playerSum)
+            .handState(playerHandState.getValue())
+            .canSplit(isSplitPossible) // Ez most TRUE lesz!
+            .bet(currentGameState.getBet())
+            .build();
+
+        DealerHandUnmasked tempDealerUnmasked = currentGameState.getDealerUnmasked().toBuilder()
+            .hand(dealerUnmaskedHand)
+            .sum(dealerFullSum)
+            .build();
+
+        GameState stateForCalculation = currentGameState.toBuilder()
+            .player(tempPlayer)
+            .dealerUnmasked(tempDealerUnmasked)
+            .build();
+
+        int initialOutcome = gameRuleEngine.initNatural21State(stateForCalculation);
+
+        // ----------------------------------------------------
+        // 5. VÉGLEGES OBJEKTUMOK ÖSSZESZERELÉSE
+        // ----------------------------------------------------
+        DealerHandUnmasked finalDealerUnmasked = tempDealerUnmasked.toBuilder()
+            .handState(dealerHandState.getValue())
+            .natural21(initialOutcome)
+            .build();
+
+        boolean canInsure = card4.rank() == Rank.ACE;
+        int maskedStateForDealer = (initialOutcome == WinnerState.BLACKJACK_DEALER_WON.getValue())
+            ? WinnerState.NONE.getValue()
+            : initialOutcome;
+
+        DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
+            .hand(new LinkedList<>(List.of(Card.createMaskedCard(), card4)))
+            .canInsure(canInsure)
+            .nat21(maskedStateForDealer)
+            .build();
+
+        // Visszatérünk
+        return currentGameState.toBuilder()
+            .player(tempPlayer)
+            .dealerUnmasked(finalDealerUnmasked)
+            .dealerMasked(updatedDealerMasked)
+            .handCounter(nextCount)
+            .natural21(initialOutcome)
+            .isRoundActive(true)
+            .aces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE) // Most False lesz
             .build();
     }
 
