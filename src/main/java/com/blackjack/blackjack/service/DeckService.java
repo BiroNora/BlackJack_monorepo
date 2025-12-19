@@ -22,7 +22,7 @@ public class DeckService {
             throw new IllegalStateException("Cannot deal card from a null deck.");
         }
 
-       DealResult result = deck.dealCard();
+        DealResult result = deck.dealCard();
 
         logger.debug(">>>>>>>  #######  Dealt card: {} - Remaining deck size: {}",
             result.dealtCard(),

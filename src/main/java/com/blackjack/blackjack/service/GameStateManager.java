@@ -4,9 +4,7 @@ import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
-import org.springframework.web.server.ResponseStatusException;
 
 import java.util.*;
 
@@ -98,7 +96,28 @@ public class GameStateManager {
         Map<String, Boolean> playersIndex = new LinkedHashMap<>(state.getPlayersIndex());
         playersIndex.put(id, false);
         newStateBuilder.playersIndex(Collections.unmodifiableMap(playersIndex));
-        logger.info("+++++++++++BBBBBB dealSplitCard playersIndex {}", playersIndex);
+        //logger.info("+++++++++++BBBBBB dealSplitCard playersIndex {}", playersIndex);
         return newStateBuilder.build();
+    }
+
+    public Optional<String> findNextActivePlayerId(Map<String, Boolean> playersIndex) {
+        //logger.info(" XXXXXXXX VVVVV playersIndex {}).", playersIndex);
+        if (playersIndex == null || playersIndex.isEmpty()) {
+            return Optional.empty();
+        }
+
+        return playersIndex.entrySet().stream()
+            .filter(entry -> !entry.getValue())
+            .map(Map.Entry::getKey)
+            .sorted()
+            .findFirst();
+    }
+
+    public boolean areStatedFalseHands(Map<String, PlayerHand> playersMap) {
+        if (playersMap == null || playersMap.isEmpty()) {
+            return false;
+        }
+        return playersMap.values().stream()
+            .anyMatch(hand -> !hand.stated());
     }
 }

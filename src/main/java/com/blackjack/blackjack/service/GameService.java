@@ -279,6 +279,7 @@ public class GameService {
         // ----------------------------------------------------
         // 4. IDEIGLENES OBJEKTUMOK ÉS BLACKJACK ELLENŐRZÉS
         // ----------------------------------------------------
+        assert currentGameState.getPlayer() != null;
         PlayerHand tempPlayer = currentGameState.getPlayer().toBuilder()
             .id(handId)
             .hand(playerStartHand)
@@ -383,13 +384,12 @@ public class GameService {
             return currentState;
         }
 
-        // 1. Állapotfrissítés: A játékos állt (Stand)
-        PlayerHand oldPlayerHand = currentState.getPlayer();
-        assert oldPlayerHand != null;
-        int playerSum = oldPlayerHand.sum();
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, oldPlayerHand.hand().size());
+        PlayerHand playerHand = currentState.getPlayer();
+        assert playerHand != null;
+        int playerSum = playerHand.sum();
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerHand.hand().size());
 
-        PlayerHand playerHandStated = oldPlayerHand.toBuilder()
+        PlayerHand playerHandStated = playerHand.toBuilder()
             .stated(true)
             .handState(playerHandState.getValue())
             .build();
@@ -397,39 +397,39 @@ public class GameService {
         GameState stateAfterPlayerStand = currentState.toBuilder()
             .player(playerHandStated)
             .build();
+        logger.info("playerSum ({}).", playerSum);
 
-        // 2. Dealer körének lebonyolítása (Ez is egy immutábilis lánc!)
-        // Fontos: A processDealerDrawing metódusnak is GameState-et kell várnia és visszaadnia!
-        GameState dealerDrawState = processDealerDrawing(stateAfterPlayerStand);
+        GameState finalDealerState;
+        if (playerSum <= 21) {
+            finalDealerState = processDealerDrawing(stateAfterPlayerStand);
+        } else {
+            logger.info("Player BUSTED ({}). Dealer stays.", playerSum);
+            finalDealerState = stateAfterPlayerStand;
+        }
+        assert finalDealerState.getDealerUnmasked() != null;
+        logger.info("DEALERSUM    dealersum ({}).", finalDealerState.getDealerUnmasked().sum());
+        int calculatedWinnerValue = gameRuleEngine.winnerStateUpdater(
+            playerHandStated,
+            finalDealerState.getDealerUnmasked()
+        );
 
-        // 3. Eredmény megállapítása
-        int calculatedWinnerValue = gameRuleEngine.winnerStateUpdater(dealerDrawState);
-
-        // 4. Körlezárás és Végső Állapot visszaküldése (MENTÉS NÉLKÜL)
-        return dealerDrawState.toBuilder()
+        return finalDealerState.toBuilder()
             .winner(calculatedWinnerValue)
-            .isRoundActive(false) // Lezárjuk a kört
             .build();
     }
 
     private GameState processDealerDrawing(GameState currentState) {
-
-        // A Dealer húz addig, amíg a pontszám kisebb, mint 17.
         while (true) {
             assert currentState.getDealerUnmasked() != null;
             if (!(handValueCalculator.calculateSum(currentState.getDealerUnmasked().hand()) < 17)) break;
 
-            // 1. Kártya Húzása (és a Deck frissítése)
-            // (A safeDealCard a Deck-et frissíti és visszaadja a dealResult.newGameState-et.)
             DealResultWithState dealResult = safeDealCard(currentState);
 
-            // 2. Kártya és Frissített GameState kinyerése
             Card newCard = dealResult.dealtCard();
             GameState deckUpdatedState = dealResult.newGameState();
 
             DealerHandUnmasked oldDealerHand = deckUpdatedState.getDealerUnmasked();
 
-            // 3. Dealer kéz IMMUTABILIS frissítése
             assert oldDealerHand != null;
             LinkedList<Card> newDealerHandList = new LinkedList<>(oldDealerHand.hand());
             newDealerHandList.add(newCard);
@@ -443,17 +443,15 @@ public class GameService {
                 .handState(newDealerHandState.getValue())
                 .build();
 
-            // 4. Frissítjük a 'currentState'-et a HÚZOTT KÁRTYÁVAL (az új DealerHand-del)
             currentState = deckUpdatedState.toBuilder()
                 .dealerUnmasked(newDealerHand)
                 .build();
 
-            // Ha Bust-olt, a ciklus leáll a következő iterációban.
             if (newDealerSum > 21) {
                 break;
             }
         }
-        return currentState; // A Dealer húzásának végleges állapota
+        return currentState;
     }
 
     public TransactionResult calculateRewards(GameState gameState) {
@@ -491,12 +489,11 @@ public class GameService {
         GameState rewardedGameState = gameState.toBuilder()
             .bet(0)
             .betList(Collections.emptyList())
-            .isRoundActive(false)
+            .isRoundActive(!gameState.getPlayers().isEmpty())
             .player(rewardedPlayerHand)
             .build();
 
-        logger.info(">>>>>> rewardedGameState {}",
-            rewardedGameState);
+        //logger.info(">>>>>> rewardedGameState {}", rewardedGameState);
 
         return new TransactionResult(rewardedGameState, finalReward);
     }
@@ -580,26 +577,17 @@ public class GameService {
 
         // 4. MÁSODIK HÍVÁS: Létrehozza a második kezet a cardToSplit-ből + kiegészíti + beírja az indexbe (P-002)
         // FONTOS: stateAfterFirst-et adjuk át bemenetként!
-        GameState finalState = gameStateManager.dealSplitCard(stateAfterFirstDeal, false, cardToSplit);
 
-        logger.info("+++++++++++ split completed. playersIndex: {}", finalState.getPlayersIndex());
-        return finalState;
-    }
-
-    public boolean areStatedFalseHands(Map<String, PlayerHand> playersMap) {
-        if (playersMap == null || playersMap.isEmpty()) {
-            return false;
-        }
-        return playersMap.values().stream()
-            .anyMatch(hand -> !hand.stated());
+        //logger.info("+++++++++++ split completed. playersIndex: {}", finalState.getPlayersIndex());
+        return gameStateManager.dealSplitCard(stateAfterFirstDeal, false, cardToSplit);
     }
 
     public GameState addToPlayersListByStand(GameState oldState) {
         PlayerHand playerHand = oldState.getPlayer();
 
         // Ellenőrizzük, hogy vannak-e még aktív kezek
-        boolean isActive = areStatedFalseHands(oldState.getPlayers());
-        logger.info(">>>> isActive: {}", isActive);
+        boolean isActive = gameStateManager.areStatedFalseHands(oldState.getPlayers());
+        //logger.info(">>>> isActive: {}", isActive);
 
         if (isActive) {
             // Garantáljuk, hogy van mit frissíteni
@@ -631,25 +619,12 @@ public class GameService {
         }
     }
 
-    public Optional<String> findNextActivePlayerId(Map<String, Boolean> playersIndex) {
-        logger.info(" XXXXXXXX VVVVV playersIndex {}).", playersIndex);
-        if (playersIndex == null || playersIndex.isEmpty()) {
-            return Optional.empty();
-        }
-
-        return playersIndex.entrySet().stream()
-            .filter(entry -> !entry.getValue())
-            .map(Map.Entry::getKey)
-            .sorted()
-            .findFirst();
-    }
-
     public GameState addSplitPlayerToGame(GameState oldState) {
         GameState currentGameState = oldState;
 
         Map<String, Boolean> playersIndex = currentGameState.getPlayersIndex();
-        Optional<String> nextIdOptional = findNextActivePlayerId(playersIndex);
-        logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
+        Optional<String> nextIdOptional = gameStateManager.findNextActivePlayerId(playersIndex);
+        //logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
         if (nextIdOptional.isEmpty()) {
             return currentGameState;
         }
@@ -659,7 +634,7 @@ public class GameService {
         PlayerHand splitPlayer = currentGameState.getSplitPlayer();
 
         PlayerHand nextActiveHand = null;
-        logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
+        //logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
         if (splitPlayer != null && splitPlayer.id() != null && splitPlayer.id().equals(nextHandId)) {
             nextActiveHand = splitPlayer;
         } else if (player != null && player.id().equals(nextHandId)) {
@@ -727,7 +702,7 @@ public class GameService {
         Map.Entry<String, PlayerHand> firstEntry = playersMap.entrySet().iterator().next();
         String firstId = firstEntry.getKey();
         PlayerHand extractedHand = firstEntry.getValue();
-        logger.info(" A PLAYER addPlayerFromPlayers {}).", extractedHand);
+        //logger.info(" A PLAYER addPlayerFromPlayers {}).", extractedHand);
         Map<String, PlayerHand> newPlayersMap = new LinkedHashMap<>(playersMap);
         newPlayersMap.remove(firstId);
 
@@ -756,6 +731,4 @@ public class GameService {
 
     public record TransactionResult(GameState gameState, int transactionResult) {
     }
-
-
 }

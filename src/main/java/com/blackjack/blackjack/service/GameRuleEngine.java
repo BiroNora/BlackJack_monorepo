@@ -34,13 +34,11 @@ public class GameRuleEngine {
         return naturalState.getValue();
     }
 
-    public int winnerStateUpdater(GameState gameState) {
-        PlayerHand playerHand = gameState.getPlayer();
-        DealerHandUnmasked dealerHand = gameState.getDealerUnmasked();
-
-        assert playerHand != null;
+    public int winnerStateUpdater(PlayerHand playerHand, DealerHandUnmasked dealerHand) {
+        if (playerHand == null || dealerHand == null) {
+            return WinnerState.NONE.getValue();
+        }
         int playerSum = playerHand.sum();
-        assert dealerHand != null;
         int dealerSum = dealerHand.sum();
         WinnerState winnerState;
 

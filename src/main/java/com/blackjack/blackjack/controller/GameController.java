@@ -75,21 +75,15 @@ public class GameController {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
 
-        // 1. Kicsomagoljuk az Optional-t (itt dobunk hibát, ha nincs állapot)
         GameState currentState = context.gameStateOptional()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No GameState found"));
 
-        // 2. Meghívjuk a már átalakított, tiszta Service metódust
-        // Ez a metódus már GameState-et vár, nem Optional-t, és NEM ment belsőleg.
         GameState updatedGameState = gameService.initializeNewRound(currentState);
 
-        // 3. MENTÉS: Itt rögzítjük az új kört az adatbázisban/Redisben
         gameStateService.saveGameState(updatedGameState);
 
-        // 4. Szesszió frissítése
         session.setAttribute("gameState", updatedGameState);
 
-        // 5. Válasz összeállítása (DTO)
         GameStateStart gameStateData = GameStateStart.builder()
             .player(updatedGameState.getPlayer())
             .dealerMasked(updatedGameState.getDealerMasked())
@@ -179,14 +173,12 @@ public class GameController {
         SessionContext context = authenticationService.validateAndGetContext(session);
         Player player = context.player();
 
-        // 1. Kicsomagolás (Kezdeti állapot)
         GameState initialGameState = context.gameStateOptional()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "GAME_NOT_FOUND"));
 
         assert initialGameState.getPlayer() != null;
         int betToDeduct = initialGameState.getPlayer().bet();
 
-        // 2. Ellenőrzések (Token és Szabályok)
         if (player.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
         }
@@ -194,23 +186,14 @@ public class GameController {
             throw new GameRuleException("DOUBLE_ONLY_ALLOWED_ON_STARTING_HAND");
         }
 
-        // 3. LOGIKAI LÁNC (Csak a memóriában dolgozunk)
-        // Első lépés: A kötelező HIT (Laposztás)
         GameState stateAfterHit = gameService.playerHit(initialGameState);
 
-        // Második lépés: A tét megduplázása a kapott új állapoton
         GameState finalState = gameService.applyDoubleBet(stateAfterHit, betToDeduct);
 
-        // Blackjack szabály: Double után Stand következik!
-        // Ha van playerStand metódusod, ide láncolhatod:
-        // finalState = gameService.playerStand(finalState);
-
-        // 4. MENTÉS ÉS TRANZAKCIÓ (Itt rögzítünk mindent)
         playerService.deductBet(player, betToDeduct);
         gameStateService.saveGameState(finalState);
         session.setAttribute("gameState", finalState);
 
-        // 5. Válasz összeállítása
         GameStateDouble gameStateDouble = GameStateDouble.builder()
             .player(finalState.getPlayer())
             .deckLen(finalState.getDeckLen())
@@ -295,6 +278,7 @@ public class GameController {
         gameStateService.saveGameState(updatedGameState);
         session.setAttribute("gameState", updatedGameState);
 
+        assert updatedGameState.getPlayer() != null;
         GameStateRewards gameStateData = GameStateRewards.builder()
             .player(updatedGameState.getPlayer())
             .dealerUnmasked(updatedGameState.getDealerUnmasked())
@@ -320,23 +304,19 @@ public class GameController {
         GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
-        // 1. Üzleti szabály ellenőrzése
+        assert initialGameState.getPlayer() != null;
         int betToDeduct = initialGameState.getPlayer().bet();
         if (player.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_SPLIT");
         }
 
-        // 2. Tranzakció: Zseton levonás ÉS Játék állapot frissítés
-        // Ideális esetben ez egy @Transactional szervizhívásban történik együtt
         playerService.deductBet(player, betToDeduct);
 
-        // Itt történik a split (immutábilis módon)
         GameState updatedGameState = gameService.splitHand(initialGameState);
 
         session.setAttribute("gameState", updatedGameState);
         gameStateService.saveGameState(updatedGameState);
 
-        // 4. DTO összeállítása (A splitHand-ben frissült adatokat használva)
         GameStateSplitHand responseState = GameStateSplitHand.builder()
             .player(updatedGameState.getPlayer())
             .dealerHandMasked(updatedGameState.getDealerMasked())
@@ -519,7 +499,7 @@ public class GameController {
             .bet(updatedGameState.getBet())
             .isRoundActive(updatedGameState.isRoundActive())
             .build();
-        logger.info("RRRRRRRRRRRRRR >>>>>> rewardedGameState {}", gameStateData);
+        //logger.info("RRRRRRRRRRRRRR >>>>>> rewardedGameState {}", gameStateData);
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())
