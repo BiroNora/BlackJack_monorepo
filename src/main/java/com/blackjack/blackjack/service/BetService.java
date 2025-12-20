@@ -16,6 +16,8 @@ import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
 @Service
 public class BetService {
     public GameStateBet placeBet(GameState oldState, int betAmount) {
+        validateBettingPeriod(oldState);
+
         if (betAmount < MINIMUM_BET) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "BET_TOO_LOW");
         }
@@ -36,6 +38,8 @@ public class BetService {
     }
 
     public RetakeResult retakeBet(GameState oldState) {
+        validateBettingPeriod(oldState);
+
         if (oldState.getBetList() == null || oldState.getBetList().isEmpty()) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_BET_TO_RETAKE");
         }
@@ -54,6 +58,12 @@ public class BetService {
             .build();
 
         return new RetakeResult(updatedBetInfo, amountToReturn);
+    }
+
+    private void validateBettingPeriod(GameState state) {
+        if (state.isRoundActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CANNOT_MODIFY_BET_DURING_ROUND");
+        }
     }
 
     public record RetakeResult(GameStateBet newState, int amountReturned) {

@@ -28,6 +28,8 @@ public class GameServiceTest {
     @Mock
     private DeckService deckService;
     @Mock
+    private BetService betService;
+    @Mock
     private HandValueCalculator handValueCalculator;
     @Mock
     private HandStateUpdater handStateUpdater;
@@ -89,6 +91,7 @@ public class GameServiceTest {
         GameState result = gameService.applyDoubleBet(state, 100);
 
         assertEquals(200, result.getBet());
+        assertNotNull(result.getPlayer());
         assertEquals(200, result.getPlayer().bet());
     }
 
@@ -101,7 +104,7 @@ public class GameServiceTest {
             .deck(null)
             .build();
 
-        GameStateBet dto1 = gameService.placeBet(initialState, 50);
+        GameStateBet dto1 = betService.placeBet(initialState, 50);
 
         assertEquals(50, dto1.bet());
         assertEquals(List.of(50), dto1.betList());
@@ -112,7 +115,7 @@ public class GameServiceTest {
             .betList(dto1.betList())
             .build();
 
-        GameStateBet dto2 = gameService.placeBet(intermediateState, 100);
+        GameStateBet dto2 = betService.placeBet(intermediateState, 100);
 
         assertEquals(150, dto2.bet());
         assertEquals(List.of(50, 100), dto2.betList());
@@ -128,7 +131,7 @@ public class GameServiceTest {
             .deck(null)
             .build();
 
-        GameService.RetakeResult result1 = gameService.retakeBet(initialState);
+        BetService.RetakeResult result1 = betService.retakeBet(initialState);
         GameStateBet dto1 = result1.newState();
 
         assertEquals(100, result1.amountReturned());
@@ -144,7 +147,7 @@ public class GameServiceTest {
 
         assertTrue(intermediateState.isRoundActive());
 
-        GameService.RetakeResult result2 = gameService.retakeBet(intermediateState);
+        BetService.RetakeResult result2 = betService.retakeBet(intermediateState);
         GameStateBet dto2 = result2.newState();
 
         GameState finalState = intermediateState.toBuilder()
@@ -184,7 +187,7 @@ public class GameServiceTest {
 
         when(deckService.dealCard(any(Deck.class))).thenReturn(dealResult);
 
-        GameService.DealResultWithState result = gameService.safeDealCard(state);
+        GameService.DealResultWithState result = gameStateManager.safeDealCard(state);
 
         assertEquals(expectedCard, result.dealtCard());
         assertEquals(remainingDeck, result.newGameState().getDeck());
@@ -206,7 +209,7 @@ public class GameServiceTest {
 
         when(deckService.createNewDeck()).thenReturn(newDeck);
 
-        GameService.DealResultWithState result = gameService.safeDealCard(state);
+        GameService.DealResultWithState result = gameStateManager.safeDealCard(state);
 
         assertEquals(expectedCard, result.dealtCard());
         verify(deckService, times(1)).createNewDeck(); // Ellenőrizzük, hogy volt-e újrakeverés
@@ -235,9 +238,11 @@ public class GameServiceTest {
         GameState result = gameService.initializeNewRound(baseState);
 
         // Játékos adatai
+        assertNotNull(result.getPlayer());
         assertEquals(2, result.getPlayer().hand().size());
         assertEquals(16, result.getPlayer().sum());
         assertEquals("P-001", result.getPlayer().id());
+        assertNotNull(result.getDealerMasked());
         assertEquals(2, result.getDealerMasked().hand().size());
 
         Card expectedMasked = Card.createMaskedCard();
@@ -380,7 +385,7 @@ public class GameServiceTest {
         when(handStateUpdater.updateHandState(anyInt(), anyInt())).thenReturn(HandState.UNDER_21);
 
         // WinnerState: A Dealer nyert (19 > 18)
-        when(gameRuleEngine.winnerStateUpdater(any())).thenReturn(WinnerState.DEALER_WON.getValue());
+        when(gameRuleEngine.winnerStateUpdater(any(), any())).thenReturn(WinnerState.DEALER_WON.getValue());
 
         // 3. WHEN
         GameState finalState = gameService.playerStand(state);
@@ -428,7 +433,7 @@ public class GameServiceTest {
             return sum > 21 ? HandState.BUST : HandState.UNDER_21;
         });
 
-        when(gameRuleEngine.winnerStateUpdater(any())).thenReturn(WinnerState.PLAYER_WON.getValue());
+        when(gameRuleEngine.winnerStateUpdater(any(), any())).thenReturn(WinnerState.PLAYER_WON.getValue());
 
         GameState finalState = gameService.playerStand(state);
 
@@ -458,7 +463,7 @@ public class GameServiceTest {
         when(handStateUpdater.updateHandState(anyInt(), anyInt())).thenReturn(HandState.UNDER_21);
 
         // RuleEngine szerint a játékos nyert (18 > 17)
-        when(gameRuleEngine.winnerStateUpdater(any())).thenReturn(WinnerState.PLAYER_WON.getValue());
+        when(gameRuleEngine.winnerStateUpdater(any(), any())).thenReturn(WinnerState.PLAYER_WON.getValue());
 
         GameState finalState = gameService.playerStand(state);
 

@@ -69,21 +69,21 @@ class GameRuleEngineTest {
     @DisplayName("Játékos veszít, ha besokall (Bust)")
     void winnerStateUpdater_PlayerBust() {
         GameState state = createGameState(22, 3, 18, 2);
-        assertEquals(WinnerState.PLAYER_LOST.getValue(), gameRuleEngine.winnerStateUpdater(state));
+        assertEquals(WinnerState.PLAYER_LOST.getValue(), gameRuleEngine.winnerStateUpdater(state.getPlayer(), state.getDealerUnmasked()));
     }
 
     @Test
     @DisplayName("Játékos nyer, ha az osztó besokall")
     void winnerStateUpdater_DealerBust() {
         GameState state = createGameState(19, 2, 22, 3);
-        assertEquals(WinnerState.PLAYER_WON.getValue(), gameRuleEngine.winnerStateUpdater(state));
+        assertEquals(WinnerState.PLAYER_WON.getValue(), gameRuleEngine.winnerStateUpdater(state.getPlayer(), state.getDealerUnmasked()));
     }
 
     @Test
     @DisplayName("Döntetlen (Push), ha az összegek egyenlőek")
     void winnerStateUpdater_Push() {
         GameState state = createGameState(20, 2, 20, 3);
-        assertEquals(WinnerState.PUSH.getValue(), gameRuleEngine.winnerStateUpdater(state));
+        assertEquals(WinnerState.PUSH.getValue(), gameRuleEngine.winnerStateUpdater(state.getPlayer(), state.getDealerUnmasked()));
     }
 
     // --- 3. canSplit Tesztek ---
