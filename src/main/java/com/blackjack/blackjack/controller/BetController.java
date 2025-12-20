@@ -6,11 +6,8 @@ import com.blackjack.blackjack.dto.bet.BetRequest;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
-import com.blackjack.blackjack.service.AuthenticationService;
-import com.blackjack.blackjack.service.GameService;
-import com.blackjack.blackjack.service.GameService.RetakeResult;
-import com.blackjack.blackjack.service.GameStateService;
-import com.blackjack.blackjack.service.PlayerService;
+import com.blackjack.blackjack.service.*;
+import com.blackjack.blackjack.service.BetService.RetakeResult;
 import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,16 +26,18 @@ public class BetController {
     private final PlayerService playerService;
     private final GameService gameService;
     private final AuthenticationService authenticationService;
+    private final BetService betService;
 
     @Autowired
     public BetController(
         GameStateService gameStateService,
         PlayerService playerService,
-        GameService gameService, AuthenticationService authenticationService) {
+        GameService gameService, AuthenticationService authenticationService, BetService betService) {
         this.gameStateService = gameStateService;
         this.playerService = playerService;
         this.gameService = gameService;
         this.authenticationService = authenticationService;
+        this.betService = betService;
     }
 
     @PostMapping("/bet")
@@ -47,7 +46,7 @@ public class BetController {
         GameState currentState = context.gameStateOptional().orElseThrow();
 
         // 1. DTO generálása
-        GameStateBet betDto = gameService.placeBet(currentState, betRequest.bet());
+        GameStateBet betDto = betService.placeBet(currentState, betRequest.bet());
 
         // 2. Szerver oldali állapot frissítése (Hogy a deckLen ne vesszen el a DB-ből)
         GameState updatedGameState = currentState.toBuilder()
@@ -71,7 +70,7 @@ public class BetController {
         SessionContext context = authenticationService.validateAndGetContext(session);
         GameState currentState = context.gameStateOptional().orElseThrow();
 
-        RetakeResult result = gameService.retakeBet(currentState);
+        RetakeResult result = betService.retakeBet(currentState);
         GameStateBet betDto = result.newState();
 
         GameState updatedGameState = currentState.toBuilder()

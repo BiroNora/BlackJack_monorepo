@@ -11,9 +11,6 @@ import java.util.*;
 @Service
 public class GameStateManager {
     private static final Logger logger = LoggerFactory.getLogger(GameStateManager.class);
-    private static final Comparator<PlayerHand> SPLIT_HAND_COMPARATOR = Comparator
-        .comparing(PlayerHand::stated)
-        .thenComparing(PlayerHand::id);
     private final GameRuleEngine gameRuleEngine;
     private final PlayerHandFactory playerHandFactory;
     private final HandValueCalculator handValueCalculator;
@@ -28,10 +25,97 @@ public class GameStateManager {
         this.deckService = deckService;
     }
 
+    public GameState resetRoundState(GameState oldState) {
+        PlayerHand resetPlayerHand = PlayerHand.createEmptyHand();
+        PlayerHand resetSplitPlayer = PlayerHand.createEmptyHand();
+
+        DealerHandMasked resetDealerMasked = DealerHandMasked.createEmptyHand();
+        DealerHandUnmasked resetDealerUnmasked = DealerHandUnmasked.createEmptyHand();
+
+        return oldState.toBuilder()
+            .betList(List.of())
+            .player(resetPlayerHand)
+            .dealerMasked(resetDealerMasked)
+            .dealerUnmasked(resetDealerUnmasked)
+            .splitPlayer(resetSplitPlayer)
+            .aces(false)
+            .natural21(0)
+            .winner(0)
+            .handCounter(0)
+            .splitReq(0)
+            .isRoundActive(false)
+            .players(new HashMap<>())
+            .build();
+    }
+
     public GameState createNewDeck(GameState state) {
         Deck newDeck = deckService.createNewDeck();
         logger.info("+++++++++++ createNewDeck {}", newDeck);
         return state.toBuilder().deck(newDeck).build();
+    }
+
+    public GameService.DealResultWithState safeDealCard(GameState state) {
+        GameState workingState = (state.getDeck() == null || state.getDeckLen() == 0)
+            ? createNewDeck(state)
+            : state;
+
+        try {
+            DealResult result = deckService.dealCard(workingState.getDeck());
+
+            GameState newState = workingState.toBuilder()
+                .deck(result.newDeck())
+                .build();
+
+            return new GameService.DealResultWithState(result.dealtCard(), newState);
+
+        } catch (IllegalStateException e) {
+            logger.warn("!!! DECK EXHAUSTED: Reshuffling automatically.");
+
+            GameState reshuffledState = createNewDeck(workingState);
+            DealResult result = deckService.dealCard(reshuffledState.getDeck());
+
+            GameState finalState = reshuffledState.toBuilder()
+                .deck(result.newDeck())
+                .build();
+
+            return new GameService.DealResultWithState(result.dealtCard(), finalState);
+        }
+    }
+
+    public GameState processDealerDrawing(GameState currentState) {
+        while (true) {
+            assert currentState.getDealerUnmasked() != null;
+            if (!(handValueCalculator.calculateSum(currentState.getDealerUnmasked().hand()) < 17)) break;
+
+            GameService.DealResultWithState dealResult = safeDealCard(currentState);
+
+            Card newCard = dealResult.dealtCard();
+            GameState deckUpdatedState = dealResult.newGameState();
+
+            DealerHandUnmasked oldDealerHand = deckUpdatedState.getDealerUnmasked();
+
+            assert oldDealerHand != null;
+            LinkedList<Card> newDealerHandList = new LinkedList<>(oldDealerHand.hand());
+            newDealerHandList.add(newCard);
+
+            int newDealerSum = handValueCalculator.calculateSum(newDealerHandList);
+            HandState newDealerHandState = handStateUpdater.updateHandState(newDealerSum, newDealerHandList.size());
+
+            DealerHandUnmasked newDealerHand = oldDealerHand.toBuilder()
+                .hand(newDealerHandList)
+                .sum(newDealerSum)
+                .handState(newDealerHandState.getValue())
+                .build();
+
+            currentState = deckUpdatedState.toBuilder()
+                .dealerUnmasked(newDealerHand)
+                .build();
+
+            if (newDealerSum > 21) {
+                break;
+            }
+        }
+        return currentState;
     }
 
     public GameState dealSplitCard(GameState state, boolean isFirst, Card cardToSplit) {
