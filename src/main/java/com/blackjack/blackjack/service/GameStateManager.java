@@ -42,6 +42,7 @@ public class GameStateManager {
             .natural21(0)
             .winner(0)
             .handCounter(0)
+            .wasSplitInRound(false)
             .splitReq(0)
             .isRoundActive(false)
             .players(new HashMap<>())
@@ -99,7 +100,7 @@ public class GameStateManager {
             newDealerHandList.add(newCard);
 
             int newDealerSum = handValueCalculator.calculateSum(newDealerHandList);
-            HandState newDealerHandState = handStateUpdater.updateHandState(newDealerSum, newDealerHandList.size());
+            HandState newDealerHandState = handStateUpdater.updateHandState(newDealerSum, newDealerHandList.size(), false);
 
             DealerHandUnmasked newDealerHand = oldDealerHand.toBuilder()
                 .hand(newDealerHandList)
@@ -141,7 +142,7 @@ public class GameStateManager {
             newHandCards.add(result.dealtCard());
 
             int sum = handValueCalculator.calculateSum(newHandCards);
-            HandState hState = handStateUpdater.updateHandState(sum, newHandCards.size());
+            HandState hState = handStateUpdater.updateHandState(sum, newHandCards.size(), true);
 
             boolean canSplitAgain = gameRuleEngine.canSplit(newHandCards)
                 && newHandCards.getFirst().rank() != Rank.ACE;

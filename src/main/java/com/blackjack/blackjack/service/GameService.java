@@ -53,7 +53,7 @@ public class GameService {
         // ----------------------------------------------------
         LinkedList<Card> playerStartHand = new LinkedList<>(List.of(card1, card3));
         int playerSum = handValueCalculator.calculateSum(playerStartHand);
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size());
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isWasSplitInRound());
         boolean isSplitPossible = gameRuleEngine.canSplit(playerStartHand);
 
         int nextCount = currentGameState.calculateNextHandCounter();
@@ -61,7 +61,7 @@ public class GameService {
 
         LinkedList<Card> dealerUnmaskedHand = new LinkedList<>(List.of(card2, card4));
         int dealerFullSum = handValueCalculator.calculateSum(dealerUnmaskedHand);
-        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size());
+        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isWasSplitInRound());
 
         // ----------------------------------------------------
         // 4. IDEIGLENES OBJEKTUMOK ÉS BLACKJACK ELLENŐRZÉS
@@ -158,7 +158,7 @@ public class GameService {
         // ----------------------------------------------------
         LinkedList<Card> playerStartHand = new LinkedList<>(List.of(card1, card3));
         int playerSum = handValueCalculator.calculateSum(playerStartHand);
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size());
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isWasSplitInRound());
 
         // Itt a canSplit true-t fog adni a King+Queen-re
         boolean isSplitPossible = gameRuleEngine.canSplit(playerStartHand);
@@ -168,7 +168,7 @@ public class GameService {
 
         LinkedList<Card> dealerUnmaskedHand = new LinkedList<>(List.of(card2, card4));
         int dealerFullSum = handValueCalculator.calculateSum(dealerUnmaskedHand);
-        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size());
+        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isWasSplitInRound());
 
         // ----------------------------------------------------
         // 4. IDEIGLENES OBJEKTUMOK ÉS BLACKJACK ELLENŐRZÉS
@@ -228,50 +228,33 @@ public class GameService {
     }
 
     public GameState playerHit(GameState currentState) {
-        // 1. Ha a kör már nem aktív, ne csináljunk semmit
         if (!currentState.isRoundActive()) {
             return currentState;
         }
 
-        // 2. Laposztás (A refaktorált, GameState-et váró metódussal)
         DealResultWithState result = gameStateManager.safeDealCard(currentState);
         GameState deckUpdatedState = result.newGameState();
         Card card = result.dealtCard();
 
-        // 3. Játékos kezének frissítése (Immutábilisan)
         PlayerHand playerHand = deckUpdatedState.getPlayer();
         assert playerHand != null;
         LinkedList<Card> newHandList = new LinkedList<>(playerHand.hand());
         newHandList.add(card);
 
-        // 4. Számítások
         int newSum = handValueCalculator.calculateSum(newHandList);
-        HandState calculatedHandState = handStateUpdater.updateHandState(newSum, newHandList.size());
+        HandState calculatedHandState = handStateUpdater.updateHandState(newSum, newHandList.size(), deckUpdatedState.isWasSplitInRound());
 
-        // Akkor állunk meg, ha 21 vagy felette (Bust) vagyunk
-        boolean isRoundOverForPlayer = calculatedHandState != HandState.UNDER_21;
-
-        // 5. PlayerHand objektum felépítése
         PlayerHand newPlayerHand = playerHand.toBuilder()
             .hand(newHandList)
             .sum(newSum)
             .handState(calculatedHandState.getValue())
-            .stated(isRoundOverForPlayer)
             .build();
 
-        // 6. Új GameState létrehozása
         GameState newState = deckUpdatedState.toBuilder()
             .player(newPlayerHand)
             .build();
 
-        // 7. Körlezárás ellenőrzése
-        if (isRoundOverForPlayer) {
-            logger.info("Játékos megállt vagy besokallt (Pont: {}).", newSum);
-            // Itt még nem hívunk Dealer logikát, csak jelezzük a lezárást a hívónak,
-            // vagy ha van processDealerTurn, azt is ide lehet láncolni.
-        }
-
-        return newState; // MENTÉS NÉLKÜL
+        return newState;
     }
 
     public GameState playerStand(GameState currentState) {
@@ -282,7 +265,7 @@ public class GameService {
         PlayerHand playerHand = currentState.getPlayer();
         assert playerHand != null;
         int playerSum = playerHand.sum();
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerHand.hand().size());
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerHand.hand().size(), currentState.isWasSplitInRound());
 
         PlayerHand playerHandStated = playerHand.toBuilder()
             .stated(true)
@@ -418,10 +401,8 @@ public class GameService {
             return oldState;
         }
 
-        // 1. Kimentjük a kártyát, amit lehasítunk
         Card cardToSplit = oldPlayerHand.hand().get(1);
 
-        // 2. Előkészítjük az első kezet (csak az első lap marad benne)
         PlayerHand primaryHandNewState = oldPlayerHand.toBuilder()
             .hand(List.of(oldPlayerHand.hand().getFirst()))
             .build();
@@ -429,14 +410,10 @@ public class GameService {
         GameState updatedState = oldState.toBuilder()
             .player(primaryHandNewState)
             .splitReq(oldState.calculateNewSplitReq(1))
+            .wasSplitInRound(true)
             .build();
 
-        // 3. ELSŐ HÍVÁS: Kiegészíti az első kezet 2. lappal + beírja az indexbe (P-001)
         GameState stateAfterFirstDeal = gameStateManager.dealSplitCard(updatedState, true, null);
-
-        // 4. MÁSODIK HÍVÁS: Létrehozza a második kezet a cardToSplit-ből + kiegészíti + beírja az indexbe (P-002)
-        // FONTOS: stateAfterFirst-et adjuk át bemenetként!
-
         //logger.info("+++++++++++ split completed. playersIndex: {}", finalState.getPlayersIndex());
         return gameStateManager.dealSplitCard(stateAfterFirstDeal, false, cardToSplit);
     }
@@ -464,9 +441,6 @@ public class GameService {
             Map<String, Boolean> newPlayersIndexMap = new HashMap<>(oldState.getPlayersIndex());
             newPlayersIndexMap.put(updatedPlayerHand.id(), true);
 
-            // 3. Új GameState felépítése (unmodifiable wrapperekkel)
-
-
             return oldState.toBuilder()
                 .player(updatedPlayerHand)
                 .players(Collections.unmodifiableMap(newPlayersMap))
@@ -483,7 +457,7 @@ public class GameService {
 
         Map<String, Boolean> playersIndex = currentGameState.getPlayersIndex();
         Optional<String> nextIdOptional = gameStateManager.findNextActivePlayerId(playersIndex);
-        //logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
+
         if (nextIdOptional.isEmpty()) {
             return currentGameState;
         }
@@ -493,7 +467,7 @@ public class GameService {
         PlayerHand splitPlayer = currentGameState.getSplitPlayer();
 
         PlayerHand nextActiveHand = null;
-        //logger.info(" XXXXXXXX VVVVV currentGameState {}).", currentGameState);
+
         if (splitPlayer != null && splitPlayer.id() != null && splitPlayer.id().equals(nextHandId)) {
             nextActiveHand = splitPlayer;
         } else if (player != null && player.id().equals(nextHandId)) {
@@ -533,7 +507,7 @@ public class GameService {
 
             boolean canSplit = gameRuleEngine.canSplit(newHandList);
             int sum = handValueCalculator.calculateSum(newHandList);
-            HandState playerState = handStateUpdater.updateHandState(sum, newHandList.size());
+            HandState playerState = handStateUpdater.updateHandState(sum, newHandList.size(), currentGameState.isWasSplitInRound());
 
 
             PlayerHand finalPlayerHand = playerToDealTo.toBuilder()
@@ -577,6 +551,7 @@ public class GameService {
         return resetGameState.toBuilder()
             .bet(0)
             .isRoundActive(false)
+            .wasSplitInRound(false)
             .natural21(0)
             .winner(0)
             .build();

@@ -56,6 +56,7 @@ public class GameState implements Serializable {
     @JsonProperty("split_req")
     int splitReq;
     int handCounter;
+    boolean wasSplitInRound;
 
     @Builder.Default
     Map<String, Boolean> playersIndex = Map.of();
