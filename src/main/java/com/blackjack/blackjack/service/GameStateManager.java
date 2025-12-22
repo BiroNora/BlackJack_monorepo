@@ -125,14 +125,14 @@ public class GameStateManager {
         String id;
 
         if (isFirst) {
-            Deck currentDeck = state.getDeck();
-            if (currentDeck == null || state.getDeckLen() == 0) {
-                state = createNewDeck(state); // Automata újrakeverés ha kell
-                newStateBuilder = state.toBuilder();
-            }
+            GameState workingState = (state.getDeck() == null || state.getDeckLen() == 0)
+                ? createNewDeck(state)
+                : state;
+
+            newStateBuilder = workingState.toBuilder();
 
             assert state.getDeck() != null;
-            DealResult result = state.getDeck().dealCard();
+            DealResult result = deckService.dealCard(workingState.getDeck());
             newStateBuilder.deck(result.newDeck());
 
             PlayerHand p = state.getPlayer();
@@ -156,7 +156,6 @@ public class GameStateManager {
                 .build();
 
             newStateBuilder.player(updatedHand);
-
         } else {
             int nextCount = state.calculateNextHandCounter();
             id = String.format("P-%03d", nextCount);
@@ -175,7 +174,6 @@ public class GameStateManager {
             playersMap.put(id, updatedHand);
 
             newStateBuilder.players(Collections.unmodifiableMap(playersMap));
-
         }
 
         Map<String, Boolean> playersIndex = new LinkedHashMap<>(state.getPlayersIndex());
