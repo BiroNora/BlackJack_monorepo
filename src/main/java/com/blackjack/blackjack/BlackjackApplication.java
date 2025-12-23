@@ -26,6 +26,7 @@ public class BlackjackApplication {
         log.info("--- PRÓBA: Upstash Redis Kapcsolat Tesztelése ---");
         try {
             // A Redis Template használata, hogy elküldje a 'ping' parancsot
+            assert redisTemplate.getConnectionFactory() != null;
             String pingResult = redisTemplate.getConnectionFactory()
                 .getConnection()
                 .ping();

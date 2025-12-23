@@ -1,17 +1,14 @@
 package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.*;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
@@ -20,15 +17,9 @@ import static org.mockito.Mockito.*;
 public class GameServiceTest {
 
     @Mock
-    private GameStateService gameStateService;
-    @Mock
     private GameRuleEngine gameRuleEngine;
     @Mock
     private GameStateManager gameStateManager;
-    @Mock
-    private DeckService deckService;
-    @Mock
-    private BetService betService;
     @Mock
     private HandValueCalculator handValueCalculator;
     @Mock
@@ -37,545 +28,773 @@ public class GameServiceTest {
     @InjectMocks
     private GameService gameService;
 
-    private GameState createBaseState(int bet) {
-        return GameState.builder()
-            .bet(bet)
-            .betList(new ArrayList<>(List.of(bet)))
-            .player(PlayerHand.createEmptyHand().toBuilder().bet(bet).build())
-            .dealerUnmasked(DealerHandUnmasked.createEmptyHand())
-            .dealerMasked(DealerHandMasked.createEmptyHand())
-            .deck(Deck.createNewDeck())
-            .isRoundActive(true)
-            .players(new HashMap<>())
+    @Test
+    @DisplayName("initializeNewRound: Sikeres alap osztás (nincs Blackjack)")
+    void testInitializeNewRound_Success() {
+        GameState startState = GameState.builder()
+            .bet(100)
+            .player(PlayerHand.builder().build())
+            .dealerUnmasked(DealerHandUnmasked.builder().build())
+            .dealerMasked(DealerHandMasked.builder().build())
             .build();
+
+        Card card1 = new Card(Suit.SPADES, Rank.EIGHT); // Player 1
+        Card card2 = new Card(Suit.HEARTS, Rank.FIVE);  // Dealer 1
+        Card card3 = new Card(Suit.CLUBS, Rank.TEN);    // Player 2
+        Card card4 = new Card(Suit.DIAMONDS, Rank.ACE); // Dealer 2 (Látható lap)
+
+        when(gameStateManager.resetRoundState(any())).thenReturn(startState);
+
+        when(gameStateManager.safeDealCard(any()))
+            .thenReturn(new GameService.DealResultWithState(card1, startState))
+            .thenReturn(new GameService.DealResultWithState(card2, startState))
+            .thenReturn(new GameService.DealResultWithState(card3, startState))
+            .thenReturn(new GameService.DealResultWithState(card4, startState));
+
+        when(handValueCalculator.calculateSum(anyList())).thenReturn(18); // Player sum
+        when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean())).thenReturn(HandState.UNDER_21);
+        when(gameRuleEngine.canSplit(anyList())).thenReturn(false);
+        when(gameRuleEngine.initNatural21State(any())).thenReturn(WinnerState.NONE.getValue());
+
+        GameState result = gameService.initializeNewRound(startState);
+
+        assertNotNull(result);
+        assertTrue(result.isRoundActive());
+        assertNotNull(result.getPlayer());
+        assertEquals(18, result.getPlayer().sum());
+        assertEquals("P-001", result.getPlayer().id());
+
+        // Dealer ellenőrzése (card4 az ász, tehát tud biztosítást kötni)
+        assertNotNull(result.getDealerMasked());
+        assertTrue(result.getDealerMasked().canInsure());
+        assertEquals(card4, result.getDealerMasked().hand().get(1)); // A második lap a látható
+        Card maskedCard = result.getDealerMasked().hand().get(0);
+        assertEquals("✪", maskedCard.rank().getSymbol());
+        assertEquals(" ", maskedCard.suit().getSymbol());
+
+        verify(gameStateManager, times(4)).safeDealCard(any());
     }
 
     @Test
-    void testInsuranceRequest_DealerHasNoBlackjack() {
-        GameState state = createBaseState(100); // 100-as tét
-
-        DealerHandUnmasked dealer = DealerHandUnmasked.createEmptyHand().toBuilder()
-            .natural21(0) // Nincs Blackjack
+    @DisplayName("initializeNewRound: Player Blackjack szituáció tesztelése")
+    void testInitializeNewRound_PlayerBlackjack() {
+        GameState startState = GameState.builder()
+            .bet(100)
+            .player(PlayerHand.builder().build())
+            .dealerUnmasked(DealerHandUnmasked.builder().build())
+            .dealerMasked(DealerHandMasked.builder().build())
             .build();
-        state = state.toBuilder().dealerUnmasked(dealer).build();
+
+        // Player lapjai: Ász (card1) és King (card3) -> Blackjack
+        Card card1 = new Card(Suit.SPADES, Rank.ACE);
+        Card card2 = new Card(Suit.HEARTS, Rank.FIVE);
+        Card card3 = new Card(Suit.CLUBS, Rank.KING);
+        Card card4 = new Card(Suit.DIAMONDS, Rank.EIGHT);
+
+        when(gameStateManager.resetRoundState(any())).thenReturn(startState);
+
+        when(gameStateManager.safeDealCard(any()))
+            .thenReturn(new GameService.DealResultWithState(card1, startState))
+            .thenReturn(new GameService.DealResultWithState(card2, startState))
+            .thenReturn(new GameService.DealResultWithState(card3, startState))
+            .thenReturn(new GameService.DealResultWithState(card4, startState));
+
+        when(handValueCalculator.calculateSum(anyList())).thenReturn(21, 13); // 21 (Player), 13 (Dealer)
+
+        // A Player állapota BLACKJACK lesz
+        when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean()))
+            .thenReturn(HandState.BLACKJACK) // Első hívás (Player)
+            .thenReturn(HandState.UNDER_21); // Második hívás (Dealer)
+
+        when(gameRuleEngine.canSplit(anyList())).thenReturn(false);
+        when(gameRuleEngine.initNatural21State(any())).thenReturn(WinnerState.BLACKJACK_PLAYER_WON.getValue());
+
+        GameState result = gameService.initializeNewRound(startState);
+
+        assertNotNull(result);
+        assertEquals(WinnerState.BLACKJACK_PLAYER_WON.getValue(), result.getNatural21());
+
+        assertNotNull(result.getPlayer());
+        assertEquals(21, result.getPlayer().sum());
+        assertEquals(HandState.BLACKJACK.getValue(), result.getPlayer().handState());
+
+        assertNotNull(result.getDealerMasked());
+        assertFalse(result.getDealerMasked().canInsure(), "8-asra nem lehet biztosítást kötni");
+        assertEquals(card4, result.getDealerMasked().hand().get(1), "A látható lap a 8-as");
+
+        assertFalse(result.isAces());
+
+        verify(gameRuleEngine, times(1)).initNatural21State(any());
+    }
+
+    @Test
+    @DisplayName("initializeNewRound: Split lehetőség felismerése (két 8-as)")
+    void testInitializeNewRound_SplitPossible() {
+        GameState startState = GameState.builder()
+            .bet(100)
+            .player(PlayerHand.builder().build())
+            .dealerUnmasked(DealerHandUnmasked.builder().build())
+            .dealerMasked(DealerHandMasked.builder().build())
+            .build();
+
+        Card p1 = new Card(Suit.SPADES, Rank.EIGHT);   // Player első lapja
+        Card d1 = new Card(Suit.HEARTS, Rank.FIVE);    // Dealer első lapja (rejtett)
+        Card p2 = new Card(Suit.CLUBS, Rank.EIGHT);    // Player második lapja (PÁR!)
+        Card d2 = new Card(Suit.DIAMONDS, Rank.TEN);   // Dealer második lapja (látható)
+
+        when(gameStateManager.resetRoundState(any())).thenReturn(startState);
+
+        when(gameStateManager.safeDealCard(any()))
+            .thenReturn(new GameService.DealResultWithState(p1, startState))
+            .thenReturn(new GameService.DealResultWithState(d1, startState))
+            .thenReturn(new GameService.DealResultWithState(p2, startState))
+            .thenReturn(new GameService.DealResultWithState(d2, startState));
+
+        when(handValueCalculator.calculateSum(anyList())).thenReturn(16, 15);
+        when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean()))
+            .thenReturn(HandState.UNDER_21);
+        when(gameRuleEngine.canSplit(anyList())).thenReturn(true);
+        when(gameRuleEngine.initNatural21State(any())).thenReturn(WinnerState.NONE.getValue());
+
+        GameState result = gameService.initializeNewRound(startState);
+
+        assertNotNull(result);
+        assertNotNull(result.getPlayer());
+
+        assertEquals(2, result.getPlayer().hand().size(), "A játékosnak 2 lapja kell legyen.");
+        assertEquals(Rank.EIGHT, result.getPlayer().hand().get(0).rank(), "Az első lapnak 8-asnak kell lennie.");
+        assertEquals(Rank.EIGHT, result.getPlayer().hand().get(1).rank(), "A második lapnak 8-asnak kell lennie.");
+
+        assertTrue(result.getPlayer().canSplit(), "A 'canSplit' flagnek true-nak kell lennie a két 8-as után.");
+
+        assertNotNull(result.getDealerMasked());
+        assertEquals(d2, result.getDealerMasked().hand().get(1), "A dealer látható lapja a 10-es kell legyen.");
+        assertFalse(result.getDealerMasked().canInsure(), "10-es lapra nem lehet biztosítást kötni.");
+
+        verify(gameStateManager, times(4)).safeDealCard(any());
+        verify(gameRuleEngine, times(1)).canSplit(anyList());
+    }
+
+    @Test
+    @DisplayName("playerHit: Sikeres lapkérés (Hit), 21 alatt marad")
+    void testPlayerHit_Success_Under21() {
+        Card initialCard = new Card(Suit.SPADES, Rank.EIGHT);
+        PlayerHand initialPlayer = PlayerHand.builder()
+            .hand(List.of(initialCard))
+            .sum(8)
+            .handState(HandState.UNDER_21.getValue())
+            .build();
+
+        GameState currentState = GameState.builder()
+            .isRoundActive(true)
+            .player(initialPlayer)
+            .build();
+
+        // A következő kártya, amit húzni fog (egy 7-es)
+        Card nextCard = new Card(Suit.HEARTS, Rank.SEVEN);
+
+        when(gameStateManager.safeDealCard(currentState))
+            .thenReturn(new GameService.DealResultWithState(nextCard, currentState));
+        when(handValueCalculator.calculateSum(anyList())).thenReturn(15);
+        when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean()))
+            .thenReturn(HandState.UNDER_21);
+        GameState result = gameService.playerHit(currentState);
+
+        assertNotNull(result);
+        assertEquals(2, result.getPlayer().hand().size());
+        assertEquals(15, result.getPlayer().sum());
+        assertEquals(HandState.UNDER_21.getValue(), result.getPlayer().handState());
+
+        assertEquals(Rank.EIGHT, result.getPlayer().hand().get(0).rank());
+        assertEquals(Rank.SEVEN, result.getPlayer().hand().get(1).rank());
+
+        verify(gameStateManager, times(1)).safeDealCard(any());
+    }
+
+    @Test
+    @DisplayName("playerHit: Besokallás (Bust) tesztelése")
+    void testPlayerHit_Bust() {
+        Card c1 = new Card(Suit.SPADES, Rank.TEN);
+        Card c2 = new Card(Suit.HEARTS, Rank.SIX);
+        PlayerHand player = PlayerHand.builder()
+            .hand(List.of(c1, c2))
+            .sum(16)
+            .handState(HandState.UNDER_21.getValue())
+            .build();
+
+        GameState state = GameState.builder()
+            .isRoundActive(true)
+            .player(player)
+            .build();
+
+        Card bustCard = new Card(Suit.CLUBS, Rank.SEVEN); // 16 + 7 = 23 (Bust)
+
+        when(gameStateManager.safeDealCard(state))
+            .thenReturn(new GameService.DealResultWithState(bustCard, state));
+        when(handValueCalculator.calculateSum(anyList())).thenReturn(23);
+        when(handStateUpdater.updateHandState(eq(23), anyInt(), anyBoolean()))
+            .thenReturn(HandState.BUST);
+
+        GameState result = gameService.playerHit(state);
+
+        assertEquals(23, result.getPlayer().sum());
+        assertEquals(HandState.BUST.getValue(), result.getPlayer().handState());
+        assertEquals(3, result.getPlayer().hand().size());
+    }
+
+    @Test
+    @DisplayName("playerHit: Inaktív kör esetén nem történik kártyaosztás")
+    void testPlayerHit_InactiveRound() {
+        GameState inactiveState = GameState.builder()
+            .isRoundActive(false)
+            .build();
+
+        GameState result = gameService.playerHit(inactiveState);
+
+        assertSame(inactiveState, result, "Inaktív körnél az eredeti állapotot kell visszakapni");
+
+        verifyNoInteractions(gameStateManager);
+        verifyNoInteractions(handValueCalculator);
+    }
+
+    @Test
+    @DisplayName("playerHit: Split utáni kártyahúzás")
+    void testPlayerHit_AfterSplit() {
+        GameState splitState = GameState.builder()
+            .isRoundActive(true)
+            .wasSplitInRound(true) // <--- Jelözzük, hogy volt split
+            .player(PlayerHand.builder().hand(new ArrayList<>()).build())
+            .build();
+
+        Card card = new Card(Suit.DIAMONDS, Rank.ACE);
+        when(gameStateManager.safeDealCard(splitState))
+            .thenReturn(new GameService.DealResultWithState(card, splitState));
+
+        when(handValueCalculator.calculateSum(anyList())).thenReturn(11);
+        when(handStateUpdater.updateHandState(anyInt(), anyInt(), eq(true)))
+            .thenReturn(HandState.UNDER_21);
+
+        gameService.playerHit(splitState);
+
+        verify(handStateUpdater).updateHandState(eq(11), eq(1), eq(true));
+    }
+
+    @Test
+    @DisplayName("playerStand: Normál megállás (18), Dealer húz és nyer")
+    void testPlayerStand_NormalFlow() {
+        PlayerHand player = PlayerHand.builder()
+            .sum(18)
+            .hand(List.of(new Card(Suit.SPADES, Rank.TEN), new Card(Suit.HEARTS, Rank.EIGHT)))
+            .stated(false)
+            .build();
+
+        GameState state = GameState.builder()
+            .isRoundActive(true)
+            .player(player)
+            .wasSplitInRound(false) // <--- NINCS SPLIT
+            .build();
+
+        when(handStateUpdater.updateHandState(eq(18), anyInt(), eq(false)))
+            .thenReturn(HandState.UNDER_21);
+
+        DealerHandUnmasked dealerFinal = DealerHandUnmasked.builder().sum(19).build();
+
+        GameState stateAfterDealer = state.toBuilder()
+            .player(player.toBuilder().stated(true).handState(HandState.UNDER_21.getValue()).build())
+            .dealerUnmasked(dealerFinal)
+            .build();
+
+        when(gameStateManager.processDealerDrawing(any())).thenReturn(stateAfterDealer);
+        when(gameRuleEngine.winnerStateUpdater(any(), any())).thenReturn(1);
+
+        GameState result = gameService.playerStand(state);
+
+        assertNotNull(result);
+        assertEquals(1, result.getWinner());
+        verify(gameStateManager, times(1)).processDealerDrawing(any());
+
+        assertNotNull(result.getDealerUnmasked());
+        assertEquals(19, result.getDealerUnmasked().sum());
+    }
+
+    @Test
+    @DisplayName("calculateRewards: Játékos Blackjackje esetén 2.5-szeres szorzó")
+    void testCalculateRewards_PlayerBlackjack() {
+        PlayerHand player = PlayerHand.builder().bet(100).build();
+        DealerHandUnmasked dealer = DealerHandUnmasked.builder().natural21(0).build();
+
+        GameState state = GameState.builder()
+            .player(player)
+            .dealerUnmasked(dealer)
+            .natural21(WinnerState.BLACKJACK_PLAYER_WON.getValue()) // BJ állapot
+            .winner(WinnerState.PLAYER_WON.getValue())
+            .players(Collections.emptyMap()) // Nincs több splitelt kéz
+            .build();
+
+        GameService.TransactionResult result = gameService.calculateRewards(state);
+
+        assertEquals(250, result.transactionResult(), "100-as tétnél 250-es kifizetés jár Blackjackre.");
+        assertEquals(0, result.gameState().getBet(), "A globális tétet le kell nullázni.");
+        assertNotNull(result.gameState().getPlayer());
+        assertEquals(0, result.gameState().getPlayer().bet(), "A kéz tétjét le kell nullázni.");
+        assertFalse(result.gameState().isRoundActive(), "Ha nincs több kéz a players listában, az aktív kör véget ér.");
+    }
+
+    @Test
+    @DisplayName("calculateRewards: Sima győzelem esetén 2.0-szeres szorzó")
+    void testCalculateRewards_PlayerWon() {
+        PlayerHand player = PlayerHand.builder().bet(100).build();
+        DealerHandUnmasked dealer = DealerHandUnmasked.builder().natural21(0).build();
+
+        GameState state = GameState.builder()
+            .player(player)
+            .dealerUnmasked(dealer)
+            .natural21(0) // Nem Blackjack
+            .winner(WinnerState.PLAYER_WON.getValue())
+            .players(Collections.emptyMap())
+            .build();
+
+        GameService.TransactionResult result = gameService.calculateRewards(state);
+
+        assertEquals(200, result.transactionResult(), "100-as tétnél 200-as kifizetés jár sima győzelemre.");
+    }
+
+    @Test
+    @DisplayName("calculateRewards: Döntetlen (Push) esetén a tét visszajár")
+    void testCalculateRewards_Push() {
+        PlayerHand player = PlayerHand.builder().bet(100).build();
+        DealerHandUnmasked dealer = DealerHandUnmasked.builder().natural21(0).build();
+
+        GameState state = GameState.builder()
+            .player(player)
+            .dealerUnmasked(dealer)
+            .winner(WinnerState.PUSH.getValue())
+            .players(Collections.emptyMap())
+            .build();
+
+        GameService.TransactionResult result = gameService.calculateRewards(state);
+
+        assertEquals(100, result.transactionResult(), "Döntetlen esetén a 100-as tétnek vissza kell járnia.");
+    }
+
+    @Test
+    @DisplayName("calculateRewards: Játékos veszít, 0 kifizetés")
+    void testCalculateRewards_PlayerLost() {
+        PlayerHand player = PlayerHand.builder()
+            .bet(100) // Volt 100-as tétje
+            .build();
+
+        DealerHandUnmasked dealer = DealerHandUnmasked.builder()
+            .natural21(0)
+            .build();
+
+        GameState state = GameState.builder()
+            .player(player)
+            .dealerUnmasked(dealer)
+            .winner(WinnerState.DEALER_WON.getValue()) // A dealer nyert
+            .players(Collections.emptyMap())
+            .build();
+
+        GameService.TransactionResult result = gameService.calculateRewards(state);
+
+        assertEquals(0, result.transactionResult(), "Veszteség esetén a kifizetés 0.");
+
+        assertNotNull(result.gameState().getPlayer());
+        assertEquals(0, result.gameState().getPlayer().bet());
+        assertEquals(0, result.gameState().getBet());
+    }
+
+    @Test
+    @DisplayName("applyDoubleBet: A tét megduplázódik a GameState-ben és a Player-nél is")
+    void testApplyDoubleBet_Success() {
+        int originalBet = 100;
+
+        PlayerHand initialPlayer = PlayerHand.builder()
+            .bet(originalBet) // Már van benne 100
+            .build();
+
+        GameState initialState = GameState.builder()
+            .bet(originalBet) // A globális tét is 100
+            .player(initialPlayer)
+            .build();
+
+        GameState result = gameService.applyDoubleBet(initialState, originalBet);
+
+        assertNotNull(result);
+        assertEquals(200, result.getBet(), "A globális tétnek 200-nak kell lennie.");
+        assertNotNull(result.getPlayer());
+        assertEquals(200, result.getPlayer().bet(), "A játékos kezében lévő tétnek is 200-nak kell lennie.");
+        assertNotSame(initialState, result);
+        assertNotSame(initialPlayer, result.getPlayer());
+    }
+
+    @Test
+    @DisplayName("insuranceRequest: Dealernek BJ van - a játékos visszakapja az eredeti tétet")
+    void testInsuranceRequest_DealerHasBlackjack() {
+        int initialBet = 100;
+        PlayerHand player = PlayerHand.builder().bet(initialBet).build();
+
+        DealerHandUnmasked dealer = DealerHandUnmasked.builder()
+            .natural21(WinnerState.BLACKJACK_DEALER_WON.getValue())
+            .build();
+
+        GameState state = GameState.builder()
+            .bet(initialBet)
+            .player(player)
+            .dealerUnmasked(dealer)
+            .isRoundActive(true)
+            .build();
+
+        GameService.TransactionResult result = gameService.insuranceRequest(state);
+
+        assertEquals(100, result.transactionResult());
+        assertEquals(0, result.gameState().getBet());
+        assertFalse(result.gameState().isRoundActive());
+        assertEquals(WinnerState.DEALER_WON.getValue(), result.gameState().getWinner());
+    }
+
+    @Test
+    @DisplayName("insuranceRequest: Nincs Dealer BJ - a biztosítás ára levonásra kerül")
+    void testInsuranceRequest_NoDealerBlackjack() {
+        int initialBet = 100; // Biztosítás ára: 100 / 2 = 50
+        PlayerHand player = PlayerHand.builder().bet(initialBet).build();
+
+        DealerHandUnmasked dealer = DealerHandUnmasked.builder().natural21(0).build();
+
+        GameState state = GameState.builder()
+            .bet(initialBet)
+            .player(player)
+            .dealerUnmasked(dealer)
+            .isRoundActive(true)
+            .build();
 
         GameService.TransactionResult result = gameService.insuranceRequest(state);
 
         assertEquals(-50, result.transactionResult());
+        assertEquals(100, result.gameState().getBet());
         assertTrue(result.gameState().isRoundActive());
     }
 
     @Test
-    void testInsuranceRequest_DealerHasBlackjack() {
-        GameState state = createBaseState(100);
+    @DisplayName("splitHand: Sikeres split és két új lap osztása")
+    void testSplitHand_Success() {
+        Card card1 = new Card(Suit.SPADES, Rank.EIGHT);
+        Card card2 = new Card(Suit.HEARTS, Rank.EIGHT);
 
-        DealerHandUnmasked dealer = DealerHandUnmasked.createEmptyHand().toBuilder()
-            .natural21(WinnerState.BLACKJACK_DEALER_WON.getValue())
+        PlayerHand originalHand = PlayerHand.builder()
+            .id("hand-1")
+            .hand(new ArrayList<>(List.of(card1, card2))) // Két 8-as
+            .canSplit(true)
             .build();
 
-        state = state.toBuilder()
-            .dealerUnmasked(dealer)
-            .isRoundActive(true)
+        GameState initialState = GameState.builder()
+            .player(originalHand)
+            .players(new HashMap<>())
+            .splitReq(0)
+            .wasSplitInRound(false)
             .build();
 
-        GameService.TransactionResult result = gameService.insuranceRequest(state);
+        GameState stateAfterFirst = initialState.toBuilder().wasSplitInRound(true).build();
+        GameState finalState = stateAfterFirst.toBuilder().build();
 
-        assertEquals(100, result.transactionResult(), "Dealer Blackjack esetén a biztosítás az eredeti tét összegét adja vissza");
-        assertFalse(result.gameState().isRoundActive(), "Dealer Blackjack esetén a biztosítás után a körnek le kell zárulnia");
+        when(gameStateManager.dealSplitCard(any(GameState.class), eq(true), isNull()))
+            .thenReturn(stateAfterFirst);
+        when(gameStateManager.dealSplitCard(any(GameState.class), eq(false), eq(card2)))
+            .thenReturn(finalState);
+
+        GameState result = gameService.splitHand(initialState);
+
+        assertNotNull(result);
+        assertTrue(result.isWasSplitInRound(), "A wasSplitInRound flagnek true-nak kell lennie.");
+
+        verify(gameStateManager).dealSplitCard(argThat(s -> {
+            assertNotNull(s.getPlayer());
+            return s.getPlayer().hand().size() == 1;
+        }), eq(true), isNull());
+        verify(gameStateManager).dealSplitCard(any(), eq(false), eq(card2));
     }
 
     @Test
-    void testApplyDoubleBet_ShouldDoubleCorrectly() {
-        GameState state = createBaseState(100);
+    @DisplayName("splitHand: Nem engedélyez split-et, ha már túl sok kéz van (max 4)")
+    void testSplitHand_TooManyHands() {
+        Map<String, PlayerHand> manyHands = new HashMap<>();
+        for (int i = 0; i < 4; i++) manyHands.put("h" + i, PlayerHand.builder().build());
 
-        GameState result = gameService.applyDoubleBet(state, 100);
-
-        assertEquals(200, result.getBet());
-        assertNotNull(result.getPlayer());
-        assertEquals(200, result.getPlayer().bet());
-    }
-
-    @Test
-    void testPlaceBet_ShouldAccumulateBetsAndHistory() {
-        // 1. Kezdőállapot: deck null, minden üres
-        GameState initialState = createBaseState(0).toBuilder()
-            .bet(0)
-            .betList(new ArrayList<>())
-            .deck(null)
+        GameState state = GameState.builder()
+            .player(PlayerHand.builder().canSplit(true).build())
+            .players(manyHands)
             .build();
 
-        GameStateBet dto1 = betService.placeBet(initialState, 50);
+        GameState result = gameService.splitHand(state);
 
-        assertEquals(50, dto1.bet());
-        assertEquals(List.of(50), dto1.betList());
-        assertEquals(104, dto1.deckLen()); // A "virtuális" 104-es érték ellenőrzése
+        assertSame(state, result, "Túl sok kéz esetén az eredeti állapotot kell visszakapni.");
+        verifyNoInteractions(gameStateManager);
+    }
 
-        GameState intermediateState = initialState.toBuilder()
-            .bet(dto1.bet())
-            .betList(dto1.betList())
+    @Test
+    @DisplayName("splitHand: Nem engedélyez split-et, ha a lapok nem egyforma értékűek (canSplit=false)")
+    void testSplitHand_DifferentCards_NoSplit() {
+        Card card1 = new Card(Suit.SPADES, Rank.TEN);
+        Card card2 = new Card(Suit.HEARTS, Rank.SIX);
+
+        PlayerHand player = PlayerHand.builder()
+            .hand(List.of(card1, card2))
+            .canSplit(false)
             .build();
 
-        GameStateBet dto2 = betService.placeBet(intermediateState, 100);
-
-        assertEquals(150, dto2.bet());
-        assertEquals(List.of(50, 100), dto2.betList());
-        assertEquals(104, dto2.deckLen());
-    }
-
-    @Test
-    void testRetakeBet_ShouldRemoveLastChipAndHandleStateTransition() {
-        GameState initialState = createBaseState(150).toBuilder()
-            .bet(150)
-            .betList(new ArrayList<>(List.of(50, 100)))
-            .isRoundActive(true)
-            .deck(null)
+        GameState initialState = GameState.builder()
+            .player(player)
+            .players(new HashMap<>())
             .build();
 
-        BetService.RetakeResult result1 = betService.retakeBet(initialState);
-        GameStateBet dto1 = result1.newState();
+        GameState result = gameService.splitHand(initialState);
 
-        assertEquals(100, result1.amountReturned());
-        assertEquals(50, dto1.bet());
-        assertEquals(List.of(50), dto1.betList());
-        assertEquals(104, dto1.deckLen()); // Itt is elvárjuk a 104-et!
+        assertSame(initialState, result, "Eltérő lapok esetén a metódus nem módosíthatja az állapotot.");
 
-        GameState intermediateState = initialState.toBuilder()
-            .bet(dto1.bet())
-            .betList(dto1.betList())
-            .isRoundActive(!dto1.betList().isEmpty())
-            .build();
-
-        assertTrue(intermediateState.isRoundActive());
-
-        BetService.RetakeResult result2 = betService.retakeBet(intermediateState);
-        GameStateBet dto2 = result2.newState();
-
-        GameState finalState = intermediateState.toBuilder()
-            .bet(dto2.bet())
-            .betList(dto2.betList())
-            .isRoundActive(!dto2.betList().isEmpty())
-            .build();
-
-        assertEquals(50, result2.amountReturned());
-        assertEquals(0, dto2.bet());
-        assertTrue(dto2.betList().isEmpty());
-        assertFalse(finalState.isRoundActive()); // Végre kikapcsolt
+        verifyNoInteractions(gameStateManager);
     }
 
     @Test
-    void testCreateNewDeck_ShouldUpdateGameStateWithNewDeck() {
-        GameState initialState = createBaseState(100);
-
-        Deck expectedDeck = Deck.createNewDeck();
-
-        when(deckService.createNewDeck()).thenReturn(expectedDeck);
-
-        GameState resultState = gameStateManager.createNewDeck(initialState);
-
-        verify(deckService, times(1)).createNewDeck();
-
-        assertEquals(expectedDeck, resultState.getDeck());
-        assertEquals(100, resultState.getBet());
-    }
-
-    @Test
-    void testSafeDealCard_NormalCase_ShouldReturnCardAndNewState() {
-        GameState state = createBaseState(100);
-        Card expectedCard = new Card(Suit.HEARTS, Rank.ACE);
-        Deck remainingDeck = Deck.builder().deck(List.of()).build(); // Üres maradék pakli szimulálása
-        DealResult dealResult = new DealResult(expectedCard, remainingDeck);
-
-        when(deckService.dealCard(any(Deck.class))).thenReturn(dealResult);
-
-        GameService.DealResultWithState result = gameStateManager.safeDealCard(state);
-
-        assertEquals(expectedCard, result.dealtCard());
-        assertEquals(remainingDeck, result.newGameState().getDeck());
-        verify(deckService, times(1)).dealCard(any());
-    }
-
-    @Test
-    void testSafeDealCard_DeckExhausted_ShouldReshuffleAndTryAgain() {
-        GameState state = createBaseState(100);
-        Deck newDeck = Deck.createNewDeck();
-        Card expectedCard = new Card(Suit.SPADES, Rank.KING);
-        DealResult successfulResult = new DealResult(expectedCard, newDeck);
-
-        // 1. Első hívásra hibát dob (üres pakli szimulálása)
-        // 2. Második hívásra (az újrakeverés után) sikeresen ad egy lapot
-        when(deckService.dealCard(any()))
-            .thenThrow(new IllegalStateException("Empty")) // Első próbálkozás elbukik
-            .thenReturn(successfulResult);                // Második (reshuffle utáni) sikerül
-
-        when(deckService.createNewDeck()).thenReturn(newDeck);
-
-        GameService.DealResultWithState result = gameStateManager.safeDealCard(state);
-
-        assertEquals(expectedCard, result.dealtCard());
-        verify(deckService, times(1)).createNewDeck(); // Ellenőrizzük, hogy volt-e újrakeverés
-        verify(deckService, times(2)).dealCard(any()); // Összesen kétszer kellett hívni az osztást
-    }
-
-    @Test
-    void testInitializeNewRound_ShouldSetupEverythingCorrectly() {
-        GameState baseState = createBaseState(100);
-        Card pCard1 = new Card(Suit.HEARTS, Rank.TEN);
-        Card dCard1 = new Card(Suit.CLUBS, Rank.FIVE);
-        Card pCard2 = new Card(Suit.DIAMONDS, Rank.SIX);
-        Card dCard2 = new Card(Suit.SPADES, Rank.ACE); // Ász az osztónak -> Insurance kell!
-
-        when(deckService.dealCard(any()))
-            .thenReturn(new DealResult(pCard1, baseState.getDeck()))
-            .thenReturn(new DealResult(dCard1, baseState.getDeck()))
-            .thenReturn(new DealResult(pCard2, baseState.getDeck()))
-            .thenReturn(new DealResult(dCard2, baseState.getDeck()));
-
-        when(handValueCalculator.calculateSum(any())).thenReturn(16); // Player 10+6
-        when(handStateUpdater.updateHandState(anyInt(), anyInt())).thenReturn(HandState.UNDER_21);
-        when(gameRuleEngine.canSplit(any())).thenReturn(false);
-        when(gameRuleEngine.initNatural21State(any())).thenReturn(0); // WinnerState.NONE
-
-        GameState result = gameService.initializeNewRound(baseState);
-
-        // Játékos adatai
-        assertNotNull(result.getPlayer());
-        assertEquals(2, result.getPlayer().hand().size());
-        assertEquals(16, result.getPlayer().sum());
-        assertEquals("P-001", result.getPlayer().id());
-        assertNotNull(result.getDealerMasked());
-        assertEquals(2, result.getDealerMasked().hand().size());
-
-        Card expectedMasked = Card.createMaskedCard();
-        assertEquals(expectedMasked, result.getDealerMasked().hand().get(0),
-            "Az osztó első lapjának maszkoltnak kell lennie (✪ szimbólum)");
-        assertEquals(Rank.ACE, result.getDealerMasked().hand().get(1).rank());
-
-        // Osztó adatai (MaskedHand)
-        assertEquals(2, result.getDealerMasked().hand().size());
-        assertEquals(Rank.ACE, result.getDealerMasked().hand().get(1).rank());
-        assertTrue(result.getDealerMasked().canInsure(), "Ásznál fel kell ajánlani a biztosítást");
-
-        // Állapot adatok
-        assertTrue(result.isRoundActive());
-        assertEquals(1, result.getHandCounter());
-
-        // Szerviz hívások ellenőrzése
-        verify(deckService, times(4)).dealCard(any());
-    }
-
-    @Test
-    void testInitializeNewRound_ShouldSetAcesTrue_WhenPlayerHasTwoAces() {
-        GameState baseState = createBaseState(100);
-
-        Card pCard1 = new Card(Suit.HEARTS, Rank.ACE);
-        Card dCard1 = new Card(Suit.CLUBS, Rank.FIVE);
-        Card pCard2 = new Card(Suit.DIAMONDS, Rank.ACE);
-        Card dCard2 = new Card(Suit.SPADES, Rank.TEN);
-
-        // Kártyaosztás sorrendje: P1, D1, P2, D2
-        when(deckService.dealCard(any()))
-            .thenReturn(new DealResult(pCard1, baseState.getDeck()))
-            .thenReturn(new DealResult(dCard1, baseState.getDeck()))
-            .thenReturn(new DealResult(pCard2, baseState.getDeck()))
-            .thenReturn(new DealResult(dCard2, baseState.getDeck()));
-
-        // Ászok összege 2 vagy 12 (Blackjack függő), de most a kalkulátor 12-t ad
-        when(handValueCalculator.calculateSum(any())).thenReturn(12);
-        when(handStateUpdater.updateHandState(anyInt(), anyInt())).thenReturn(HandState.UNDER_21);
-
-        // Két Ász esetén a Split
-        when(gameRuleEngine.canSplit(any())).thenReturn(true);
-        when(gameRuleEngine.initNatural21State(any())).thenReturn(0);
-
-        GameState result = gameService.initializeNewRound(baseState);
-
-        assertTrue(result.isAces(), "Ha az első és a harmadik lap Ász, az 'aces' mezőnek true-nak kell lennie!");
-
-        assertEquals(Rank.ACE, result.getPlayer().hand().get(0).rank());
-        assertEquals(Rank.ACE, result.getPlayer().hand().get(1).rank());
-        assertEquals(12, result.getPlayer().sum());
-    }
-
-    @Test
-    void testPlayerHit_ShouldAddCardAndUpdateSum() {
-        Card initialCard = new Card(Suit.HEARTS, Rank.FIVE);
-        Card drawnCard = new Card(Suit.DIAMONDS, Rank.TEN);
-
-        GameState state = createBaseState(100).toBuilder()
-            .player(PlayerHand.createEmptyHand().toBuilder()
-                .hand(new LinkedList<>(List.of(initialCard)))
-                .sum(5)
-                .build())
-            .build();
-
-        // Megjegyzés: Mivel a playerHit a safeDealCard-ot hívja, ami a deckService-t,
-        // a mock-ot a deckService-re állítjuk be.
-        when(deckService.dealCard(any())).thenReturn(new DealResult(drawnCard, state.getDeck()));
-
-        when(handValueCalculator.calculateSum(any())).thenReturn(15);
-        when(handStateUpdater.updateHandState(15, 2)).thenReturn(HandState.UNDER_21);
-
-        GameState result = gameService.playerHit(state);
-
-        assertEquals(2, result.getPlayer().hand().size());
-        assertEquals(15, result.getPlayer().sum());
-        assertFalse(result.getPlayer().stated(), "15 pontnál még nem kellene megállnia automatikusan");
-        assertEquals(drawnCard, result.getPlayer().hand().get(1));
-    }
-
-    @Test
-    void testPlayerHit_ShouldSetStatedTrue_WhenBust() {
-        GameState state = createBaseState(100); // Alaphelyzet
-        Card bustCard = new Card(Suit.CLUBS, Rank.TEN);
-
-        when(deckService.dealCard(any())).thenReturn(new DealResult(bustCard, state.getDeck()));
-
-        // Szimuláljuk, hogy a számítás 25-öt ad (Bust)
-        when(handValueCalculator.calculateSum(any())).thenReturn(25);
-        when(handStateUpdater.updateHandState(eq(25), anyInt())).thenReturn(HandState.BUST);
-
-        GameState result = gameService.playerHit(state);
-
-        assertEquals(25, result.getPlayer().sum());
-        assertEquals(HandState.BUST.getValue(), result.getPlayer().handState());
-        assertTrue(result.getPlayer().stated(), "Bust esetén a stated-nek true-nak kell lennie");
-    }
-
-    @Test
-    void testPlayerStand_ShouldCompleteDealerTurnAndSetWinner() {
-        Card dCard1 = new Card(Suit.HEARTS, Rank.FIVE);
-        Card dCard2 = new Card(Suit.DIAMONDS, Rank.EIGHT);
-        Card dCard3 = new Card(Suit.CLUBS, Rank.SIX); // Ezt fogja a Dealer húzni
-
-        // Játékos megáll 18-nál (2 lapja van)
-        PlayerHand player = PlayerHand.createEmptyHand().toBuilder()
-            .hand(new LinkedList<>(List.of(new Card(Suit.SPADES, Rank.TEN), new Card(Suit.SPADES, Rank.EIGHT))))
-            .sum(18)
+    @DisplayName("addToPlayersListByStand: Frissíti a kezet és az indexet, ha van aktív kéz")
+    void testAddToPlayersListByStand_Success() {
+        String handId = "split-hand-1";
+        PlayerHand playerHand = PlayerHand.builder()
+            .id(handId)
             .stated(false)
             .build();
 
-        // Osztónak 13 pontja van (5 + 8)
-        DealerHandUnmasked dealer = DealerHandUnmasked.createEmptyHand().toBuilder()
-            .hand(new LinkedList<>(List.of(dCard1, dCard2)))
-            .sum(13)
+        Map<String, PlayerHand> initialPlayers = new HashMap<>();
+        initialPlayers.put(handId, playerHand);
+
+        Map<String, Boolean> initialIndex = new HashMap<>();
+        initialIndex.put(handId, false);
+
+        GameState oldState = GameState.builder()
+            .player(playerHand)
+            .players(initialPlayers)
+            .playersIndex(initialIndex)
             .build();
 
-        GameState state = createBaseState(100).toBuilder()
-            .player(player)
-            .dealerUnmasked(dealer)
-            .isRoundActive(true)
-            .build();
+        when(gameStateManager.areStatedFalseHands(anyMap())).thenReturn(true);
 
-        // 2. MOCKOK BEÁLLÍTÁSA
-        // Biztonsági mentés: minden egyéb calculateSum hívásra adjon 0-t, ne null-t
-        when(handValueCalculator.calculateSum(any())).thenReturn(0);
+        GameState result = gameService.addToPlayersListByStand(oldState);
 
-        // Akkor adjon 13-at, ha a Dealer kezdő keze (2 lap) van benne
-        when(handValueCalculator.calculateSum(argThat(l -> l != null && l.size() == 2)))
-            .thenReturn(13);
+        assertNotNull(result);
+        assertNotNull(result.getPlayer());
+        assertTrue(result.getPlayer().stated());
+        assertTrue(result.getPlayers().get(handId).stated());
+        assertTrue(result.getPlayersIndex().get(handId));
 
-        // Akkor adjon 19-et, ha már a húzott kártyával bővült kéz (3 lap) van benne
-        when(handValueCalculator.calculateSum(argThat(l -> l != null && l.size() == 3)))
-            .thenReturn(19);
-
-        // Kártyaosztás szimulálása: a Dealer kap egy 6-ost (dCard3)
-        when(deckService.dealCard(any())).thenReturn(new DealResult(dCard3, state.getDeck()));
-
-        // HandState mockolása (Kétszer hívódik: Stand-nél és a Dealer húzásnál)
-        when(handStateUpdater.updateHandState(anyInt(), anyInt())).thenReturn(HandState.UNDER_21);
-
-        // WinnerState: A Dealer nyert (19 > 18)
-        when(gameRuleEngine.winnerStateUpdater(any(), any())).thenReturn(WinnerState.DEALER_WON.getValue());
-
-        // 3. WHEN
-        GameState finalState = gameService.playerStand(state);
-
-        // 4. THEN - Ellenőrzések
-        // Játékos állapota
-        assertTrue(finalState.getPlayer().stated(), "A játékosnak stated=true állapotba kell kerülnie");
-
-        // Dealer állapota
-        assertEquals(3, finalState.getDealerUnmasked().hand().size(), "A Dealernek húznia kellett egy 3. lapot");
-        assertEquals(19, finalState.getDealerUnmasked().sum(), "A Dealer végpontszáma 19 kell legyen");
-        assertEquals(dCard3, finalState.getDealerUnmasked().hand().getLast(), "Az utolsó lapnak a húzott 6-osnak kell lennie");
-
-        // Kör állapota
-        assertFalse(finalState.isRoundActive(), "A körnek le kell zárulnia");
-        assertEquals(WinnerState.DEALER_WON.getValue(), finalState.getWinner(), "A győztes a Dealer kell legyen");
-
-        // Ellenőrizzük, hogy tényleg meghívódott-e az osztás
-        verify(deckService, times(1)).dealCard(any());
+        verify(gameStateManager).areStatedFalseHands(anyMap());
     }
 
     @Test
-    void testPlayerStand_DealerBusts_PlayerWins() {
-        Card d1 = new Card(Suit.HEARTS, Rank.FIVE);
-        Card d2 = new Card(Suit.CLUBS, Rank.TEN);
-        Card bustCard = new Card(Suit.SPADES, Rank.TEN);
+    @DisplayName("addToPlayersListByStand: Nincs aktív kéz, az állapot változatlan")
+    void testAddToPlayersListByStand_Inactive() {
+        GameState oldState = GameState.builder().players(new HashMap<>()).build();
+        when(gameStateManager.areStatedFalseHands(anyMap())).thenReturn(false);
 
-        GameState state = createBaseState(100).toBuilder()
-            .player(PlayerHand.createEmptyHand().toBuilder()
-                .hand(new LinkedList<>(List.of(new Card(Suit.DIAMONDS, Rank.KING), new Card(Suit.DIAMONDS, Rank.EIGHT))))
-                .sum(18).build())
-            .dealerUnmasked(DealerHandUnmasked.createEmptyHand().toBuilder()
-                .hand(new LinkedList<>(List.of(d1, d2))).sum(15).build())
-            .isRoundActive(true)
+        GameState result = gameService.addToPlayersListByStand(oldState);
+
+        assertSame(oldState, result, "Nem történt módosítás, az eredeti referenciát kell kapnunk.");
+    }
+
+    @Test
+    @DisplayName("addToPlayersListByStand: Ha playerHand null, nem történik módosítás")
+    void testAddToPlayersListByStand_NullPlayer() {
+        GameState state = GameState.builder()
+            .player(null) // Szélsőséges eset
             .build();
 
-        when(deckService.dealCard(any())).thenReturn(new DealResult(bustCard, state.getDeck()));
+        when(gameStateManager.areStatedFalseHands(any())).thenReturn(true);
 
-        // Számítások: 2 lap = 15, 3 lap = 25
-        when(handValueCalculator.calculateSum(argThat(l -> l != null && l.size() == 2))).thenReturn(15);
-        when(handValueCalculator.calculateSum(argThat(l -> l != null && l.size() == 3))).thenReturn(25);
+        GameState result = gameService.addToPlayersListByStand(state);
 
-        when(handStateUpdater.updateHandState(anyInt(), anyInt())).thenAnswer(invocation -> {
-            int sum = invocation.getArgument(0);
-            return sum > 21 ? HandState.BUST : HandState.UNDER_21;
+        assertSame(state, result);
+    }
+
+    @Test
+    @DisplayName("addSplitPlayerToGame: Következő kéz aktiválása a Map-ből (React-biztos logika)")
+    void testAddSplitPlayerToGame_FromMapBranch() {
+        String currentActiveId = "hand-1";
+        String nextWaitingId = "hand-2";
+
+        PlayerHand currentHand = PlayerHand.builder().id(currentActiveId).build();
+        PlayerHand nextHand = PlayerHand.builder()
+            .id(nextWaitingId)
+            .hand(new LinkedList<>(List.of(new Card(Suit.SPADES, Rank.EIGHT))))
+            .build();
+
+        Map<String, PlayerHand> playersMap = new HashMap<>();
+        playersMap.put(nextWaitingId, nextHand);
+
+        GameState state = GameState.builder()
+            .player(currentHand)
+            .splitPlayer(null)
+            .players(playersMap)
+            .playersIndex(Map.of(nextWaitingId, false))
+            .build();
+
+        when(gameStateManager.findNextActivePlayerId(any())).thenReturn(Optional.of(nextWaitingId));
+
+        // Dinamikus Mock. Az invocation.getArgument(0) az az állapot,
+        // amiből a kód már eltávolította a hand-2-t.
+        when(gameStateManager.safeDealCard(any(GameState.class))).thenAnswer(invocation -> {
+            GameState currentStateAtCall = invocation.getArgument(0);
+            Card dealtCard = new Card(Suit.HEARTS, Rank.TEN);
+            return new GameService.DealResultWithState(dealtCard, currentStateAtCall);
         });
 
-        when(gameRuleEngine.winnerStateUpdater(any(), any())).thenReturn(WinnerState.PLAYER_WON.getValue());
+        when(handValueCalculator.calculateSum(any())).thenReturn(18);
+        when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean())).thenReturn(HandState.UNDER_21);
 
-        GameState finalState = gameService.playerStand(state);
+        GameState result = gameService.addSplitPlayerToGame(state);
 
-        assertEquals(HandState.BUST.getValue(), finalState.getDealerUnmasked().handState());
-        assertEquals(WinnerState.PLAYER_WON.getValue(), finalState.getWinner());
-        assertFalse(finalState.isRoundActive());
-        verify(deckService, times(1)).dealCard(any());
+        // Ellenőrizzük, hogy az új ID lett az aktív játékos
+        assertNotNull(result.getPlayer());
+        assertEquals(nextWaitingId, result.getPlayer().id());
+
+        // Ellenőrizzük a Map-et: Most már false lesz (sikeres törlés),
+        // mert a safeDealCard mockja nem írta felül a változtatást a régi state-el.
+        assertFalse(result.getPlayers().containsKey(nextWaitingId),
+            "A Map-nek üresnek kell lennie, mert a kód eltávolította az ID-t.");
+
+        // Ellenőrizzük, hogy a splitPlayer-be is bekerült mentésként (React-biztonság)
+        assertNotNull(result.getSplitPlayer());
+        assertEquals(nextWaitingId, result.getSplitPlayer().id());
+
+        // Ellenőrizzük, hogy kapott-e második lapot
+        assertEquals(2, result.getPlayer().hand().size());
     }
 
     @Test
-    void testPlayerStand_DealerAlreadyAt17_NoDrawing() {
-        // Dealernek már megvan a 17-je (Hetes + Tízes)
-        GameState state = createBaseState(100).toBuilder()
-            .player(PlayerHand.createEmptyHand().toBuilder()
-                .hand(new LinkedList<>(List.of(new Card(Suit.SPADES, Rank.KING), new Card(Suit.SPADES, Rank.EIGHT))))
-                .sum(18).build())
-            .dealerUnmasked(DealerHandUnmasked.createEmptyHand().toBuilder()
-                .hand(new LinkedList<>(List.of(new Card(Suit.HEARTS, Rank.SEVEN), new Card(Suit.CLUBS, Rank.TEN))))
-                .sum(17).build())
+    @DisplayName("addSplitPlayerToGame: Ha nincs több aktív kéz, változatlan állapotot ad vissza")
+    void testAddSplitPlayerToGame_NoMoreActivePlayers() {
+        GameState state = GameState.builder()
+            .playersIndex(Map.of("hand-1", true)) // Mindenki kész (true)
+            .build();
+
+        when(gameStateManager.findNextActivePlayerId(any())).thenReturn(Optional.empty());
+
+        GameState result = gameService.addSplitPlayerToGame(state);
+
+        assertSame(state, result, "Üres Optional esetén az eredeti állapotot kell visszakapni.");
+
+        verify(gameStateManager, never()).safeDealCard(any());
+        verify(gameStateManager).findNextActivePlayerId(any());
+        verifyNoMoreInteractions(handValueCalculator, gameRuleEngine);
+    }
+
+    @Test
+    @DisplayName("addSplitPlayerToGame: Ha a játékosnak már van 2 lapja, nem kap újat")
+    void testAddSplitPlayerToGame_AlreadyHasTwoCards() {
+        String handId = "hand-1";
+        PlayerHand playerWithTwoCards = PlayerHand.builder()
+            .id(handId)
+            .hand(List.of(new Card(Suit.SPADES, Rank.ACE), new Card(Suit.HEARTS, Rank.TEN)))
+            .build();
+
+        GameState state = GameState.builder()
+            .player(playerWithTwoCards)
+            .playersIndex(Map.of(handId, false))
+            .build();
+
+        when(gameStateManager.findNextActivePlayerId(any())).thenReturn(Optional.of(handId));
+
+        GameState result = gameService.addSplitPlayerToGame(state);
+
+        assertNotNull(result.getPlayer());
+        assertEquals(2, result.getPlayer().hand().size(), "Nem szabad harmadik lapot kapnia.");
+        verify(gameStateManager, never()).safeDealCard(any()); // Fontos: a safeDealCard-ot nem hívhatja meg!
+    }
+
+    @Test
+    @DisplayName("addPlayerFromPlayers: Az első várakozó kezet aktívvá teszi és eltávolítja a Map-ből")
+    void testAddPlayerFromPlayers_Success() {
+        String handId = "split-2";
+        PlayerHand handToExtract = PlayerHand.builder().id(handId).build();
+
+        // Fontos a LinkedHashMap a tesztadatban is, hogy modellezzük a sorrendet
+        Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
+        playersMap.put(handId, handToExtract);
+        playersMap.put("other-hand", PlayerHand.builder().id("other").build());
+
+        GameState initialState = GameState.builder()
+            .players(playersMap)
+            .player(null) // Jelenleg nincs aktív játékos
+            .build();
+
+        GameState result = gameService.addPlayerFromPlayers(initialState);
+
+        assertNotNull(result.getPlayer());
+        assertEquals(handId, result.getPlayer().id(), "A 'split-2' ID-jú kéznek kell aktívvá válnia.");
+        assertEquals(1, result.getPlayers().size(), "Egy kéznek maradnia kell a várólistán.");
+        assertFalse(result.getPlayers().containsKey(handId), "Az aktivált kéz nem maradhat a Map-ben.");
+    }
+
+    @Test
+    @DisplayName("addPlayerFromPlayers: Üres Map esetén nem módosít")
+    void testAddPlayerFromPlayers_EmptyMap() {
+        GameState state = GameState.builder()
+            .players(new HashMap<>())
+            .build();
+
+        GameState result = gameService.addPlayerFromPlayers(state);
+
+        assertSame(state, result, "Üres várólista esetén az eredeti referenciát kell kapnunk.");
+    }
+
+    @Test
+    @DisplayName("addPlayerFromPlayers: A meglévő aktív játékos felülírásra kerül az újjal")
+    void testAddPlayerFromPlayers_OverwritesExistingPlayer() {
+        PlayerHand activeHand = PlayerHand.builder().id("hand-active").build();
+        PlayerHand waitingHand = PlayerHand.builder().id("hand-waiting").build();
+
+        Map<String, PlayerHand> playersMap = new LinkedHashMap<>();
+        playersMap.put("hand-waiting", waitingHand);
+
+        GameState initialState = GameState.builder()
+            .player(activeHand) // Van egy aktív játékos
+            .players(playersMap)
+            .build();
+
+        GameState result = gameService.addPlayerFromPlayers(initialState);
+
+        assertNotNull(result.getPlayer());
+        assertEquals("hand-waiting", result.getPlayer().id(), "A várakozó kéznek kell átvennie a helyet.");
+        assertNotEquals("hand-active", result.getPlayer().id(), "A régi aktív kéznek el kell tűnnie az aktív helyről.");
+    }
+
+    @Test
+    @DisplayName("restartGame: Kényszerített alaphelyzet (Helyreállítás hiba után)")
+    void testRestartGame_EmergencyRecovery() {
+        GameState glitchedState = GameState.builder()
             .isRoundActive(true)
-            .build();
-
-        // A kalkulátor 17-et ad a Dealer 2 lapjára
-        when(handValueCalculator.calculateSum(argThat(l -> l != null && l.size() == 2))).thenReturn(17);
-
-        // Rugalmas HandState mockolás (lekezeli a játékos 18-át és a dealer 17-ét is)
-        when(handStateUpdater.updateHandState(anyInt(), anyInt())).thenReturn(HandState.UNDER_21);
-
-        // RuleEngine szerint a játékos nyert (18 > 17)
-        when(gameRuleEngine.winnerStateUpdater(any(), any())).thenReturn(WinnerState.PLAYER_WON.getValue());
-
-        GameState finalState = gameService.playerStand(state);
-
-        assertEquals(2, finalState.getDealerUnmasked().hand().size(), "A Dealer nem húzhatott volna lapot, mert 17-en áll");
-        assertEquals(17, finalState.getDealerUnmasked().sum());
-
-        // A legfontosabb ellenőrzés: SOSEM hívódott meg a kártyaosztás
-        verify(deckService, never()).dealCard(any());
-        assertFalse(finalState.isRoundActive());
-    }
-
-    @Test
-    void testCalculateRewards_PlayerHasBlackjack_ShouldReturnTwoAndHalfTimesBet() {
-        PlayerHand player = PlayerHand.createEmptyHand().toBuilder()
+            .wasSplitInRound(true)
             .bet(100)
+            .natural21(2) // Valami hibás érték
+            .winner(1)
             .build();
 
-        GameState state = createBaseState(100).toBuilder()
-            .player(player)
-            .natural21(WinnerState.BLACKJACK_PLAYER_WON.getValue())
+        GameState cleanedInternalState = GameState.builder()
+            .player(null)
+            .dealerMasked(null)
+            .dealerUnmasked(null)
+            .players(new HashMap<>())
             .build();
 
-        GameService.TransactionResult result = gameService.calculateRewards(state);
+        when(gameStateManager.resetRoundState(glitchedState)).thenReturn(cleanedInternalState);
 
-        assertEquals(250, result.transactionResult(), "100-as tétnél 250 jár vissza Blackjackre");
-        assertEquals(0, result.gameState().getPlayer().bet(), "A tétet le kell nullázni kifizetés után");
-        assertEquals(0, result.gameState().getBetList().size(), "A betList-et ki kell üríteni");
-        verify(gameStateService).saveGameState(any()); // Fontos, hogy mentse az állapotot
-    }
+        GameState result = gameService.restartGame(glitchedState);
 
-    @Test
-    void testCalculateRewards_PlayerWins_ShouldDoubleTheBet() {
-        PlayerHand player = PlayerHand.createEmptyHand().toBuilder().bet(100).build();
-        DealerHandUnmasked dealer = DealerHandUnmasked.createEmptyHand();
+        assertAll("A helyreállítási folyamatnak minden kritikus mezőt nulláznia kell",
+            () -> assertEquals(0, result.getBet(), "A tét nem maradhat meg hiba után."),
+            () -> assertFalse(result.isRoundActive(), "A körnek lezártnak kell lennie."),
+            () -> assertFalse(result.isWasSplitInRound(), "A split flaget törölni kell."),
+            () -> assertEquals(0, result.getNatural21(), "A BlackJack jelzőt nullázni kell."),
+            () -> assertEquals(0, result.getWinner(), "A győztest törölni kell.")
+        );
 
-        GameState state = createBaseState(100).toBuilder()
-            .player(player)
-            .dealerUnmasked(dealer)
-            .winner(WinnerState.PLAYER_WON.getValue())
-            .natural21(0)
-            .build();
-
-        GameService.TransactionResult result = gameService.calculateRewards(state);
-
-        assertEquals(200, result.transactionResult(), "Sima győzelemnél a tét duplája jár");
-    }
-
-    @Test
-    void testCalculateRewards_Push_ShouldReturnOriginalBet() {
-        PlayerHand player = PlayerHand.createEmptyHand().toBuilder().bet(100).build();
-        DealerHandUnmasked dealer = DealerHandUnmasked.createEmptyHand();
-
-        GameState state = createBaseState(100).toBuilder()
-            .player(player)
-            .dealerUnmasked(dealer)
-            .winner(WinnerState.PUSH.getValue())
-            .build();
-
-        GameService.TransactionResult result = gameService.calculateRewards(state);
-
-        assertEquals(100, result.transactionResult(), "Döntetlennél a tét visszajár");
-    }
-
-    @Test
-    void testCalculateRewards_DealerHasBlackjack_PlayerLoses() {
-        PlayerHand player = PlayerHand.createEmptyHand().toBuilder()
-            .bet(100)
-            .sum(20)
-            .build();
-
-        DealerHandUnmasked dealer = DealerHandUnmasked.createEmptyHand().toBuilder()
-            .natural21(WinnerState.BLACKJACK_DEALER_WON.getValue())
-            .build();
-
-        GameState state = createBaseState(100).toBuilder()
-            .player(player)
-            .dealerUnmasked(dealer)
-            .winner(WinnerState.DEALER_WON.getValue()) // A RuleEngine szerint a Dealer nyert
-            .build();
-
-        GameService.TransactionResult result = gameService.calculateRewards(state);
-
-        assertEquals(0, result.transactionResult(), "Dealer Blackjack esetén a játékos 0 zsetont kap vissza");
-        assertEquals(0, result.gameState().getPlayer().bet(), "A tétet mindenképpen le kell nullázni");
-    }
-
-    @Test
-    void testCalculateRewards_BothHaveBlackjack_ShouldReturnPush() {
-        PlayerHand player = PlayerHand.createEmptyHand().toBuilder()
-            .bet(100)
-            .sum(21)
-            .build();
-
-        DealerHandUnmasked dealer = DealerHandUnmasked.createEmptyHand().toBuilder()
-            .natural21(WinnerState.BLACKJACK_PUSH.getValue())
-            .sum(21)
-            .build();
-
-        GameState state = createBaseState(100).toBuilder()
-            .player(player)
-            .dealerUnmasked(dealer)
-            // Itt a WinnerState is PUSH-on kell legyen a RuleEngine szerint
-            .winner(WinnerState.PUSH.getValue())
-            .build();
-
-        GameService.TransactionResult result = gameService.calculateRewards(state);
-
-        assertEquals(100, result.transactionResult(),
-            "Ha mindkettőnek Blackjackje van, a tétnek (100) vissza kell járnia.");
-        assertEquals(0, result.gameState().getPlayer().bet(),
-            "A kifizetés után a tétet le kell nullázni az állapotban.");
-
-        verify(gameStateService).saveGameState(any());
+        verify(gameStateManager, times(1)).resetRoundState(glitchedState);
     }
 }

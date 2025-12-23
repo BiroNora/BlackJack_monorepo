@@ -250,11 +250,9 @@ public class GameService {
             .handState(calculatedHandState.getValue())
             .build();
 
-        GameState newState = deckUpdatedState.toBuilder()
+        return deckUpdatedState.toBuilder()
             .player(newPlayerHand)
             .build();
-
-        return newState;
     }
 
     public GameState playerStand(GameState currentState) {
