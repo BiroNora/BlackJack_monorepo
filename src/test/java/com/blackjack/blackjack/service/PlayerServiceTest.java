@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +27,6 @@ public class PlayerServiceTest {
     // Konstansok a Player entitás minden kötelező mezőjéhez
     private final UUID TEST_ID = UUID.randomUUID();
     private final UUID CLIENT_UUID = UUID.randomUUID();
-    private final String SESSION_ID = "test-session";
     private final UUID IDEMPOTENCY_KEY = UUID.randomUUID();
 
     // A service-nek átadott Player objektum alapállapota
@@ -36,6 +36,7 @@ public class PlayerServiceTest {
     void setUp() {
         // Inicializálunk egy alapértelmezett, teljes Player objektumot minden teszt előtt.
         // Ezt a konkrét objektumot adjuk át a service metódusainak bemenetként.
+        String SESSION_ID = "test-session";
         initialPlayer = Player.builder()
             .id(TEST_ID)
             .clientId(CLIENT_UUID)
@@ -82,12 +83,12 @@ public class PlayerServiceTest {
         Player lowTokenPlayer = initialPlayer.toBuilder().tokens(initialTokens).build();
 
         // Act & Assert
-        IllegalArgumentException thrown = assertThrows(
-            IllegalArgumentException.class,
+        GameRuleException thrown = assertThrows(
+            GameRuleException.class,
             () -> playerService.deductBet(lowTokenPlayer, betAmount)
         );
 
-        assertEquals("Insufficient tokens.", thrown.getMessage());
+        assertEquals("NOT_ENOUGH_TOKENS_FOR_BET", thrown.getMessage());
 
         // Ellenőrizzük, hogy a save() soha nem hívódott meg
         verify(playerRepository, never()).save(any());
