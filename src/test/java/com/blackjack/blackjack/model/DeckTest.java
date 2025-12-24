@@ -2,7 +2,9 @@ package com.blackjack.blackjack.model;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
 import java.util.List;
+
 import static com.blackjack.blackjack.common.GameConstants.NUM_DECKS;
 import static org.junit.jupiter.api.Assertions.*;
 

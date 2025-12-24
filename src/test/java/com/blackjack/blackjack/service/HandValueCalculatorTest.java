@@ -19,6 +19,7 @@ public class HandValueCalculatorTest {
     void setUp() {
         handValueCalculator = new HandValueCalculator();
     }
+
     /**
      * Test case 1: Standard sum without Aces (should be a simple addition).
      * Cards: 8, 9, 2

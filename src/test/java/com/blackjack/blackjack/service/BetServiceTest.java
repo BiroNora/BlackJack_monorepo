@@ -2,7 +2,7 @@ package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.common.GameConstants;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
-import com.blackjack.blackjack.model.*;
+import com.blackjack.blackjack.model.GameState;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,7 +18,8 @@ import static org.junit.jupiter.api.Assertions.*;
 @ExtendWith(MockitoExtension.class)
 public class BetServiceTest {
 
-    @InjectMocks private BetService betService;
+    @InjectMocks
+    private BetService betService;
 
     @Test
     @DisplayName("PlaceBet: Hiba dobása, ha a kör már aktív")

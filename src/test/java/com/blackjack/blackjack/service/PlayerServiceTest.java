@@ -19,16 +19,14 @@ import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 public class PlayerServiceTest {
-    @InjectMocks
-    private PlayerService playerService;
-    @Mock
-    private PlayerRepository playerRepository;
-
     // Konstansok a Player entitás minden kötelező mezőjéhez
     private final UUID TEST_ID = UUID.randomUUID();
     private final UUID CLIENT_UUID = UUID.randomUUID();
     private final UUID IDEMPOTENCY_KEY = UUID.randomUUID();
-
+    @InjectMocks
+    private PlayerService playerService;
+    @Mock
+    private PlayerRepository playerRepository;
     // A service-nek átadott Player objektum alapállapota
     private Player initialPlayer;
 

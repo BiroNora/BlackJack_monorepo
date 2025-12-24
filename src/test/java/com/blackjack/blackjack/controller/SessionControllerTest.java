@@ -23,8 +23,8 @@ import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post; // MockMvc-hez ez kell
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*; // jsonPath, status, cookie innen jön
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(SessionController.class)
 @Import(TestSecurityConfig.class)

@@ -269,7 +269,7 @@ class GameStateManagerTest {
     @Test
     @DisplayName("findNextActivePlayerId: Megtalálja a legkisebb ID-jú aktív játékost")
     void testFindNextActivePlayerId_ReturnsFirstFalse() {
-       Map<String, Boolean> playersIndex = new LinkedHashMap<>();
+        Map<String, Boolean> playersIndex = new LinkedHashMap<>();
         playersIndex.put("P-001", true);
         playersIndex.put("P-003", false);
         playersIndex.put("P-002", false);
