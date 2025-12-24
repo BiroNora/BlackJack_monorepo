@@ -21,6 +21,7 @@ public class GameService {
         this.handValueCalculator = handValueCalculator;
         this.handStateUpdater = handStateUpdater;
     }
+
     // VALÓS FG
     public GameState initializeNewRound1(GameState state) {
         // 1. Kör állapotának nullázása (resetRoundState immutábilis)

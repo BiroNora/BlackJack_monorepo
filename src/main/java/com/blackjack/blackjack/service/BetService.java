@@ -44,7 +44,7 @@ public class BetService {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_BET_TO_RETAKE");
         }
 
-       List<Integer> updatedBetList = new ArrayList<>(oldState.getBetList());
+        List<Integer> updatedBetList = new ArrayList<>(oldState.getBetList());
         int amountToReturn = updatedBetList.removeLast();
         int newTotalBet = oldState.getBet() - amountToReturn;
 

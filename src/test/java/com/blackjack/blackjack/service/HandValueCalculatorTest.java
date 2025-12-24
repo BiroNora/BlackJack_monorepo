@@ -3,6 +3,8 @@ package com.blackjack.blackjack.service;
 import com.blackjack.blackjack.model.Card;
 import com.blackjack.blackjack.model.Rank;
 import com.blackjack.blackjack.model.Suit;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -12,6 +14,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class HandValueCalculatorTest {
     private HandValueCalculator handValueCalculator;
+
+    @BeforeEach
+    void setUp() {
+        handValueCalculator = new HandValueCalculator();
+    }
     /**
      * Test case 1: Standard sum without Aces (should be a simple addition).
      * Cards: 8, 9, 2
@@ -117,5 +124,12 @@ public class HandValueCalculatorTest {
 
         int sum = handValueCalculator.calculateSum(hand);
         assertEquals(12, sum);
+    }
+
+    @Test
+    @DisplayName("Üres kéz értéke nulla")
+    void testEmptyHandReturnsZero() {
+        assertEquals(0, handValueCalculator.calculateSum(List.of()));
+        assertEquals(0, handValueCalculator.calculateSum(null));
     }
 }
