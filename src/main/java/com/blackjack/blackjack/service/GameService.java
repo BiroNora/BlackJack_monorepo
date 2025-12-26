@@ -22,8 +22,8 @@ public class GameService {
         this.handStateUpdater = handStateUpdater;
     }
 
-    // VALÓS FG
-    public GameState initializeNewRound1(GameState state) {
+    // VALÓS ÁG
+    public GameState initializeNewRound(GameState state) {
         // 1. Kör állapotának nullázása (resetRoundState immutábilis)
         GameState currentGameState = gameStateManager.resetRoundState(state)
             .toBuilder()
@@ -124,7 +124,7 @@ public class GameService {
     }
 
     // SPLITHEZ
-    public GameState initializeNewRound(GameState state) {
+    public GameState initializeNewRound1(GameState state) {
         // 1. Kör állapotának nullázása
         GameState currentGameState = gameStateManager.resetRoundState(state)
             .toBuilder()
@@ -184,6 +184,7 @@ public class GameService {
             .bet(currentGameState.getBet())
             .build();
 
+        assert currentGameState.getDealerUnmasked() != null;
         DealerHandUnmasked tempDealerUnmasked = currentGameState.getDealerUnmasked().toBuilder()
             .hand(dealerUnmaskedHand)
             .sum(dealerFullSum)
