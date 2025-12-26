@@ -1,6 +1,7 @@
 package com.blackjack.blackjack.controller;
 
 import com.blackjack.blackjack.dto.SessionContext;
+import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.*;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import com.blackjack.blackjack.service.*;
@@ -10,17 +11,18 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
-import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.mockito.ArgumentMatchers.*;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -42,8 +44,6 @@ public class GameControllerTest {
     private GameStateService gameStateService;
     @MockitoBean
     private GameStateManager gameStateManager;
-    @MockitoBean
-    private RedisConnectionFactory redisConnectionFactory; // Ha kell a sessionhöz
     @MockitoBean
     private PlayerRepository playerRepository;
 
@@ -148,47 +148,46 @@ public class GameControllerTest {
     }
 
     @Test
-    @DisplayName("split_request: Sikeres split és token levonás")
-    void testSplitRequest_Success() throws Exception {
-        UUID uuid = UUID.randomUUID();
-        PlayerHand hand = PlayerHand.builder().bet(200).build();
-        Player player = Player.builder().clientId(uuid).tokens(1000).build();
-        GameState state = GameState.builder().clientId(uuid).player(hand).build();
-        GameState splitState = GameState.builder().clientId(uuid).isRoundActive(true).build();
-
-        when(authenticationService.validateAndGetContext(any())).thenReturn(
-            new SessionContext(uuid, player, null, Optional.of(state))
-        );
-        when(gameService.splitHand(any())).thenReturn(splitState);
-
-        mockMvc.perform(post("/api/split_request"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.status").value("success"));
-
-        // Kritikus: az osztásnál le kell vonni a plusz tétet!
-        verify(playerService).deductBet(player, 200);
-        verify(gameStateService).saveGameState(splitState);
-    }
-
-    @Test
     @DisplayName("double_request: Sikeres duplázás")
     void testDoubleRequest_Success() throws Exception {
         UUID uuid = UUID.randomUUID();
-        // 2 lapja van, van elég pénze
-        PlayerHand hand = PlayerHand.builder().bet(100).hand(List.of(new Card(Suit.HEARTS, Rank.KING), new Card(Suit.CLUBS, Rank.FIVE))).build();
         Player player = Player.builder().clientId(uuid).tokens(500).build();
-        GameState state = GameState.builder().player(hand).build();
+        PlayerHand hand = PlayerHand.builder().bet(100).hand(List.of(new Card(Suit.HEARTS, Rank.KING), new Card(Suit.CLUBS, Rank.FIVE))).build();
 
-        when(authenticationService.validateAndGetContext(any())).thenReturn(new SessionContext(uuid, player, null, Optional.of(state)));
-        when(gameService.playerHit(any())).thenReturn(state);
-        when(gameService.applyDoubleBet(any(), anyInt())).thenReturn(state);
+        GameState initialGameState = GameState.builder().player(hand).build();
+        GameState stateAfterHit = GameState.builder().player(hand).build(); // Service módosítja
+        GameState stateAfterDouble = GameState.builder().player(hand).build(); // Második service hívás eredménye
 
-        mockMvc.perform(post("/api/double_request"))
+        when(authenticationService.validateAndGetContext(any())).thenReturn(new SessionContext(uuid, player, null, Optional.of(initialGameState)));
+        when(gameService.playerHit(initialGameState)).thenReturn(stateAfterHit);
+        when(gameService.applyDoubleBet(stateAfterHit, 100)).thenReturn(stateAfterDouble);
+
+        mockMvc.perform(post("/api/double_request").with(csrf()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.game_state_hint").value("DOUBLE_DOWN_PROCESSED"));
 
-        verify(playerService).deductBet(eq(player), eq(100));
+        // Ez a sor a kulcs: ellenőrzi, hogy a LÁNC VÉGÉN kapott állapotot mentetted-e el
+        verify(gameStateService).saveGameState(stateAfterDouble);
+        verify(playerService).deductBet(player, 100);
     }
+
+    @Test
+    @DisplayName("double_request: Hiba, ha nincs elég token")
+    void testDoubleRequest_NotEnoughTokens() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(50).build(); // Kevés pénz
+        PlayerHand hand = PlayerHand.builder().bet(100).hand(List.of(new Card(Suit.HEARTS, Rank.TEN), new Card(Suit.DIAMONDS, Rank.THREE))).build();
+        GameState state = GameState.builder().player(hand).build();
+
+        when(authenticationService.validateAndGetContext(any()))
+            .thenReturn(new SessionContext(uuid, player, null, Optional.of(state)));
+
+        mockMvc.perform(post("/api/double_request")
+                .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error_code").value("NOT_ENOUGH_TOKENS_FOR_DOUBLE"));
+    }
+
 
     @Test
     @DisplayName("double_request: Hiba, ha már több mint 2 lapja van")
@@ -213,23 +212,10 @@ public class GameControllerTest {
         when(authenticationService.validateAndGetContext(any()))
             .thenReturn(new SessionContext(uuid, player, null, Optional.of(state)));
 
-        mockMvc.perform(post("/api/double_request"))
-            .andExpect(status().isBadRequest());
-    }
-
-    @Test
-    @DisplayName("double_request: Hiba, ha nincs elég token")
-    void testDoubleRequest_NotEnoughTokens() throws Exception {
-        UUID uuid = UUID.randomUUID();
-        Player player = Player.builder().clientId(uuid).tokens(50).build(); // Kevés pénz
-        PlayerHand hand = PlayerHand.builder().bet(100).hand(List.of(new Card(Suit.HEARTS, Rank.TEN), new Card(Suit.DIAMONDS, Rank.THREE))).build();
-        GameState state = GameState.builder().player(hand).build();
-
-        when(authenticationService.validateAndGetContext(any()))
-            .thenReturn(new SessionContext(uuid, player, null, Optional.of(state)));
-
-        mockMvc.perform(post("/api/double_request"))
-            .andExpect(status().isBadRequest()); // GameRuleException-t várunk
+        mockMvc.perform(post("/api/double_request")
+                .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error_code").value("DOUBLE_ONLY_ALLOWED_ON_STARTING_HAND"));
     }
 
     @Test
@@ -272,6 +258,363 @@ public class GameControllerTest {
 
         verify(playerService).updateTokens(eq(player), eq(-100));
         verify(gameStateService).saveGameState(updatedState);
+    }
+
+    @Test
+    @DisplayName("ins_request: Hiba, ha nincs elég token")
+    void testInsuranceRequest_NotEnoughTokens() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(45).build(); // Kevés pénz
+        PlayerHand hand = PlayerHand.builder()
+            .bet(100)
+            .hand(List.of(new Card(Suit.HEARTS, Rank.TEN), new Card(Suit.DIAMONDS, Rank.THREE))).build();
+        GameState state = GameState.builder().player(hand).bet(100).build();
+
+        when(authenticationService.validateAndGetContext(any()))
+            .thenReturn(new SessionContext(uuid, player, null, Optional.of(state)));
+
+        mockMvc.perform(post("/api/ins_request")
+                .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error_code").value("NOT_ENOUGH_TOKENS_FOR_INSURANCE"));
+    }
+
+    @Test
+    @DisplayName("split_request: Sikeres split és token levonás")
+    void testSplitRequest_Success() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        PlayerHand hand = PlayerHand.builder().bet(200).build();
+        Player player = Player.builder().clientId(uuid).tokens(1000).build();
+        GameState state = GameState.builder().clientId(uuid).player(hand).build();
+        GameState splitState = GameState.builder().clientId(uuid).isRoundActive(true).build();
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(state))
+        );
+        when(gameService.splitHand(any())).thenReturn(splitState);
+
+        mockMvc.perform(post("/api/split_request"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("success"));
+
+        // Kritikus: az osztásnál le kell vonni a plusz tétet!
+        verify(playerService).deductBet(player, 200);
+        verify(gameStateService).saveGameState(splitState);
+    }
+
+    @Test
+    @DisplayName("split_request: Hiba, ha nincs elég token")
+    void testSplitRequest_NotEnoughTokens() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(50).build(); // Kevés pénz
+        PlayerHand hand = PlayerHand.builder().bet(100).hand(List.of(new Card(Suit.HEARTS, Rank.TEN), new Card(Suit.DIAMONDS, Rank.TEN))).build();
+        GameState state = GameState.builder().player(hand).build();
+
+        when(authenticationService.validateAndGetContext(any()))
+            .thenReturn(new SessionContext(uuid, player, null, Optional.of(state)));
+
+        mockMvc.perform(post("/api/split_request")
+                .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error_code").value("NOT_ENOUGH_TOKENS_FOR_SPLIT"));
+    }
+
+    @Test
+    @DisplayName("add_to_players_list_by_stand: Sikeres kéz mentés listába")
+    void testAddToPlayersByStand_Success() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(1000).build();
+
+        // Kezdeti állapot
+        GameState initialState = GameState.builder().clientId(uuid).build();
+
+        // A Service által visszaadott módosított állapot (pl. már van benne valami a players map-ben)
+        GameState updatedState = GameState.builder()
+            .clientId(uuid)
+            .isRoundActive(true)
+            .bet(100)
+            .players(java.util.Map.of("hand_1", PlayerHand.builder().bet(100).build()))
+            .build();
+
+        when(authenticationService.validateAndGetContext(any()))
+            .thenReturn(new SessionContext(uuid, player, null, Optional.of(initialState)));
+
+        when(gameService.addToPlayersListByStand(initialState)).thenReturn(updatedState);
+
+        mockMvc.perform(post("/api/add_to_players_list_by_stand")
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("success"))
+            .andExpect(jsonPath("$.game_state_hint").value("SPLT_REQUEST_PROCESSED"))
+            .andExpect(jsonPath("$.game_state.bet").value(100));
+
+        // Ellenőrizzük, hogy az adatbázisba az új, módosított állapot került
+        verify(gameStateService).saveGameState(updatedState);
+    }
+
+    @Test
+    @DisplayName("add_split_player_to_game: Sikeres split játékos aktiválása")
+    void testAddSplitPlayerToGame_Success() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder()
+            .clientId(uuid)
+            .tokens(1500)
+            .build();
+
+        GameState initialGameState = GameState.builder()
+            .clientId(uuid)
+            .build();
+
+        PlayerHand activeHand = PlayerHand.builder()
+            .bet(200)
+            .hand(List.of(new Card(Suit.CLUBS, Rank.ACE), new Card(Suit.SPADES, Rank.KING)))
+            .build();
+
+        DealerHandMasked dealer = DealerHandMasked.builder()
+            .hand(List.of(new Card(Suit.HEARTS, Rank.TEN)))
+            .canInsure(false)
+            .nat21(0)
+            .build();
+
+        Deck mockDeck = Deck.builder()
+            .deck(List.of(new Card(Suit.CLUBS, Rank.TWO), new Card(Suit.SPADES, Rank.THREE))) // 2 lap
+            .build();
+
+        GameState updatedGameState = GameState.builder()
+            .clientId(uuid)
+            .player(activeHand)
+            .dealerMasked(dealer)
+            .deck(mockDeck)
+            .aces(true)
+            .players(java.util.Map.of("hand_0", PlayerHand.builder().bet(200).build()))
+            .splitReq(0)
+            .bet(200)
+            .isRoundActive(true)
+            .build();
+
+        // Mockolás
+        when(authenticationService.validateAndGetContext(any()))
+            .thenReturn(new SessionContext(uuid, player, null, Optional.of(initialGameState)));
+
+        when(gameService.addSplitPlayerToGame(initialGameState))
+            .thenReturn(updatedGameState);
+
+        // 2. Act & Assert - Végrehajtás és Ellenőrzés
+        mockMvc.perform(post("/api/add_split_player_to_game")
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("success"))
+            .andExpect(jsonPath("$.game_state_hint").value("SPLT_REQUEST_PROCESSED"))
+            .andExpect(jsonPath("$.current_tokens").value(1500))
+            // DTO mezők ellenőrzése
+            .andExpect(jsonPath("$.game_state.player.bet").value(200))
+            .andExpect(jsonPath("$.game_state.aces").value(true))
+            .andExpect(jsonPath("$.game_state.deck_len").value(2))
+            .andExpect(jsonPath("$.game_state.is_round_active").value(true))
+            .andExpect(jsonPath("$.game_state.players").exists());
+
+        // Vérifikáljuk, hogy a mentés megtörtént a Service-től kapott objektummal
+        verify(gameStateService).saveGameState(updatedGameState);
+    }
+
+    @Test
+    @DisplayName("add_player_from_players: Következő játékos aktiválása a listából")
+    void testAddPlayerFromPlayers_Success() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(2000).build();
+
+        GameState initialState = GameState.builder().clientId(uuid).build();
+
+        DealerHandUnmasked dealerUnmasked = DealerHandUnmasked.builder()
+            .hand(List.of(new Card(Suit.HEARTS, Rank.TEN), new Card(Suit.CLUBS, Rank.SEVEN)))
+            .natural21(0)
+            .sum(17)
+            .handState(1)
+            .build();
+
+        Deck mockDeck = Deck.builder()
+            .deck(new java.util.ArrayList<>(Collections.nCopies(10, new Card(Suit.SPADES, Rank.TWO))))
+            .build();
+
+        GameState updatedState = GameState.builder()
+            .clientId(uuid)
+            .player(PlayerHand.builder().bet(100).build())
+            .dealerUnmasked(dealerUnmasked)
+            .deck(mockDeck)
+            .aces(false)
+            .players(java.util.Map.of("hand_1", PlayerHand.builder().build()))
+            .isRoundActive(true)
+            .bet(100)
+            .build();
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(initialState))
+        );
+
+        when(gameService.addPlayerFromPlayers(initialState)).thenReturn(updatedState);
+
+        mockMvc.perform(post("/api/add_player_from_players")
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("success"))
+            .andExpect(jsonPath("$.game_state.deck_len").value(10))
+            .andExpect(jsonPath("$.game_state.dealer_unmasked.hand[0]").value("♥10"))
+            .andExpect(jsonPath("$.game_state.dealer_unmasked.sum").value(17))
+            .andExpect(jsonPath("$.game_state_hint").value("SPLT_REQUEST_PROCESSED"));
+
+        verify(gameStateService).saveGameState(updatedState);
+    }
+
+    @Test
+    @DisplayName("split_hit: Sikeres kártyahúzás splitelt kézre")
+    void testSplitHit_Success() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(1000).build();
+
+        GameState initialState = GameState.builder().clientId(uuid).build();
+
+        Card newCard = new Card(Suit.SPADES, Rank.ACE);
+        Deck updatedDeck = Deck.builder()
+            .deck(new java.util.ArrayList<>(Collections.nCopies(47, new Card(Suit.HEARTS, Rank.TWO))))
+            .build();
+
+        PlayerHand updatedHand = PlayerHand.builder()
+            .bet(200)
+            .hand(List.of(newCard))
+            .sum(11)
+            .build();
+
+        GameState updatedState = GameState.builder()
+            .clientId(uuid)
+            .player(updatedHand)
+            .deck(updatedDeck)
+            .isRoundActive(true)
+            .build();
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(initialState))
+        );
+
+        when(gameService.playerHit(initialState)).thenReturn(updatedState);
+
+        mockMvc.perform(post("/api/split_hit")
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("success"))
+            .andExpect(jsonPath("$.game_state_hint").value("SPLT_HIT_REQUEST_PROCESSED"))
+            // Kártya ellenőrzése Stringként (a JSON kimenet alapján)
+            .andExpect(jsonPath("$.game_state.player.hand[0]").value("♠A"))
+            .andExpect(jsonPath("$.game_state.deck_len").value(47));
+
+        verify(gameStateService).saveGameState(updatedState);
+    }
+
+    @Test
+    @DisplayName("split_stand_and_rewards: Sikeres megállás és kifizetés")
+    void testSplitStandAndRewards_Success() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(1000).build();
+        GameState initialState = GameState.builder().clientId(uuid).build();
+
+        DealerHandUnmasked dealerUnmasked = DealerHandUnmasked.builder()
+            .hand(List.of(new Card(Suit.HEARTS, Rank.KING), new Card(Suit.DIAMONDS, Rank.SEVEN)))
+            .sum(17)
+            .build();
+
+        GameState stoodState = GameState.builder().clientId(uuid).build();
+
+        GameState rewardedState = GameState.builder()
+            .clientId(uuid)
+            .player(PlayerHand.builder().bet(200).build())
+            .dealerUnmasked(dealerUnmasked)
+            .deck(Deck.builder().deck(List.of(new Card(Suit.CLUBS, Rank.TWO))).build())
+            .winner(1) // Játékos nyert
+            .isRoundActive(false)
+            .build();
+
+        GameService.TransactionResult mockResult = new GameService.TransactionResult(rewardedState, 400);
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(initialState))
+        );
+
+        when(gameService.playerStand(initialState)).thenReturn(stoodState);
+        when(gameService.calculateRewards(stoodState)).thenReturn(mockResult);
+
+        mockMvc.perform(post("/api/split_stand_and_rewards")
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("success"))
+            .andExpect(jsonPath("$.game_state_hint").value("REWARDS_PROCESSED"))
+            .andExpect(jsonPath("$.game_state.winner").value(1))
+            .andExpect(jsonPath("$.game_state.dealer_unmasked.hand[0]").value("♥K"));
+
+        // Kritikus: ellenőrizzük, hogy a tokenek frissítése és a mentés megtörtént-e
+        verify(playerService).updateTokens(player, 400);
+        verify(gameStateService).saveGameState(rewardedState);
+    }
+
+    @Test
+    @DisplayName("split_double_request: Sikeres duplázás és zsetonlevonás")
+    void testSplitDoubleRequest_Success() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(1000).build();
+
+        PlayerHand initialHand = PlayerHand.builder().bet(200).build();
+        GameState initialState = GameState.builder()
+            .clientId(uuid)
+            .player(initialHand)
+            .build();
+
+        GameState stateAfterHit = GameState.builder().clientId(uuid).build();
+
+        GameState finalState = GameState.builder()
+            .clientId(uuid)
+            .player(PlayerHand.builder().bet(400).build())
+            .deck(Deck.builder().deck(List.of(new Card(Suit.SPADES, Rank.ACE))).build())
+            .bet(400)
+            .isRoundActive(true)
+            .build();
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(initialState))
+        );
+
+        when(gameService.playerHit(initialState)).thenReturn(stateAfterHit);
+        when(gameService.applyDoubleBet(stateAfterHit, 200)).thenReturn(finalState);
+
+        mockMvc.perform(post("/api/split_double_request")
+                .with(csrf()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.status").value("success"))
+            .andExpect(jsonPath("$.game_state.bet").value(400))
+            .andExpect(jsonPath("$.game_state.deck_len").value(1))
+            .andExpect(jsonPath("$.game_state_hint").value("SPLT_REQUEST_PROCESSED"));
+
+        verify(playerService).deductBet(player, 200);
+        verify(gameStateService).saveGameState(finalState);
+    }
+
+    @Test
+    @DisplayName("split_double_request: Hiba - Nincs elég zseton a duplázáshoz")
+    void testSplitDoubleRequest_NotEnoughTokens() throws Exception {
+        UUID uuid = UUID.randomUUID();
+        Player player = Player.builder().clientId(uuid).tokens(100).build();
+        PlayerHand hand = PlayerHand.builder().bet(200).build();
+        GameState state = GameState.builder().player(hand).build();
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(state))
+        );
+
+        mockMvc.perform(post("/api/split_double_request")
+                .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(result -> assertInstanceOf(GameRuleException.class, result.getResolvedException()))
+            .andExpect(jsonPath("$.error_code").value("NOT_ENOUGH_TOKENS_FOR_DOUBLE"));
+
+        verifyNoInteractions(gameService);
+        verify(playerService, never()).deductBet(any(), anyInt());
     }
 
     @Test

@@ -10,17 +10,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
@@ -122,5 +123,52 @@ class BetControllerTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"bet\": 200}"))
             .andExpect(status().isInternalServerError()); // 500-as hibát várunk az orElseThrow miatt
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("placeBet: Hiba, ha a tét túl alacsony")
+    void testPlaceBet_TooLow() throws Exception {
+        // 1. Arrange: Először a context-et kell beállítani, mert a kontroller ezzel kezd
+        GameState state = GameState.builder()
+            .clientId(uuid)
+            .isRoundActive(false)
+            .build();
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(state))
+        );
+
+        // 2. Szimuláljuk, hogy a service dobja a ResponseStatusException-t
+        when(betService.placeBet(any(), anyInt()))
+            .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "BET_TOO_LOW"));
+
+        // 3. Act & Assert: Végezzük el a hívást és ellenőrizzük a GlobalExceptionHandler válaszát
+        mockMvc.perform(post("/api/bet")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"bet\": 1}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error_code").value("BET_TOO_LOW"));
+    }
+
+    @Test
+    @WithMockUser
+    @DisplayName("retakeBet: Hiba, ha nincs visszavehető tét")
+    void testRetakeBet_NoBet() throws Exception {
+        GameState state = GameState.builder().clientId(uuid).betList(List.of()).build();
+
+        when(authenticationService.validateAndGetContext(any())).thenReturn(
+            new SessionContext(uuid, player, null, Optional.of(state))
+        );
+
+        // Szimuláljuk, hogy a service hibát dob, mert nincs mit visszavenni
+        when(betService.retakeBet(any()))
+            .thenThrow(new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_BET_TO_RETAKE"));
+
+        mockMvc.perform(post("/api/retake_bet")
+                .with(csrf()))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.error_code").value("NO_BET_TO_RETAKE"));
     }
 }
