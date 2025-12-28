@@ -36,23 +36,33 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
 
   // 3. KÉSZÍTÉS ÉS CACHELÉS
   const initializationPromise = (async () => {
-    try {
-      // Eredeti API hívás
-      const data = await callApiEndpoint<SessionInitResponse>(
-        "/api/initialize_session",
-        "POST",
-        {
-          // 💡 Az elmentett ID-t küldjük el konzisztensen
-          client_id: idToSend
-        }
-      );
+      const maxRetries = 6; // Összesen kb. 30-40 másodperc (Render cold start ideje)
+      const delayBetweenRetries = 5000; // 5 másodperc szünet két próbálkozás között
 
-      return data;
-    } catch (error) {
-      console.error("Hiba az inicializálás során:", error);
-      throw error;
-    }
-  })();
+      for (let i = 0; i < maxRetries; i++) {
+        try {
+          return await callApiEndpoint<SessionInitResponse>(
+            "/api/initialize_session",
+            "POST",
+            { client_id: idToSend }
+          );
+        } catch (error) {
+          // Megnézzük, hogy hálózati hiba-e (TypeError) vagy szerver hiba
+          const isNetworkError = error instanceof TypeError;
+          const isLastAttempt = i === maxRetries - 1;
+
+          if (isLastAttempt) {
+            console.error("Sikertelen ébresztés minden kísérlet után.");
+            throw error;
+          }
+
+          console.warn(`Szerver ébresztése folyamatban... (${i + 1}/${maxRetries})`);
+          // Várakozás a következő próbálkozás előtt
+          await new Promise(resolve => setTimeout(resolve, delayBetweenRetries));
+        }
+      }
+      throw new Error("Szerver nem válaszolt az ébresztési időn belül.");
+    })();
 
   // 4. CACHELÉS ÉS VÉGLEGESÍTÉS
   runningInitializations.set(SESSION_INIT_KEY, initializationPromise);
