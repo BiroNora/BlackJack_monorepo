@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.*;
 
+import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.Mockito.*;
 
@@ -766,35 +767,161 @@ public class GameServiceTest {
     }
 
     @Test
-    @DisplayName("restartGame: Kényszerített alaphelyzet (Helyreállítás hiba után)")
-    void testRestartGame_EmergencyRecovery() {
+    @DisplayName("restartGame: Kényszerített alaphelyzet és pakli újratöltés")
+    void testRestartGame_EmergencyRecoveryWithDeck() {
+        List<Card> partialCards = Collections.nCopies(84, new Card(Suit.SPADES, Rank.ACE));
+
         GameState glitchedState = GameState.builder()
             .isRoundActive(true)
             .wasSplitInRound(true)
             .bet(100)
-            .natural21(2) // Valami hibás érték
+            .natural21(2)
             .winner(1)
+            .deck(new Deck(partialCards)) // Teljesen üres pakli a hibaállapotban
             .build();
 
         GameState cleanedInternalState = GameState.builder()
-            .player(null)
-            .dealerMasked(null)
-            .dealerUnmasked(null)
+            .player(PlayerHand.createEmptyHand())
+            .dealerMasked(DealerHandMasked.createEmptyHand())
+            .dealerUnmasked(DealerHandUnmasked.createEmptyHand())
             .players(new HashMap<>())
+            .deck(new Deck(partialCards))
             .build();
 
         when(gameStateManager.resetRoundState(glitchedState)).thenReturn(cleanedInternalState);
 
         GameState result = gameService.restartGame(glitchedState);
 
-        assertAll("A helyreállítási folyamatnak minden kritikus mezőt nulláznia kell",
-            () -> assertEquals(0, result.getBet(), "A tét nem maradhat meg hiba után."),
+        assertAll("A helyreállítási folyamatnak minden mezőt és a paklit is nulláznia kell",
+            () -> assertEquals(0, result.getBet(), "A tét nem maradhat meg."),
             () -> assertFalse(result.isRoundActive(), "A körnek lezártnak kell lennie."),
             () -> assertFalse(result.isWasSplitInRound(), "A split flaget törölni kell."),
             () -> assertEquals(0, result.getNatural21(), "A BlackJack jelzőt nullázni kell."),
-            () -> assertEquals(0, result.getWinner(), "A győztest törölni kell.")
+            () -> assertEquals(0, result.getWinner(), "A győztest törölni kell."),
+            // Pakli ellenőrzése
+            () -> assertNotEquals(84, result.getDeckLen(), "A régi 84 lapos paklit le kellene cserélni."),
+            () -> assertEquals(INITIAL_DECK_LENGTH, result.getDeckLen(), "A paklinak teljesnek kell lennie (6 pakli * 52 lap).")
         );
 
         verify(gameStateManager, times(1)).resetRoundState(glitchedState);
+    }
+
+    @Test
+    @DisplayName("Integrációs teszt: A restartGame által létrehozott 12 lapos pakli megmarad az osztás végéig")
+    void testDeckPersistsThroughFlow() {
+        // 1. Arrange - 12 lapos speciális pakli létrehozása
+        Card c_01 = new Card(Suit.HEARTS, Rank.ACE);   // Player 1
+        Card c_02 = new Card(Suit.CLUBS, Rank.TWO);    // Dealer 1 (rejtett)
+        Card c_03 = new Card(Suit.DIAMONDS, Rank.THREE);// Player 2
+        Card c_04 = new Card(Suit.SPADES, Rank.FOUR);  // Dealer 2 (látható)
+
+        // 12 lapos pakli
+        List<Card> twelveCards = new ArrayList<>(List.of(
+            c_01, c_02, c_03, c_04,
+            new Card(Suit.HEARTS, Rank.FIVE), new Card(Suit.HEARTS, Rank.SIX),
+            new Card(Suit.HEARTS, Rank.SEVEN), new Card(Suit.HEARTS, Rank.EIGHT),
+            new Card(Suit.HEARTS, Rank.NINE), new Card(Suit.HEARTS, Rank.TEN),
+            new Card(Suit.HEARTS, Rank.JACK), new Card(Suit.DIAMONDS, Rank.QUEEN)
+        ));
+        Deck twelveCardDeck = new Deck(twelveCards);
+
+        // Mockoljuk a resetRoundState-et, hogy a VALÓDI kód fusson le (toBuilder tesztelése)
+        when(gameStateManager.resetRoundState(any())).thenCallRealMethod();
+
+        // Dinamikus osztás: kiszedi a soron következő lapot a kapott state paklijából
+        when(gameStateManager.safeDealCard(any(GameState.class))).thenAnswer(invocation -> {
+            GameState s = invocation.getArgument(0);
+
+            // Ellenőrizzük, hogy van-e pakli a kapott állapotban
+            if (s.getDeck() == null || s.getDeck().deck().isEmpty()) {
+                throw new IllegalStateException("A pakli üres vagy null az osztásnál!");
+            }
+
+            Card dealt = s.getDeck().deck().getFirst();
+            List<Card> remaining = new ArrayList<>(s.getDeck().deck());
+            remaining.removeFirst();
+
+            // Visszaadjuk a lapot és az ÚJ állapotot a CSÖKKENTETT paklival
+            return new GameService.DealResultWithState(dealt, s.toBuilder()
+                .deck(new Deck(remaining))
+                .build());
+        });
+
+        // Szabálymotor mockolása (hogy az initializeNewRound sikeresen befejeződjön)
+        when(handValueCalculator.calculateSum(anyList())).thenReturn(14); // Pl. ACE + 3
+        when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean())).thenReturn(HandState.UNDER_21);
+        when(gameRuleEngine.initNatural21State(any())).thenReturn(WinnerState.NONE.getValue());
+
+        // 2. Act
+        // Meghívjuk a restartot (ez belsőleg a valódi resetRoundState-et hívja a mock-on keresztül)
+        GameState stateAfterRestart = gameService.restartGame(GameState.builder().build());
+
+        // Beoltjuk a 12 lapos paklival (szimulálva, hogy a restartGame ezt generálta)
+        GameState stateWithControlledDeck = stateAfterRestart.toBuilder()
+            .deck(twelveCardDeck)
+            .build();
+
+        // Elindítjuk az osztást (ez ismét hívja a resetRoundState-et, majd 4-szer a safeDealCard-ot)
+        GameState finalState = gameService.initializeNewRound(stateWithControlledDeck);
+
+        // 3. Assert
+        assertNotNull(finalState.getPlayer(), "A játékos keze nem lehet null.");
+
+        // Ellenőrizzük, hogy a játékos első lapja tényleg az Ász (c_01)
+        assertEquals(c_01, finalState.getPlayer().hand().getFirst(),
+            "A játékos első lapjának az ACE-nek kell lennie a 12-es pakliból.");
+
+        // Ellenőrizzük a Dealer látható lapját (c_04)
+        assertNotNull(finalState.getDealerMasked());
+        assertEquals(c_04, finalState.getDealerMasked().hand().get(1),
+            "A dealer látható lapjának a c_04-nek kell lennie.");
+
+        // Ellenőrizzük a pakli fogyását: 12 lapból 4-et osztottunk ki
+        assertNotNull(finalState.getDeck());
+        assertEquals(8, finalState.getDeck().deck().size(),
+            "A pakliban pontosan 8 lapnak kell maradnia 4 osztás után.");
+
+        // 3. Assert (Kibővítve a maradék lapok ellenőrzésével)
+        assertNotNull(finalState.getDeck());
+        assertEquals(8, finalState.getDeck().deck().size(),
+            "A pakliban pontosan 8 lapnak kell maradnia 4 osztás után.");
+
+        // Ellenőrizzük, hogy a pakli tetején (a 0. indexen) a soron következő lap (c_05) van-e
+        // A 12 lapból az első 4 elment (c_01, c_02, c_03, c_04), tehát a 5. lap következik
+        Card expectedNextCard = new Card(Suit.HEARTS, Rank.FIVE);
+        assertEquals(expectedNextCard, finalState.getDeck().deck().getFirst(),
+            "A pakli következő lapjának a Kőr 5-ösnek kell lennie.");
+
+        // Ha a teljes maradék listát ellenőrizni akarod sorrendben:
+        List<Card> remainingCards = finalState.getDeck().deck();
+        assertEquals(Rank.FIVE,  remainingCards.get(0).rank());
+        assertEquals(Rank.SIX,   remainingCards.get(1).rank());
+        assertEquals(Rank.SEVEN, remainingCards.get(2).rank());
+        assertEquals(Rank.EIGHT, remainingCards.get(3).rank());
+        assertEquals(Rank.NINE,  remainingCards.get(4).rank());
+        assertEquals(Rank.TEN,   remainingCards.get(5).rank());
+        assertEquals(Rank.JACK,  remainingCards.get(6).rank());
+        assertEquals(Rank.QUEEN, remainingCards.get(7).rank());
+
+        // 1. Ellenőrizzük a JÁTÉKOS szemszögéből (Masked Hand)
+        // Az első lap maszkolva van: rangja "✪", színe üres " "
+        Card maskedHoleCard = finalState.getDealerMasked().hand().getFirst();
+        assertEquals("✪", maskedHoleCard.rank().getSymbol(), "A dealer első lapja maszkolt kell legyen!");
+        assertEquals(" ", maskedHoleCard.suit().getSymbol(), "A maszkolt lap színe üres karakter!");
+
+        // A második lap viszont látható kell legyen a játékosnak
+        assertEquals(c_04, finalState.getDealerMasked().hand().get(1), "A dealer második lapja viszont látható!");
+
+        // 2. Ellenőrizzük a SZERVER szemszögéből (Unmasked Hand)
+        // Itt derül ki, hogy a safeDealCard tényleg a c_02-t (Treff 2-est) osztotta-e ki rejtve
+        assertNotNull(finalState.getDealerUnmasked(), "A belső unmasked kéz nem lehet null!");
+        assertEquals(c_02, finalState.getDealerUnmasked().hand().getFirst(),
+            "A szervernek tudnia kell, hogy a rejtett lap valójában a c_02 volt!");
+
+        // 3. Ellenőrizzük a pakli integritását
+        assertNotNull(finalState.getDeck());
+        assertEquals(8, finalState.getDeck().deck().size(), "8 lap maradt a pakliban.");
+        assertEquals(new Card(Suit.HEARTS, Rank.FIVE), finalState.getDeck().deck().getFirst(),
+            "A következő kártya a pakli tetején a Kőr 5-ös.");
     }
 }
