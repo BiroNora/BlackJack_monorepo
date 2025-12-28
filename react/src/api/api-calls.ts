@@ -14,7 +14,7 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
   // 1. 🔑 BLOKKOLÁS ELLENŐRZÉS: Ellenőrizzük, hogy fut-e már inicializálás (__sik__ kulcs).
   const existingPromise = runningInitializations.get(SESSION_INIT_KEY);
   if (existingPromise) {
-    console.warn("[Cache Hit] A session inicializálás már folyamatban van. Várakozás a futó kérésre...");
+    //console.warn("[Cache Hit] A session inicializálás már folyamatban van. Várakozás a futó kérésre...");
     return existingPromise;
   }
 

@@ -550,6 +550,7 @@ public class GameService {
 
         return resetGameState.toBuilder()
             .bet(0)
+            .deck(Deck.createNewDeck())
             .isRoundActive(false)
             .wasSplitInRound(false)
             .natural21(0)
