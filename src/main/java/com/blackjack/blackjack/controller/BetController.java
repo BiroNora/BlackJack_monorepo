@@ -76,7 +76,6 @@ public class BetController {
         GameState updatedGameState = currentState.toBuilder()
             .bet(betDto.bet())
             .betList(betDto.betList())
-            .isRoundActive(!betDto.betList().isEmpty())
             .build();
 
         Player updatedPlayer = playerService.deductBet(context.player(), -result.amountReturned());
