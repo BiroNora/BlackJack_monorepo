@@ -123,7 +123,7 @@ public class GameService {
             .build();
     }
 
-    // SPLITHEZ
+    // SPLIT FEJLESZTÉSHEZ
     public GameState initializeNewRound1(GameState state) {
         // 1. Kör állapotának nullázása
         GameState currentGameState = gameStateManager.resetRoundState(state)
