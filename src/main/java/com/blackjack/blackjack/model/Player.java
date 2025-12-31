@@ -16,6 +16,7 @@ import java.util.UUID;
 @Entity
 @Table(name = "players")
 @Getter
+@Setter
 @Builder(toBuilder = true)
 @NoArgsConstructor // JPA miatt
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
@@ -26,15 +27,16 @@ public class Player {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID id;
 
-    @Column(name = "client_id", unique = true, nullable = false)
+    @Column(name = "clientId", unique = true, nullable = false)
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID clientId;
 
-    @Column(name = "session_id", unique = true, nullable = false)
-    private String sessionId;
-
     @Column(name = "tokens", nullable = false)
     private int tokens;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "current_game_state", columnDefinition = "jsonb")
+    private GameState currentGameState;
 
     @UpdateTimestamp
     @Column(name = "last_activity", columnDefinition = "TIMESTAMP WITH TIME ZONE")

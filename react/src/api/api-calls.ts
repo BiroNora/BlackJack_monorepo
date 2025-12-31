@@ -1,4 +1,4 @@
-//import { API_BASE_URL } from "../config/apiConfig";
+import { API_BASE_URL } from "../config/apiConfig";
 import type { ErrorResponse, SessionInitResponse } from "../types/game-types";
 import { generateUUID, getOrCreateIdempotencyKey } from "../utilities/utils";
 
@@ -36,33 +36,31 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
 
   // 3. KÉSZÍTÉS ÉS CACHELÉS
   const initializationPromise = (async () => {
-      const maxRetries = 6; // Összesen kb. 30-40 másodperc (Render cold start ideje)
-      const delayBetweenRetries = 5000; // 5 másodperc szünet két próbálkozás között
+    const maxRetries = 6; // Összesen kb. 30-40 másodperc (Render cold start ideje)
+    const delayBetweenRetries = 5000; // 5 másodperc szünet két próbálkozás között
 
-      for (let i = 0; i < maxRetries; i++) {
-        try {
-          return await callApiEndpoint<SessionInitResponse>(
-            "/api/initialize_session",
-            "POST",
-            { client_id: idToSend }
-          );
-        } catch (error) {
-          // Megnézzük, hogy hálózati hiba-e (TypeError) vagy szerver hiba
-          const isNetworkError = error instanceof TypeError;
-          const isLastAttempt = i === maxRetries - 1;
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await callApiEndpoint<SessionInitResponse>(
+          "/api/initialize_session",
+          "POST",
+          { clientId: idToSend }
+        );
+      } catch (error) {
+        const isLastAttempt = i === maxRetries - 1;
 
-          if (isLastAttempt) {
-            console.error("Sikertelen ébresztés minden kísérlet után.");
-            throw error;
-          }
-
-          console.warn(`Szerver ébresztése folyamatban... (${i + 1}/${maxRetries})`);
-          // Várakozás a következő próbálkozás előtt
-          await new Promise(resolve => setTimeout(resolve, delayBetweenRetries));
+        if (isLastAttempt) {
+          console.error("Sikertelen ébresztés minden kísérlet után.");
+          throw error;
         }
+
+        console.warn(`Szerver ébresztése folyamatban... (${i + 1}/${maxRetries})`);
+        // Várakozás a következő próbálkozás előtt
+        await new Promise(resolve => setTimeout(resolve, delayBetweenRetries));
       }
-      throw new Error("Szerver nem válaszolt az ébresztési időn belül.");
-    })();
+    }
+    throw new Error("Szerver nem válaszolt az ébresztési időn belül.");
+  })();
 
   // 4. CACHELÉS ÉS VÉGLEGESÍTÉS
   runningInitializations.set(SESSION_INIT_KEY, initializationPromise);
@@ -74,6 +72,7 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
   // 5. Visszaadjuk a Promise-t.
   return initializationPromise;
 }
+
 export async function setBet(betAmount: number) {
   const data = await callApiEndpoint("/api/bet", "POST", { bet: betAmount });
 
@@ -183,13 +182,13 @@ export async function setRestart() {
 }
 
 export async function forceRestart() {
-  const clientUuid = localStorage.getItem("blackjack_client_uuid");
+  const clientUuid = localStorage.getItem(CLIENT_STORAGE_ID_KEY);
   if (!clientUuid) {
     throw new Error("No id.");
   }
 
   const data = await callApiEndpoint("/api/force_restart", "POST", {
-    client_id: clientUuid,
+    clientId: clientUuid,
   });
 
   return data;
@@ -206,35 +205,40 @@ export interface HttpError extends Error {
 
 export async function callApiEndpoint<T>(
   endpoint: string,
-  method: string = "GET", // Alapértelmezett legyen GET, ha nincs megadva
-  body?: unknown
+  method: string = "GET",
+  body?: any
 ): Promise<T> {
+  const fullUrl = `${API_BASE_URL}${endpoint}`;
+  const clientId = localStorage.getItem(CLIENT_STORAGE_ID_KEY);
+
+  let finalBody = body;
+
+  if (method.toUpperCase() === "POST") {
+    const idempotencyKey = crypto.randomUUID();
+
+    finalBody = {
+      ...(body && typeof body === 'object' ? body : {}),
+      clientId: clientId,
+      idempotencyKey: idempotencyKey
+    };
+  }
 
   try {
     const options: RequestInit = {
       method: method,
       headers: {
         "Content-Type": "application/json",
+        ...(clientId ? { "X-Client-Id": clientId } : {}),
       },
-      body: body ? JSON.stringify(body) : undefined,
-      credentials: 'include', // Kliens oldalról engedélyezi a cookie-k küldését
+      body: finalBody ? JSON.stringify(finalBody) : undefined,
+      credentials: 'omit',
     };
 
-    if (method.toUpperCase() === "POST" && endpoint === "/api/initialize_session") {
-      // 1. Kinyerjük/Generáljuk az Idempotencia Kulcsot a session tárolóból
-      const idempotencyKey = getOrCreateIdempotencyKey(endpoint);
-      // 2. Hozzáadjuk a fejlécet.
-      options.headers = {
-        ...(options.headers as Record<string, string>), // meglévő headerek
-        "X-Idempotency-Key": idempotencyKey, // 🔑 Az Idempotencia Kulcs!
-      };
-    }
-
-    const response = await fetch(endpoint, options);
+    const response = await fetch(fullUrl, options);
 
     if (response.ok || response.status === 204) {
       if (endpoint !== "/api/initialize_session") {
-          sessionStorage.removeItem(`ik_${endpoint}`);
+        sessionStorage.removeItem(`ik_${endpoint}`);
       }
 
       if (response.status === 204) {
@@ -243,7 +247,7 @@ export async function callApiEndpoint<T>(
 
       const data = await response.json();
       return data as T;
-    }else {
+    } else {
       let errorData: ErrorResponse = {};
       try {
         errorData = await response.json();

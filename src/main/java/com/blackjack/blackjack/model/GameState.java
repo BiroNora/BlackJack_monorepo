@@ -21,7 +21,6 @@ import java.util.UUID;
 @Jacksonized
 public class GameState implements Serializable {
     UUID clientId;
-    String sessionId; // Opcionális, de segíti a diagnosztikát
 
     // --- Játékmenet Kötelező Elemek ---
     Deck deck;

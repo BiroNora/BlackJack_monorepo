@@ -1,7 +1,8 @@
 package com.blackjack.blackjack.controller;
 
+import com.blackjack.blackjack.dto.ActionRequest;
 import com.blackjack.blackjack.dto.ApiResponse;
-import com.blackjack.blackjack.dto.SessionContext;
+import com.blackjack.blackjack.dto.GameContext;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.others.*;
 import com.blackjack.blackjack.exception.GameRuleException;
@@ -9,12 +10,12 @@ import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import com.blackjack.blackjack.service.*;
-import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
@@ -32,20 +33,22 @@ public class GameController {
     private final PlayerService playerService;
     private final GameStateService gameStateService;
     private final GameStateManager gameStateManager;
+    private final PlayerRepository playerRepository;
 
-    public GameController(GameService gameService, AuthenticationService authenticationService, PlayerService playerService, GameStateService gameStateService, PlayerRepository playerRepository, GameStateManager gameStateManager
+    public GameController(GameService gameService, AuthenticationService authenticationService, PlayerService playerService, GameStateService gameStateService, PlayerRepository playerRepository, GameStateManager gameStateManager, PlayerRepository playerRepository1
     ) {
         this.gameService = gameService;
         this.authenticationService = authenticationService;
         this.playerService = playerService;
         this.gameStateService = gameStateService;
         this.gameStateManager = gameStateManager;
+        this.playerRepository = playerRepository1;
     }
 
     @PostMapping("/create_deck")
     public ResponseEntity<?> createDeck(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+        @RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
 
         GameState currentState = context.gameStateOptional()
@@ -53,8 +56,6 @@ public class GameController {
 
         GameState updatedGameState = gameStateManager.createNewDeck(currentState);
         gameStateService.saveGameState(updatedGameState);
-
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateBet gameStateData = GameStateBet.builder()
             .bet(updatedGameState.getBet())
@@ -71,8 +72,8 @@ public class GameController {
     }
 
     @PostMapping("/start_game")
-    public ResponseEntity<?> initializeNewRound(HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> initializeNewRound(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
 
         GameState currentState = context.gameStateOptional()
@@ -81,8 +82,6 @@ public class GameController {
         GameState updatedGameState = gameService.initializeNewRound(currentState);
 
         gameStateService.saveGameState(updatedGameState);
-
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateStart gameStateData = GameStateStart.builder()
             .player(updatedGameState.getPlayer())
@@ -101,8 +100,8 @@ public class GameController {
     }
 
     @PostMapping("/hit")
-    public ResponseEntity<?> playerHit(HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> playerHit(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
 
         GameState currentState = context.gameStateOptional()
@@ -111,7 +110,6 @@ public class GameController {
         GameState updatedGameState = gameService.playerHit(currentState);
 
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateStart gameStateData = GameStateStart.builder()
             .player(updatedGameState.getPlayer())
@@ -130,8 +128,8 @@ public class GameController {
     }
 
     @PostMapping("/stand_and_rewards")
-    public ResponseEntity<?> standAndRewards(HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> standAndRewards(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         GameState currentState = context.gameStateOptional()
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "No GameState found"));
@@ -149,7 +147,6 @@ public class GameController {
         }
 
         gameStateService.saveGameState(finalGameState);
-        session.setAttribute("gameState", finalGameState);
 
         GameStateRewards gameStateData = GameStateRewards.builder()
             .player(finalGameState.getPlayer())
@@ -169,8 +166,8 @@ public class GameController {
     }
 
     @PostMapping("/double_request")
-    public ResponseEntity<?> doubleRequest(HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> doubleRequest(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
 
         GameState initialGameState = context.gameStateOptional()
@@ -192,7 +189,6 @@ public class GameController {
 
         playerService.deductBet(player, betToDeduct);
         gameStateService.saveGameState(finalState);
-        session.setAttribute("gameState", finalState);
 
         GameStateDouble gameStateDouble = GameStateDouble.builder()
             .player(finalState.getPlayer())
@@ -209,8 +205,8 @@ public class GameController {
     }
 
     @PostMapping("/ins_request")
-    public ResponseEntity<?> insuranceRequest(HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> insuranceRequest(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
 
         GameState currentState = context.gameStateOptional()
@@ -232,8 +228,6 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "DATABASE_ERROR");
         }
 
-        session.setAttribute("gameState", updatedGameState);
-
         assert updatedGameState.getPlayer() != null;
         GameStateInsurance gameStateData = GameStateInsurance.builder()
             .player(updatedGameState.getPlayer())
@@ -254,9 +248,8 @@ public class GameController {
     }
 
     @PostMapping("/rewards")
-    public ResponseEntity<?> rewards(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> rewards(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         Optional<GameState> gameStateOptional = context.gameStateOptional();
 
@@ -276,7 +269,6 @@ public class GameController {
         }
 
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         assert updatedGameState.getPlayer() != null;
         GameStateRewards gameStateData = GameStateRewards.builder()
@@ -298,8 +290,8 @@ public class GameController {
 
     // SPLIT part
     @PostMapping("/split_request")
-    public ResponseEntity<?> splitRequest(HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> splitRequest(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
@@ -313,8 +305,6 @@ public class GameController {
         playerService.deductBet(player, betToDeduct);
 
         GameState updatedGameState = gameService.splitHand(initialGameState);
-
-        session.setAttribute("gameState", updatedGameState);
         gameStateService.saveGameState(updatedGameState);
 
         GameStateSplitHand responseState = GameStateSplitHand.builder()
@@ -337,16 +327,14 @@ public class GameController {
     }
 
     @PostMapping("/add_to_players_list_by_stand")
-    public ResponseEntity<?> addToPlayersByStand(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> addToPlayersByStand(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
         GameState updatedGameState = gameService.addToPlayersListByStand(initialGameState);
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateAddToPlayersByStand gameStateSplitHand = GameStateAddToPlayersByStand.builder()
             .player(updatedGameState.getPlayer())
@@ -369,16 +357,14 @@ public class GameController {
     }
 
     @PostMapping("/add_split_player_to_game")
-    public ResponseEntity<?> addSplitPlayerToGame(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> addSplitPlayerToGame(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
         GameState updatedGameState = gameService.addSplitPlayerToGame(initialGameState);
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
             .player(updatedGameState.getPlayer())
@@ -400,16 +386,14 @@ public class GameController {
     }
 
     @PostMapping("/add_player_from_players")
-    public ResponseEntity<?> addPlayerFromPlayers(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> addPlayerFromPlayers(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         GameState initialGameState = context.gameStateOptional().orElseThrow(() ->
             new ResponseStatusException(HttpStatus.BAD_REQUEST, "NO_ACTIVE_GAME"));
 
         GameState updatedGameState = gameService.addPlayerFromPlayers(initialGameState);
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateAddPlayerFromPlayers gameStateAddPlayerFromPlayers = GameStateAddPlayerFromPlayers.builder()
             .player(updatedGameState.getPlayer())
@@ -431,9 +415,8 @@ public class GameController {
     }
 
     @PostMapping("/split_hit")
-    public ResponseEntity<?> splitHit(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> splitHit(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
 
         GameState gameState = context.gameStateOptional().orElseThrow(() -> new ResponseStatusException(
@@ -443,7 +426,6 @@ public class GameController {
 
         GameState updatedGameState = gameService.playerHit(gameState);
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
             .player(updatedGameState.getPlayer())
@@ -465,9 +447,8 @@ public class GameController {
     }
 
     @PostMapping("/split_stand_and_rewards")
-    public ResponseEntity<?> splitStandAndRewards(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> splitStandAndRewards(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         GameState gameState = context.gameStateOptional().orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
@@ -487,7 +468,6 @@ public class GameController {
         }
 
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitStandAndRewards gameStateData = GameStateSplitStandAndRewards.builder()
             .player(updatedGameState.getPlayer())
@@ -499,7 +479,7 @@ public class GameController {
             .bet(updatedGameState.getBet())
             .isRoundActive(updatedGameState.isRoundActive())
             .build();
-        //logger.info("RRRRRRRRRRRRRR >>>>>> rewardedGameState {}", gameStateData);
+
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())
@@ -509,9 +489,8 @@ public class GameController {
     }
 
     @PostMapping("/split_double_request")
-    public ResponseEntity<?> splitDoubleRequest(
-        HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> splitDoubleRequest(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
         GameState initialGameState = context.gameStateOptional().orElseThrow(() -> new ResponseStatusException(
             HttpStatus.BAD_REQUEST,
@@ -534,7 +513,6 @@ public class GameController {
         GameState gameStateAfterHit = gameService.playerHit(initialGameState);
         GameState updatedGameState = gameService.applyDoubleBet(gameStateAfterHit, betToDeduct);
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         GameStateSplitHand gameStateSplitHand = GameStateSplitHand.builder()
             .player(updatedGameState.getPlayer())
@@ -557,8 +535,8 @@ public class GameController {
 
 
     @PostMapping("/set_restart")
-    public ResponseEntity<?> setRestart(HttpSession session) {
-        SessionContext context = authenticationService.validateAndGetContext(session);
+    public ResponseEntity<?> setRestart(@RequestBody ActionRequest actionRequest) {
+        GameContext context = authenticationService.validateAndGetContext(actionRequest.getClientId());
         Player player = context.player();
 
         // 1. Kontextus kicsomagolása (Ha nincs állapota, dobunk egy hibát)
@@ -579,7 +557,6 @@ public class GameController {
 
         // 4. MENTÉS (Itt szinkronizáljuk a DB-t és a session-t)
         gameStateService.saveGameState(updatedGameState);
-        session.setAttribute("gameState", updatedGameState);
 
         // 5. DTO Összeállítása
         GameStateBet gameStateData = GameStateBet.builder()

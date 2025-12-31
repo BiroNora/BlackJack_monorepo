@@ -23,38 +23,20 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
 
         http
-            // 1. KULCS: A CSRF védelem végleges kikapcsolása. (Megoldja a 403-as hibát a POST kéréseknél).
             .csrf(AbstractHttpConfigurer::disable)
-
-            // 2. CORS engedélyezése.
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
-
-            // 3. Útvonal engedélyek beállítása
             .authorizeHttpRequests(authorize -> authorize
-                // Engedélyezi a statikus fájlokat.
                 .requestMatchers("/", "/index.html", "/assets/**", "/favicon.ico").permitAll()
-
-                // Engedélyezi a CORS OPTIONS kéréseket (pre-flight).
                 .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-
-                // JAVÍTÁS: Engedélyezi a belső hiba útvonalat. Ez kritikus, ha az /api/bet NullPointer-t dob!
                 .requestMatchers("/error").permitAll()
-
-                // Engedélyezi az összes API végponthoz való anonim hozzáférést.
                 .requestMatchers("/api/**").permitAll()
-
-                // Minden más kéréshez hitelesítés szükséges.
                 .anyRequest().authenticated()
             )
 
-            // 4. Nincs külön exceptionHandling beállítás, az alapértelmezett hibakezelés lép életbe.
-
-            // 5. SESSION KEZELÉS: Spring Session (Redis) használata.
             .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
+                .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
 
-            // 6. HTTP Basic Auth és FormLogin kikapcsolása.
             .httpBasic(AbstractHttpConfigurer::disable)
             .formLogin(AbstractHttpConfigurer::disable);
 
@@ -62,17 +44,23 @@ public class SecurityConfig {
         return http.build();
     }
 
-    /**
-     * CORS konfigurációs Bean a frontend (5173) engedélyezéséhez.
-     */
     @Bean
     CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
 
-        configuration.setAllowedOrigins(List.of("http://localhost:5173"));
+        // Minden engedélyezése, ami a frontend felől jöhet
+        configuration.setAllowedOriginPatterns(Arrays.asList(
+            "https://*.vercel.app",
+            "http://localhost:5173"
+        ));
+
         configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "DELETE", "OPTIONS"));
+
+        // Minden fejlécet engedélyezünk, amit a frontend küldhet
         configuration.setAllowedHeaders(List.of("*"));
-        configuration.setAllowCredentials(true);
+
+        // Mivel NINCS SESSION, ez mehet false-ra, így a böngésző nem akadékoskodik a sütik miatt
+        configuration.setAllowCredentials(false);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);

@@ -68,7 +68,7 @@ export type SessionInitResponse = {
   status: "success";
   message: string;
   user_id: string;
-  client_id: string;
+  clientId: string;
   tokens: number;
   game_state: GameStateForClient; // deck_len
   game_state_hint: "USER_SESSION_INITIALIZED";

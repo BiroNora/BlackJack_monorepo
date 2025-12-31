@@ -1,10 +1,9 @@
 package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.dto.SessionContext;
+import com.blackjack.blackjack.dto.GameContext;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
-import jakarta.servlet.http.HttpSession;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -27,39 +26,25 @@ public class AuthenticationService {
     }
 
     /**
-     * Ellenőrzi a Session állapotát, kinyeri a Client ID-t és lekéri a Player objektumot.
-     *
-     * @param session A bejövő HttpSession objektum.
-     * @return Egy SessionContext objektumot, ami a validált adatokat tartalmazza.
-     * @throws ResponseStatusException Hibás állapot esetén a kód automatikusan HTTP választ ad vissza.
+     * Session mentes validálás a clientId alapján.
      */
-    public SessionContext validateAndGetContext(HttpSession session) {
-        // --- 1. Client ID kinyerése és validálása ---
-        Object clientIdObj = session.getAttribute("clientId");
-
-        if (clientIdObj == null) {
-            logger.warn("HIBÁS ÁLLAPOT: A 'clientId' attribútum hiányzik az HttpSession-ből.");
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN");
+    public GameContext validateAndGetContext(UUID clientId) {
+        if (clientId == null) {
+            logger.warn("HIBA: Nincs clientId a kérésben.");
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN: Missing Client ID");
         }
 
-        UUID currentClientId;
-        try {
-            currentClientId = UUID.fromString(clientIdObj.toString());
-        } catch (IllegalArgumentException e) {
-            logger.error("A sessionben tárolt 'clientId' formátuma érvénytelen: {}", clientIdObj);
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "FORBIDDEN");
-        }
-
-        // --- 2. Player lekérése a DB-ből ---
-        Player player = playerRepository.findByClientId(currentClientId)
+        // 1. Játékos keresése
+        Player player = playerRepository.findByClientId(clientId)
             .orElseThrow(() -> {
-                logger.warn("Játékos nem található a DB-ben Client ID: {}", currentClientId);
-                return new ResponseStatusException(HttpStatus.NOT_FOUND, "NOT_FOUND");
+                logger.warn("A Client ID nem létezik: {}", clientId);
+                return new ResponseStatusException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND");
             });
 
-        // --- 3. Redis ---
-        Optional<GameState> gameStateOptional = gameStateService.getGameState(currentClientId);
+        // 2. GameState lekérése (vagy Redis-ből, vagy ahogy nálad van)
+        Optional<GameState> gameStateOptional = gameStateService.getGameState(clientId);
 
-        return new SessionContext(currentClientId, player, session, gameStateOptional);
+        // A SessionContext-ben a session helyére null-t küldünk, mert nincs rá szükség
+        return new GameContext(clientId, player, gameStateOptional);
     }
 }
