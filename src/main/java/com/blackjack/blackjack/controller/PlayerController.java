@@ -34,13 +34,22 @@ public class PlayerController {
         // 2. Itt dől el a végleges érték (egy új, final változóba mentjük)
         final UUID finalClientId = (rawId == null) ? UUID.randomUUID() : rawId;
 
-        // Megkeressük az adatbázisban, hogy lássuk a zsetonjait
+        // Megkeressük vagy létrehozzuk a playert
         Player player = playerRepository.findByClientId(finalClientId)
+            .map(existingPlayer -> {
+                // HA MÁR LÉTEZIK: Kinullázzuk az állapotot és az idempotencia kulcsot
+                return playerRepository.save(existingPlayer.toBuilder()
+                    .currentGameState(null)
+                    .idempotencyKey(UUID.randomUUID())
+                    .lastActivity(OffsetDateTime.now())
+                    .build());
+            })
             .orElseGet(() -> {
-                // Ha még nincs ilyen player, létrehozzuk alap 1000 tokennel
+                // HA ÚJ: Létrehozzuk alapértékekkel
                 Player newPlayer = Player.builder()
                     .clientId(finalClientId)
                     .tokens(INITIAL_TOKENS)
+                    .currentGameState(null)
                     .lastActivity(OffsetDateTime.now())
                     .idempotencyKey(UUID.randomUUID())
                     .build();

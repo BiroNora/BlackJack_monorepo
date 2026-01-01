@@ -1,15 +1,12 @@
 package com.blackjack.blackjack.controller;
 
 import com.blackjack.blackjack.dto.ApiResponse;
-import com.blackjack.blackjack.dto.GameContext;
 import com.blackjack.blackjack.dto.bet.BetRequest;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.*;
 import com.blackjack.blackjack.service.BetService.RetakeResult;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -20,24 +17,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api")
 public class BetController {
-    private static final Logger logger = LoggerFactory.getLogger(BetController.class);
-    private final GameStateService gameStateService;
     private final PlayerService playerService;
-    private final GameService gameService;
-    private final AuthenticationService authenticationService;
     private final BetService betService;
 
     @Autowired
     public BetController(
-        GameStateService gameStateService,
         PlayerService playerService,
-        GameService gameService,
-        AuthenticationService authenticationService,
         BetService betService) {
-        this.gameStateService = gameStateService;
         this.playerService = playerService;
-        this.gameService = gameService;
-        this.authenticationService = authenticationService;
         this.betService = betService;
     }
 
@@ -68,13 +55,15 @@ public class BetController {
         // 4. Üzleti logika
         GameStateBet betDto = betService.placeBet(currentState, betRequest.bet());
 
-        // 5. Player összeállítása az új adatokkal és a kérés kulcsával
+        GameState updatedState = currentState.toBuilder()
+            .bet(betDto.bet())
+            .betList(betDto.betList())
+            .isRoundActive(false)
+            .build();
+
         Player playerToSave = player.toBuilder()
-            .currentGameState(currentState.toBuilder()
-                .bet(betDto.bet())
-                .betList(betDto.betList())
-                .build())
-            .idempotencyKey(betRequest.idempotencyKey()) // Itt mentjük el a kulcsot
+            .currentGameState(updatedState)
+            .idempotencyKey(betRequest.idempotencyKey())
             .build();
 
         // 6. Mentés és levonás
