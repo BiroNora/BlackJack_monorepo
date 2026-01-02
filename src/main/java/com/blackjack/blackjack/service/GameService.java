@@ -22,6 +22,7 @@ public class GameService {
         this.handStateUpdater = handStateUpdater;
     }
 
+    // --- STANDARD ---
     // VALÓS ÁG
     public GameState initializeNewRound2(GameState state) {
         // 1. Kör állapotának nullázása (resetRoundState immutábilis)
@@ -494,8 +495,7 @@ public class GameService {
         return new TransactionResult(newState, transactionAmount);
     }
 
-    // IINEEN
-
+    // --- SPLIT ---
     public GameState splitHand(GameState oldState) {
         PlayerHand oldPlayerHand = oldState.getPlayer();
 
@@ -647,6 +647,7 @@ public class GameService {
             .build();
     }
 
+    // --- RESET ---
     public GameState restartGame(GameState state) {
         GameState resetGameState = gameStateManager.resetRoundState(state);
 
@@ -656,6 +657,7 @@ public class GameService {
             .build();
     }
 
+    // --- RECORDS ---
     public record DealResultWithState(Card dealtCard, GameState newGameState) {
     }
 

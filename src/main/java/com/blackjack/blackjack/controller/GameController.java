@@ -18,7 +18,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.Collections;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -128,7 +127,10 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active round");
         }
 
-        assert current.getPlayer() != null;
+        if (current.getPlayer() == null) {
+            throw new IllegalStateException("Critical error: Player object is missing from GameState during Double request");
+        }
+
         if (current.getPlayer().hand().size() != 2) {
             throw new GameRuleException("DOUBLE NOT ALLOWED");
         }
@@ -233,7 +235,10 @@ public class GameController {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active round for split double");
         }
 
-        assert current.getPlayer() != null;
+        if (current.getPlayer() == null) {
+            throw new IllegalStateException("Critical error: Player object is missing from GameState during Double request");
+        }
+
         if (current.getPlayer().hand().size() != 2) {
             throw new GameRuleException("DOUBLE_ONLY_ALLOWED_ON_STARTING_HAND");
         }
