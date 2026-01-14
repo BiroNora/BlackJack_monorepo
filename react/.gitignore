@@ -30,9 +30,7 @@ __pycache__
 .venv
 *.map
 blackjack1*.txt
-dist
 lib/*.js
-node_modules
 package-lock.json
 test/*.js
 typings/
