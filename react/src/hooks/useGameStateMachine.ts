@@ -99,10 +99,10 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           ...newData,
           currentGameState: newState,
         };
-        console.log(
+        /* console.log(
           `>>> Állapotváltás: ${prev.currentGameState} -> ${newState}`,
           updatedState
-        );
+        ); */
         return updatedState;
       });
     }, []);
@@ -337,7 +337,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   const handleSplitRequest = useCallback(async () => {
     if (isProcessingRef.current) return;
     isProcessingRef.current = true;
-    console.log("Split elindítva, sorompó LEZÁRVA (true)");
+
     setIsWFSR(true);
     setShowInsLost(false);
     setIsSplitted(true);
@@ -350,9 +350,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         const response = extractGameStateData(data);
         if (response && response.player) {
           if (response.aces === true || (response.player.hand.length === 2 && response.player.sum === 21)) {
-            console.log("Speciális eset (Ász/21), sorompó KINYITVA a tranzithoz (false)");
             isProcessingRef.current = false;
-
             const nextState = response.aces === true ? "SPLIT_ACE_TRANSIT" : "SPLIT_NAT21_TRANSIT";
             transitionToState(nextState, response);
             return;
@@ -485,12 +483,12 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       "ERROR",
       "RELOADING"
     ];
-    console.log(`isProcessingRef_TRANSIT_ELOTT: ${isProcessingRef.current}`);
+
+    // Race condition elleni védelem az állapotgépben
     if (autoProcessingStates.includes(gameState.currentGameState)) {
       if (isProcessingRef.current) return; // Ha már fut, kilépünk
       isProcessingRef.current = true;      // Ha nem, lezárjuk
    }
-   console.log(`isProcessingRef_TRANSIT_UTAN: ${isProcessingRef.current}`);
 
     // --- LOADING ÁLLAPOT KEZELÉSE ---
     if (gameState.currentGameState === "LOADING") {
@@ -680,7 +678,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       gameState.currentGameState === "SPLIT_STAND" ||
       gameState.currentGameState === "SPLIT_STAND_DOUBLE"
     ) {
-      console.log(`isProcessingRef_1: ${isProcessingRef.current}`);
+
       setIsWFSR(true);
       setHasHitTurn(false); // See handleSplitStandRequest
       setHasOver21(false);
@@ -698,7 +696,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
 
             if (currSplitReq > 0) {
               const splitResponse = await addSplitPlayerToGame();
-              console.log(`isProcessingRef_2: ${isProcessingRef.current}`);
+
               if (!isMountedRef.current) return;
               if (splitResponse) {
                 const ans = extractGameStateData(splitResponse);
@@ -707,17 +705,13 @@ export function useGameStateMachine(): GameStateMachineHookResult {
                     if (gameState.currentGameState === "SPLIT_STAND_DOUBLE") {
                       timeoutIdRef.current = window.setTimeout(() => {
                         if (isMountedRef.current) {
-                          console.log(`isProcessingRef_3: ${isProcessingRef.current}`);
                           isProcessingRef.current = false;
-                          console.log(`isProcessingRef_4: ${isProcessingRef.current}`);
                           transitionToState("SPLIT_NAT21_TRANSIT", ans);
                         }
                       }, 2000);
                     } else {
                       if (isMountedRef.current) {
-                        console.log(`isProcessingRef_7: ${isProcessingRef.current}`);
                         isProcessingRef.current = false;
-                        console.log(`isProcessingRef_8: ${isProcessingRef.current}`);
                         transitionToState("SPLIT_NAT21_TRANSIT", ans);
                       }
                     }
@@ -770,7 +764,6 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       SplitStand();
     } else if (gameState.currentGameState === "SPLIT_NAT21_TRANSIT") {
       isSplitNat21.current = true;
-      console.log(`isProcessingRef_SPLIT_NAT21_TRANSIT_1: ${isProcessingRef.current}`);
 
       const SplitNat21Transit = async () => {
         if (!isMountedRef.current) return;
@@ -779,7 +772,6 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           timeoutIdRef.current = window.setTimeout(() => {
             if (isMountedRef.current) {
               isProcessingRef.current = false;
-              console.log(`isProcessingRef_SPLIT_NAT21_TRANSIT_2: ${isProcessingRef.current}`);
               transitionToState("SPLIT_STAND", gameState);
               return;
             }
