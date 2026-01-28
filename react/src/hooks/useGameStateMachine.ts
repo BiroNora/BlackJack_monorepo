@@ -492,7 +492,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     if (autoProcessingStates.includes(gameState.currentGameState)) {
       if (isProcessingRef.current) return; // Ha már fut, kilépünk
       isProcessingRef.current = true;      // Ha nem, lezárjuk
-   }
+    }
 
     // --- LOADING ÁLLAPOT KEZELÉSE ---
     if (gameState.currentGameState === "LOADING") {
@@ -937,12 +937,11 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         if (!isMountedRef.current) return;
 
         try {
-          resetGameVariables();
           restartTimeoutRef.current = window.setTimeout(() => {
             if (isMountedRef.current) {
-              console.log("3. Lopakodó időzítő lefutott, irány a RELOADING!");
+              resetGameVariables();
               transitionToState("RELOADING", gameState);
-            }
+           }
           }, 5000);
         } catch (e) {
           console.error("Hiba a RESTART_GAME fázisban:", e);
@@ -997,9 +996,10 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       Reloading();
     }
     return () => {
-      if (restartTimeoutRef.current) {
-        clearTimeout(restartTimeoutRef.current);
-      }
+      if (gameState.currentGameState !== "RESTART_GAME" && restartTimeoutRef.current) {
+              clearTimeout(restartTimeoutRef.current);
+              restartTimeoutRef.current = null;
+            }
     };
   }, [gameState, transitionToState, savePreActionState, isMountedRef, timeoutIdRef, resetHitCounter, resetGameVariables, setInitDeckLen, hasOver21, handleApiAction]);
 

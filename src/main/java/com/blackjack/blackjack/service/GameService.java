@@ -24,7 +24,7 @@ public class GameService {
 
     // --- STANDARD ---
     // VALÓS ÁG
-    public GameState initializeNewRound2(GameState state) {
+    public GameState initializeNewRound(GameState state) {
         // 1. Kör állapotának nullázása (resetRoundState immutábilis)
         GameState currentGameState = gameStateManager.resetRoundState(state)
             .toBuilder()
@@ -125,7 +125,7 @@ public class GameService {
     }
 
     // SPLIT FEJLESZTÉSHEZ
-    public GameState initializeNewRound(GameState state) {
+    public GameState initializeNewRound2(GameState state) {
         // 1. Kör állapotának nullázása
         GameState currentGameState = gameStateManager.resetRoundState(state)
             .toBuilder()
