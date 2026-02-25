@@ -1,6 +1,5 @@
 import { API_BASE_URL } from "../config/apiConfig";
 import type { ErrorResponse, SessionInitResponse } from "../types/game-types";
-import { generateUUID, getOrCreateIdempotencyKey } from "../utilities/utils";
 
 const runningInitializations = new Map<string, Promise<SessionInitResponse>>();
 
@@ -73,6 +72,18 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
   return initializationPromise;
 }
 
+export async function clearGameState() {
+  const data = await callApiEndpoint("/api/clear_game_state", "POST");
+
+  return data;
+}
+
+export async function recoverGameState() {
+  const data = await callApiEndpoint("/api/recover_game_state", "POST");
+
+  return data;
+}
+
 export async function setBet(betAmount: number) {
   const data = await callApiEndpoint("/api/bet", "POST", { bet: betAmount });
 
@@ -127,13 +138,13 @@ export async function handleStandAndRewards() {
   return data;
 }
 
-export async function splitHand() {
+export async function handleSplitHand() {
   const data = await callApiEndpoint("/api/split_request", "POST");
 
   return data;
 }
 
-export async function splitHit() {
+export async function handleSplitHit() {
   const data = await callApiEndpoint("/api/split_hit", "POST");
 
   return data;

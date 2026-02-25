@@ -1,5 +1,6 @@
 export type GameState =
   | "LOADING"
+  | "RECOVERY_DECISION"
   | "SHUFFLING"
   | "BETTING"
   | "INIT_GAME"
@@ -32,7 +33,8 @@ export interface GameStateData {
   tokens: number;
   bet: number;
   bet_list: number[];
-  is_round_active: boolean;
+  target_phase: GameState | null;
+  pre_phase: GameState | null;
 }
 
 export interface PlayerData {
@@ -43,6 +45,7 @@ export interface PlayerData {
   can_split: boolean;
   stated: boolean;
   bet: number;
+  has_hit: number;
 }
 
 export interface DealerMaskedData {
@@ -60,28 +63,19 @@ export interface DealerUnmaskedData {
 }
 
 export type GameStateForClient = {
-  // A deck_len az egyetlen mező, amit a serialize_for_client_init(self) visszaküld.
   deck_len: number;
+  target_phase: GameState | null;
 };
 
 export type SessionInitResponse = {
   status: "success";
   message: string;
   user_id: string;
-  clientId: string;
+  client_id: string;
   tokens: number;
-  game_state: GameStateForClient; // deck_len
+  game_state: GameStateForClient;
   game_state_hint: "USER_SESSION_INITIALIZED";
-};
-
-export type TokensResponse = {
-  user_tokens: number;
-  message: string;
-};
-
-export type DeckLenResponse = {
-  deck_len: number;
-  message: string;
+  total_initial_cards: number;
 };
 
 export type ErrorResponse = {
@@ -98,26 +92,24 @@ export type GameStateMachineHookResult = {
     newState: GameState,
     newData?: Partial<GameStateData>
   ) => void;
+  handleOnContinue: () => void;
+  handleOnStartNew: () => void;
   handlePlaceBet: (amount: number) => Promise<void>;
   //handleDeal: () => Promise<void>; // Hozzáadva a visszatérési típushoz
-  handleRetakeBet: () => Promise<void>;
-  handleStartGame: (shouldShuffle: boolean) => void;
-  handleHitRequest: () => Promise<void>;
-  handleStandRequest: () => Promise<void>;
-  handleDoubleRequest: () => Promise<void>;
+  handleRetakeBet: () => void;
+  handleStartGame: () => void;
+  handleHitRequest: () => void;
+  handleStandRequest: () => void;
+  handleDoubleRequest: () => void;
   handleSplitRequest: () => Promise<void>;
   handleSplitHitRequest: () => Promise<void>;
   handleSplitStandRequest: () => Promise<void>;
   handleSplitDoubleRequest: () => Promise<void>;
-  handleInsRequest: () => Promise<void>;
+  handleInsRequest: () => void;
   preRewardBet: number | null;
   preRewardTokens: number | null;
   insPlaced: boolean;
-  hasHitTurn: boolean;
-  hasOver21: boolean;
   showInsLost: boolean;
-  isSplitted: boolean;
-  hitCounter: number | null;
   initDeckLen: number | null;
   isWFSR: boolean;
 };
