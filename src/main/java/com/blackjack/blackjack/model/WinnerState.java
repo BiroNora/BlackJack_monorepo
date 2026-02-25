@@ -19,11 +19,11 @@ public enum WinnerState {
 
     private final int value;
 
-    @JsonCreator
     WinnerState(int value) {
         this.value = value;
     }
 
+    @JsonCreator
     public static WinnerState valueOf(int value) {
         for (WinnerState state : WinnerState.values()) {
             if (state.value == value) {

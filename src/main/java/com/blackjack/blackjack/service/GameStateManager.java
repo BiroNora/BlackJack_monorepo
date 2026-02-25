@@ -94,7 +94,7 @@ public class GameStateManager {
     public GameState createNewDeck(GameState state) {
         Deck newDeck = deckService.createNewDeck();
         logger.info("+++++++++++ createNewDeck {}", newDeck);
-        return state.toBuilder().deck(newDeck).build();
+        return state.toBuilder().deck(newDeck).currentPhase(state.getPrePhase()).build();
     }
 
     public GameService.DealResultWithState safeDealCard(GameState state) {

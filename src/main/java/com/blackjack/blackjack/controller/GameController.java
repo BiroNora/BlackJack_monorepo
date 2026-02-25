@@ -69,9 +69,18 @@ public class GameController {
         // 2. Üzleti logika futtatása
         GameState updated = action.apply(current);
 
+        GamePhaseService.PhaseResult result = gamePhaseService.calculateNextPhase(updated);
+        System.out.println("result: " + result);
+
+        GameState finalState = updated.toBuilder()
+            .currentPhase(result.currentPhase())
+            .targetPhase(result.targetPhase())
+            .prePhase(result.prePhase())
+            .build();
+
         // 3. Mentés előkészítése
         Player playerToSave = player.toBuilder()
-            .currentGameState(updated)
+            .currentGameState(finalState)
             .idempotencyKey(request.getIdempotencyKey())
             .build();
 
@@ -83,7 +92,7 @@ public class GameController {
         // 5. Válasz küldése
         return ResponseEntity.ok(ApiResponse.builder()
             .status("SUCCESS")
-            .gameState(dtoBuilder.apply(updated))
+            .gameState(dtoBuilder.apply(finalState))
             .gameStateHint(hint)
             .currentTokens(savedPlayer.getTokens())
             .build());
@@ -290,7 +299,8 @@ public class GameController {
 
     // --- DTO BUILDEREK ---
     private GameStateBet buildGameStateBet(GameState s) {
-        return GameStateBet.builder().bet(s.getBet()).betList(s.getBetList()).deckLen(s.getDeckLen()).build();
+        return GameStateBet.builder().bet(s.getBet()).betList(s.getBetList()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
+            .prePhase(s.getPrePhase()).build();
     }
 
     private GameStateStart buildGameStateStart(GameState s) {

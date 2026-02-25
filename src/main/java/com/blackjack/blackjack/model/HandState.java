@@ -12,7 +12,6 @@ public enum HandState {
 
     private final int value;
 
-    @JsonCreator
     HandState(int value) {
         this.value = value;
     }
@@ -20,5 +19,15 @@ public enum HandState {
     @JsonValue
     public int getValue() {
         return value;
+    }
+
+    @JsonCreator // Ez legyen a statikus metóduson!
+    public static HandState fromValue(int value) {
+        for (HandState state : HandState.values()) {
+            if (state.value == value) {
+                return state;
+            }
+        }
+        return NONE; // Vagy dobhatsz hibát is
     }
 }
