@@ -3,9 +3,11 @@ package com.blackjack.blackjack.service;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.PhaseState;
 import com.blackjack.blackjack.model.Player;
+import org.springframework.stereotype.Service;
 
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 
+@Service
 public class GamePhaseService {
     public DeckPhaseResult calculateInitialPhase(Player player, GameState state) {
         PhaseState phase;
@@ -45,6 +47,7 @@ public class GamePhaseService {
         implements PhaseResultProvider {
     }
 
-    public record DeckPhaseResult(int deckLen, PhaseState targetPhase, PhaseState currentPhase) {
+    public record DeckPhaseResult(int deckLen, PhaseState targetPhase, PhaseState currentPhase)
+        implements PhaseResultProvider {
     }
 }

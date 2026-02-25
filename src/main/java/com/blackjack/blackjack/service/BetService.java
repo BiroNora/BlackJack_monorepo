@@ -2,6 +2,7 @@ package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.GameState;
+import com.blackjack.blackjack.model.PhaseState;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -39,6 +40,7 @@ public class BetService {
             .betList(Collections.unmodifiableList(newBetList))
             .deckLen(deckAndPhase.deckLen())
             .targetPhase(deckAndPhase.targetPhase())
+            .prePhase(deckAndPhase.currentPhase())
             .build();
     }
 
@@ -55,11 +57,16 @@ public class BetService {
 
         GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.calculateDeckAndPhase(oldState);
 
+        PhaseState finalPrePhase = (updatedBetList.isEmpty())
+            ? PhaseState.NONE
+            : deckAndPhase.currentPhase();
+
         GameStateBet updatedBetInfo = GameStateBet.builder()
             .bet(newTotalBet)
             .betList(Collections.unmodifiableList(updatedBetList))
             .deckLen(deckAndPhase.deckLen())
             .targetPhase(deckAndPhase.targetPhase())
+            .prePhase(finalPrePhase)
             .build();
 
         return new RetakeResult(updatedBetInfo, amountToReturn);
