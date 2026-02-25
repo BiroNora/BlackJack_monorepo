@@ -3,8 +3,10 @@ package com.blackjack.blackjack.service;
 import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
@@ -53,6 +55,10 @@ public class PlayerService {
     @Transactional
     public Player updateTokens(Player oldPlayer, int rewardAmount) {
         int newTokens = oldPlayer.getTokens() + rewardAmount;
+
+        if (newTokens < 0) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "INSUFFICIENT_FUNDS");
+        }
 
         // Immutábilis frissítés
         Player updatedPlayer = oldPlayer.toBuilder()

@@ -120,6 +120,7 @@ public class GameService {
             .handCounter(nextCount)
             .natural21(initialOutcome)
             .isRoundActive(true)
+            .isSessionInit(false)
             .aces(card1.rank() == Rank.ACE && card3.rank() == Rank.ACE)
             .build();
     }

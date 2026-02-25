@@ -10,11 +10,16 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
 
 @Service
 public class BetService {
+    private final GamePhaseService gamePhaseService;
+
+    public BetService(GamePhaseService gamePhaseService) {
+        this.gamePhaseService = gamePhaseService;
+    }
+
     public GameStateBet placeBet(GameState oldState, int betAmount) {
         validateBettingPeriod(oldState);
 
@@ -27,13 +32,13 @@ public class BetService {
 
         int newTotalBet = oldState.getBet() + betAmount;
 
-        int currentDeckLen = oldState.getDeckLen();
-        int deckLenToReturn = (currentDeckLen == 0) ? INITIAL_DECK_LENGTH : currentDeckLen;
+        GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.calculateDeckAndPhase(oldState);
 
         return GameStateBet.builder()
             .bet(newTotalBet)
             .betList(Collections.unmodifiableList(newBetList))
-            .deckLen(deckLenToReturn)
+            .deckLen(deckAndPhase.deckLen())
+            .targetPhase(deckAndPhase.targetPhase())
             .build();
     }
 
@@ -48,13 +53,13 @@ public class BetService {
         int amountToReturn = updatedBetList.removeLast();
         int newTotalBet = oldState.getBet() - amountToReturn;
 
-        int currentDeckLen = oldState.getDeckLen();
-        int deckLenToReturn = (currentDeckLen == 0) ? INITIAL_DECK_LENGTH : currentDeckLen;
+        GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.calculateDeckAndPhase(oldState);
 
         GameStateBet updatedBetInfo = GameStateBet.builder()
             .bet(newTotalBet)
             .betList(Collections.unmodifiableList(updatedBetList))
-            .deckLen(deckLenToReturn)
+            .deckLen(deckAndPhase.deckLen())
+            .targetPhase(deckAndPhase.targetPhase())
             .build();
 
         return new RetakeResult(updatedBetInfo, amountToReturn);
@@ -68,5 +73,4 @@ public class BetService {
 
     public record RetakeResult(GameStateBet newState, int amountReturned) {
     }
-
 }

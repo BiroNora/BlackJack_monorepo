@@ -25,6 +25,29 @@ public class GameStateManager {
         this.deckService = deckService;
     }
 
+    public int getRefundAmount(Player player) {
+        GameState state = player.getCurrentGameState();
+
+        if (state == null || state.isRoundActive()) {
+            return 0;
+        }
+        return Math.max(0, state.getBet());
+    }
+
+    public Player resetBetAndSave(Player player) {
+        GameState state = player.getCurrentGameState();
+        if (state == null) return player;
+
+        GameState clearedState = state.toBuilder()
+            .bet(0)
+            .betList(Collections.emptyList())
+            .build();
+
+        return player.toBuilder()
+            .currentGameState(clearedState)
+            .build();
+    }
+
     public GameState resetRoundState(GameState oldState) {
         PlayerHand resetPlayerHand = PlayerHand.createEmptyHand();
         PlayerHand resetSplitPlayer = PlayerHand.createEmptyHand();

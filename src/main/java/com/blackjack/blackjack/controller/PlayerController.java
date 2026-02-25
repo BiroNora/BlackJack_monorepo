@@ -2,8 +2,13 @@ package com.blackjack.blackjack.controller;
 
 import com.blackjack.blackjack.dto.init.InitializationRequest;
 import com.blackjack.blackjack.dto.init.InitializationResponse;
+import com.blackjack.blackjack.model.GameState;
+import com.blackjack.blackjack.model.PhaseState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
+import com.blackjack.blackjack.service.GamePhaseService;
+import com.blackjack.blackjack.service.GameStateManager;
+import com.blackjack.blackjack.service.PlayerService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -20,9 +25,15 @@ import static com.blackjack.blackjack.common.GameConstants.INITIAL_TOKENS;
 public class PlayerController {
 
     private final PlayerRepository playerRepository;
+    private final GameStateManager gameStateManager;
+    private final PlayerService playerService;
+    private final GamePhaseService gamePhaseService;
 
-    public PlayerController(PlayerRepository playerRepository) {
+    public PlayerController(PlayerRepository playerRepository, GameStateManager gameStateManager, PlayerService playerService, GamePhaseService gamePhaseService) {
         this.playerRepository = playerRepository;
+        this.gameStateManager = gameStateManager;
+        this.playerService = playerService;
+        this.gamePhaseService = gamePhaseService;
     }
 
     @PostMapping("/initialize_session")
@@ -30,44 +41,44 @@ public class PlayerController {
 
         // 1. Megkeressük a playert az adatbázisban az ID alapján
         UUID rawId = requestRecord.clientId();
-
-        // 2. Itt dől el a végleges érték (egy új, final változóba mentjük)
         final UUID finalClientId = (rawId == null) ? UUID.randomUUID() : rawId;
 
-        // Megkeressük vagy létrehozzuk a playert
         Player player = playerRepository.findByClientId(finalClientId)
-            .map(existingPlayer -> {
-                // HA MÁR LÉTEZIK: Kinullázzuk az állapotot és az idempotencia kulcsot
-                return playerRepository.save(existingPlayer.toBuilder()
-                    .currentGameState(null)
-                    .idempotencyKey(UUID.randomUUID())
-                    .lastActivity(OffsetDateTime.now())
-                    .build());
-            })
-            .orElseGet(() -> {
-                // HA ÚJ: Létrehozzuk alapértékekkel
-                Player newPlayer = Player.builder()
-                    .clientId(finalClientId)
-                    .tokens(INITIAL_TOKENS)
-                    .currentGameState(null)
-                    .lastActivity(OffsetDateTime.now())
-                    .idempotencyKey(UUID.randomUUID())
-                    .build();
-                return playerRepository.save(newPlayer);
-            });
+            .orElseGet(() -> playerRepository.save(Player.builder()
+                .clientId(finalClientId)
+                .tokens(INITIAL_TOKENS)
+                .lastActivity(OffsetDateTime.now())
+                .idempotencyKey(UUID.randomUUID())
+                .build()));
 
-        // 2. Összerakjuk a választ PONTOSAN úgy, ahogy kérted
+        int refund = gameStateManager.getRefundAmount(player);
+        if (refund > 0) {
+            player = playerService.updateTokens(player, refund);
+            player = gameStateManager.resetBetAndSave(player);
+        }
+
+        GameState currState = player.getCurrentGameState();
+        if (currState == null) {
+            currState = GameState.builder().build();
+        }
+
+        PhaseState targetPhase = gamePhaseService.calculateInitialPhase(player, currState);
+        
+        int currDeckSize = (currState.getDeck() != null) ? currState.getDeck().getDeckLength() : INITIAL_DECK_LENGTH;
+
         InitializationResponse.GameStateInit gameStateData =
             InitializationResponse.GameStateInit.builder()
-                .deckLen(INITIAL_DECK_LENGTH)
+                .deckLen(currDeckSize)
+                .targetPhase(targetPhase)
                 .build();
 
         return ResponseEntity.ok(InitializationResponse.builder()
             .status("success")
             .message("success.")
             .gameState(gameStateData)
-            .gameStateHint("Place your bet.")
-            .tokens(player.getTokens()) // A tényleges token az adatbázisból
+            .gameStateHint("INITIALIZING_IS_DONE.")
+            .tokens(player.getTokens())
+            .totalInitialCards(INITIAL_DECK_LENGTH)
             .build());
     }
 
