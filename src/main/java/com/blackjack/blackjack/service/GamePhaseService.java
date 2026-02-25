@@ -7,14 +7,18 @@ import com.blackjack.blackjack.model.Player;
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 
 public class GamePhaseService {
-    public PhaseState calculateInitialPhase(Player player, GameState state) {
+    public DeckPhaseResult calculateInitialPhase(Player player, GameState state) {
+        PhaseState phase;
+        int deckSize = (state.getDeck() != null) ? state.getDeck().getDeckLength() : INITIAL_DECK_LENGTH;
+
         if (player.getTokens() <= 0 && !state.isRoundActive()) {
-            return PhaseState.OUT_OF_TOKENS;
+            phase = PhaseState.OUT_OF_TOKENS;
         } else if (state.isRoundActive()) {
-            return PhaseState.RECOVERY_DECISION;
+            phase = PhaseState.RECOVERY_DECISION;
         } else {
-            return PhaseState.BETTING;
+            phase = PhaseState.BETTING;
         }
+        return new DeckPhaseResult(deckSize, phase, phase);
     }
 
     public DeckPhaseResult calculateDeckAndPhase(GameState state) {
@@ -26,9 +30,21 @@ public class GamePhaseService {
             ? PhaseState.SHUFFLING
             : PhaseState.INIT_GAME;
 
-        return new DeckPhaseResult(deckSize, phase);
+        return new DeckPhaseResult(deckSize, PhaseState.BETTING, phase);
     }
 
+    public interface PhaseResultProvider {
+        PhaseState currentPhase();
+    }
 
-    public record DeckPhaseResult(int deckLen, PhaseState targetPhase) {}
+    public record PhaseResult(PhaseState targetPhase, PhaseState currentPhase)
+        implements PhaseResultProvider {
+    }
+
+    public record PrePhaseResult(PhaseState targetPhase, PhaseState prePhase, PhaseState currentPhase)
+        implements PhaseResultProvider {
+    }
+
+    public record DeckPhaseResult(int deckLen, PhaseState targetPhase, PhaseState currentPhase) {
+    }
 }

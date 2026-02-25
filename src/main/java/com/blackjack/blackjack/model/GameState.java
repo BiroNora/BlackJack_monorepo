@@ -33,10 +33,11 @@ public class GameState implements Serializable {
     boolean isRoundActive;
     @JsonProperty("is_session_init")
     boolean isSessionInit;
+    PhaseState currentPhase;
     @JsonProperty("target_phase")
     PhaseState targetPhase;
     @JsonProperty("pre_phase")
-    boolean prePhase;
+    PhaseState prePhase;
 
     // --- Kéz (Hand) Objektumok ---
     PlayerHand player;

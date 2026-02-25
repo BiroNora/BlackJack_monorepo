@@ -4,10 +4,11 @@ import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.bet.BetRequest;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.GameState;
-import com.blackjack.blackjack.model.PhaseState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.BetService;
 import com.blackjack.blackjack.service.BetService.RetakeResult;
+import com.blackjack.blackjack.service.GamePhaseService;
+import com.blackjack.blackjack.service.GameStateManager;
 import com.blackjack.blackjack.service.PlayerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +24,17 @@ import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 public class BetController {
     private final PlayerService playerService;
     private final BetService betService;
+    private final GamePhaseService gamePhaseService;
+    private final GameStateManager gameStateManager;
 
     @Autowired
     public BetController(
         PlayerService playerService,
-        BetService betService) {
+        BetService betService, GamePhaseService gamePhaseService, GameStateManager gameStateManager) {
         this.playerService = playerService;
         this.betService = betService;
+        this.gamePhaseService = gamePhaseService;
+        this.gameStateManager = gameStateManager;
     }
 
     @PostMapping("/bet")
@@ -48,12 +53,15 @@ public class BetController {
         }
 
         GameStateBet betDto = betService.placeBet(currentState, betRequest.bet());
+        GamePhaseService.DeckPhaseResult phase = gamePhaseService.calculateDeckAndPhase(currentState);
 
         GameState updatedState = currentState.toBuilder()
             .bet(betDto.bet())
             .betList(betDto.betList())
             .isRoundActive(false)
-            .targetPhase(betDto.targetPhase())
+            .currentPhase(phase.targetPhase())
+            .targetPhase(phase.targetPhase())
+            .prePhase(phase.currentPhase())
             .build();
 
         Player playerToSave = player.toBuilder()
@@ -99,6 +107,7 @@ public class BetController {
                 .bet(betDto.bet())
                 .betList(betDto.betList())
                 .targetPhase(betDto.targetPhase())
+                .isRoundActive(false)
                 .build())
             .idempotencyKey(betRequest.idempotencyKey())
             .build();
@@ -120,7 +129,7 @@ public class BetController {
         int dLen = (state != null && state.getDeck() != null) ? state.getDeck().getDeckLength() : INITIAL_DECK_LENGTH;
 
         GameStateBet currentBetDto = (state != null)
-            ? new GameStateBet(state.getBet(), state.getBetList(), dLen, state.getTargetPhase())
+            ? new GameStateBet(state.getBet(), state.getBetList(), dLen, state.getTargetPhase(), state.getPrePhase())
             : null;
 
         return ApiResponse.<GameStateBet>builder()

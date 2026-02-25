@@ -16,7 +16,7 @@ import static com.blackjack.blackjack.common.GameConstants.MINIMUM_BET;
 public class BetService {
     private final GamePhaseService gamePhaseService;
 
-    public BetService(GamePhaseService gamePhaseService) {
+    public BetService(GamePhaseService gamePhaseService, GameStateManager gameStateManager) {
         this.gamePhaseService = gamePhaseService;
     }
 

@@ -6,5 +6,5 @@ import lombok.Builder;
 import java.util.List;
 
 @Builder(toBuilder = true)
-public record GameStateBet(int bet, List<Integer> betList, int deckLen, PhaseState targetPhase) {
+public record GameStateBet(int bet, List<Integer> betList, int deckLen, PhaseState targetPhase, PhaseState prePhase) {
 }

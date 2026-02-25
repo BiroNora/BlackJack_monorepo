@@ -62,14 +62,21 @@ public class PlayerController {
             currState = GameState.builder().build();
         }
 
-        PhaseState targetPhase = gamePhaseService.calculateInitialPhase(player, currState);
-        
-        int currDeckSize = (currState.getDeck() != null) ? currState.getDeck().getDeckLength() : INITIAL_DECK_LENGTH;
+        GamePhaseService.DeckPhaseResult phase = gamePhaseService.calculateInitialPhase(player, currState);
+
+        GameState updatedState = currState.toBuilder()
+            .currentPhase(phase.currentPhase())
+            .isSessionInit(true)
+            .prePhase(PhaseState.NONE)
+            .build();
+
+        player.setCurrentGameState(updatedState);
+        playerRepository.save(player);
 
         InitializationResponse.GameStateInit gameStateData =
             InitializationResponse.GameStateInit.builder()
-                .deckLen(currDeckSize)
-                .targetPhase(targetPhase)
+                .deckLen(phase.deckLen())
+                .targetPhase(phase.targetPhase())
                 .build();
 
         return ResponseEntity.ok(InitializationResponse.builder()

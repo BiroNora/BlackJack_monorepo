@@ -7,6 +7,7 @@ import com.blackjack.blackjack.dto.others.*;
 import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
+import com.blackjack.blackjack.service.GamePhaseService;
 import com.blackjack.blackjack.service.GameService;
 import com.blackjack.blackjack.service.GameStateManager;
 import com.blackjack.blackjack.service.PlayerService;
@@ -31,11 +32,13 @@ public class GameController {
     private final GameService gameService;
     private final PlayerService playerService;
     private final GameStateManager gameStateManager;
+    private final GamePhaseService gamePhaseService;
 
-    public GameController(GameService gameService, PlayerService playerService, GameStateManager gameStateManager) {
+    public GameController(GameService gameService, PlayerService playerService, GameStateManager gameStateManager, GamePhaseService gamePhaseService) {
         this.gameService = gameService;
         this.playerService = playerService;
         this.gameStateManager = gameStateManager;
+        this.gamePhaseService = gamePhaseService;
     }
 
     /**

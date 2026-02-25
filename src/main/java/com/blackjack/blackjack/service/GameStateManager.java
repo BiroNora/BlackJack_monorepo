@@ -2,9 +2,11 @@ package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
+import com.blackjack.blackjack.repository.PlayerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
@@ -16,13 +18,30 @@ public class GameStateManager {
     private final HandValueCalculator handValueCalculator;
     private final HandStateUpdater handStateUpdater;
     private final DeckService deckService;
+    private final PlayerRepository playerRepository;
 
-    public GameStateManager(GameRuleEngine gameRuleEngine, PlayerHandFactory playerHandFactory, HandValueCalculator handValueCalculator, HandStateUpdater handStateUpdater, DeckService deckService) {
+    public GameStateManager(GameRuleEngine gameRuleEngine, PlayerHandFactory playerHandFactory, HandValueCalculator handValueCalculator, HandStateUpdater handStateUpdater, DeckService deckService, PlayerRepository playerRepository) {
         this.gameRuleEngine = gameRuleEngine;
         this.playerHandFactory = playerHandFactory;
         this.handValueCalculator = handValueCalculator;
         this.handStateUpdater = handStateUpdater;
         this.deckService = deckService;
+        this.playerRepository = playerRepository;
+    }
+
+    @Transactional
+    public GameState finalizeAndSave(Player player, GamePhaseService.PhaseResultProvider result, GameState workingState) {
+        GameState finalState = workingState.toBuilder()
+            .currentPhase(result.currentPhase())
+            .build();
+
+        Player updatedPlayer = player.toBuilder()
+            .currentGameState(finalState)
+            .build();
+
+        playerRepository.save(updatedPlayer);
+
+        return finalState;
     }
 
     public int getRefundAmount(Player player) {
