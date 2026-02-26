@@ -18,7 +18,6 @@ public class GameStateManager {
     private final HandValueCalculator handValueCalculator;
     private final HandStateUpdater handStateUpdater;
     private final DeckService deckService;
-    private final PlayerRepository playerRepository;
 
     public GameStateManager(GameRuleEngine gameRuleEngine, PlayerHandFactory playerHandFactory, HandValueCalculator handValueCalculator, HandStateUpdater handStateUpdater, DeckService deckService, PlayerRepository playerRepository) {
         this.gameRuleEngine = gameRuleEngine;
@@ -26,22 +25,6 @@ public class GameStateManager {
         this.handValueCalculator = handValueCalculator;
         this.handStateUpdater = handStateUpdater;
         this.deckService = deckService;
-        this.playerRepository = playerRepository;
-    }
-
-    @Transactional
-    public GameState finalizeAndSave(Player player, GamePhaseService.PhaseResultProvider result, GameState workingState) {
-        GameState finalState = workingState.toBuilder()
-            .currentPhase(result.currentPhase())
-            .build();
-
-        Player updatedPlayer = player.toBuilder()
-            .currentGameState(finalState)
-            .build();
-
-        playerRepository.save(updatedPlayer);
-
-        return finalState;
     }
 
     public int getRefundAmount(Player player) {
@@ -221,12 +204,10 @@ public class GameStateManager {
         Map<String, Boolean> playersIndex = new LinkedHashMap<>(state.getPlayersIndex());
         playersIndex.put(id, false);
         newStateBuilder.playersIndex(Collections.unmodifiableMap(playersIndex));
-        //logger.info("+++++++++++BBBBBB dealSplitCard playersIndex {}", playersIndex);
         return newStateBuilder.build();
     }
 
     public Optional<String> findNextActivePlayerId(Map<String, Boolean> playersIndex) {
-        //logger.info(" XXXXXXXX VVVVV playersIndex {}).", playersIndex);
         if (playersIndex == null || playersIndex.isEmpty()) {
             return Optional.empty();
         }

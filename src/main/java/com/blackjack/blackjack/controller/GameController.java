@@ -66,11 +66,14 @@ public class GameController {
         GameState current = player.getCurrentGameState();
         if (current == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active game state");
 
-        // 2. Üzleti logika futtatása
+        // 2A. Üzleti logika futtatása
         GameState updated = action.apply(current);
-
+        // 2B. Phase (útválasztó) futtatása
         GamePhaseService.PhaseResult result = gamePhaseService.calculateNextPhase(updated);
         System.out.println("result: " + result);
+        System.out.println("DEBUG >>> Result Target: " + result.targetPhase());
+        System.out.println("DEBUG >>> Result Pre: " + result.prePhase());
+        System.out.println("DEBUG >>> Current: " + result.currentPhase());
 
         GameState finalState = updated.toBuilder()
             .currentPhase(result.currentPhase())
@@ -88,7 +91,7 @@ public class GameController {
         Player savedPlayer = (tokenChange != null && tokenChange != 0)
             ? playerService.updateTokens(playerToSave, tokenChange)
             : playerService.savePlayer(playerToSave);
-
+        System.out.println("DEBUG >>> FinalState Target: " + finalState.getTargetPhase());
         // 5. Válasz küldése
         return ResponseEntity.ok(ApiResponse.builder()
             .status("SUCCESS")
@@ -304,7 +307,8 @@ public class GameController {
     }
 
     private GameStateStart buildGameStateStart(GameState s) {
-        return GameStateStart.builder().player(s.getPlayer()).dealerMasked(s.getDealerMasked()).bet(s.getBet()).deckLen(s.getDeckLen()).isRoundActive(s.isRoundActive()).build();
+        return GameStateStart.builder().player(s.getPlayer()).dealerMasked(s.getDealerMasked()).bet(s.getBet()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
+            .prePhase(s.getPrePhase()).build();
     }
 
     private GameStateRewards buildGameStateRewards(GameState s) {

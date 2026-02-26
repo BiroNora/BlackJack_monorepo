@@ -1,10 +1,9 @@
 package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.model.GameState;
-import com.blackjack.blackjack.model.HandState;
-import com.blackjack.blackjack.model.PhaseState;
-import com.blackjack.blackjack.model.Player;
+import com.blackjack.blackjack.model.*;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 
@@ -14,13 +13,14 @@ public class GamePhaseService {
         PhaseState phase;
         int deckSize = (state.getDeck() != null) ? state.getDeck().getDeckLength() : INITIAL_DECK_LENGTH;
 
-        if (player.getTokens() <= 0 && !state.isRoundActive()) {
+        /*if (player.getTokens() <= 0 && !state.isRoundActive()) {
             phase = PhaseState.OUT_OF_TOKENS;
         } else if (state.isRoundActive()) {
             phase = PhaseState.RECOVERY_DECISION;
         } else {
             phase = PhaseState.BETTING;
-        }
+        }*/
+        phase = PhaseState.BETTING;
         return new DeckPhaseResult(deckSize, phase, phase);
     }
 
@@ -41,10 +41,38 @@ public class GamePhaseService {
         System.out.println("currState: " + currState);
 
         return switch (currState) {
-            case SHUFFLING -> new PhaseResult(PhaseState.INIT_GAME, PhaseState.NONE, currState);
+            case SHUFFLING -> new PhaseResult(PhaseState.INIT_GAME, PhaseState.NONE, PhaseState.INIT_GAME);
+            case INIT_GAME -> handleStartGameTransition(state);
+            case MAIN_TURN -> handleHitTransition(state);
 
             default -> throw new IllegalStateException("Ismeretlen fázis: " + currState);
         };
+    }
+
+    private PhaseResult handleStartGameTransition(GameState state) {
+        List<Integer> immediateStopStates = List.of(
+            WinnerState.BLACKJACK_PLAYER_WON.getValue(),
+            WinnerState.BLACKJACK_PUSH.getValue()
+        );
+
+        int nat21 = state.getNatural21();
+        System.out.println(" >>>>>>>>>>> nat21: " + nat21);
+        PhaseState pre = immediateStopStates.contains(nat21)
+            ? PhaseState.MAIN_STAND_REWARDS_TRANSIT
+            : PhaseState.MAIN_TURN;
+
+        return new PhaseResult(PhaseState.INIT_GAME, pre, pre);
+    }
+
+    private PhaseResult handleHitTransition(GameState state) {
+        assert state.getPlayer() != null;
+        int playerHandSum = state.getPlayer().sum();
+        System.out.println(" >>>>>>>>>>> playerHandSum: " + playerHandSum);
+        PhaseState target = playerHandSum < 21
+            ? PhaseState.MAIN_TURN
+            : PhaseState.MAIN_STAND_REWARDS_TRANSIT;
+
+        return new PhaseResult(target, PhaseState.NONE, target);
     }
 
     // A kiszervezett split logika
