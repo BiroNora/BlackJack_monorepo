@@ -25,7 +25,6 @@ public class BetController {
     private final PlayerService playerService;
     private final BetService betService;
     private final GamePhaseService gamePhaseService;
-    private final GameStateManager gameStateManager;
 
     @Autowired
     public BetController(
@@ -34,7 +33,6 @@ public class BetController {
         this.playerService = playerService;
         this.betService = betService;
         this.gamePhaseService = gamePhaseService;
-        this.gameStateManager = gameStateManager;
     }
 
     @PostMapping("/bet")
@@ -53,15 +51,13 @@ public class BetController {
         }
 
         GameStateBet betDto = betService.placeBet(currentState, betRequest.bet());
-        GamePhaseService.DeckPhaseResult phase = gamePhaseService.calculateDeckAndPhase(currentState);
 
         GameState updatedState = currentState.toBuilder()
             .bet(betDto.bet())
             .betList(betDto.betList())
             .isRoundActive(false)
-            .currentPhase(phase.targetPhase())
-            .targetPhase(phase.targetPhase())
-            .prePhase(phase.currentPhase())
+            .targetPhase(betDto.targetPhase())
+            .prePhase(betDto.prePhase())
             .build();
 
         Player playerToSave = player.toBuilder()
@@ -107,6 +103,7 @@ public class BetController {
                 .bet(betDto.bet())
                 .betList(betDto.betList())
                 .targetPhase(betDto.targetPhase())
+                .prePhase(betDto.prePhase())
                 .isRoundActive(false)
                 .build())
             .idempotencyKey(betRequest.idempotencyKey())

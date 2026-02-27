@@ -62,10 +62,9 @@ public class PlayerController {
             currState = GameState.builder().build();
         }
 
-        GamePhaseService.DeckPhaseResult phase = gamePhaseService.calculateInitialPhase(player, currState);
+        GamePhaseService.DeckPhaseResult phase = gamePhaseService.phaseOfInitialSession(player, currState);
 
         GameState updatedState = currState.toBuilder()
-            .currentPhase(phase.currentPhase())
             .isSessionInit(true)
             .prePhase(PhaseState.NONE)
             .build();

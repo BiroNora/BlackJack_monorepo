@@ -33,14 +33,14 @@ public class BetService {
 
         int newTotalBet = oldState.getBet() + betAmount;
 
-        GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.calculateDeckAndPhase(oldState);
+        GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.phaseOfBetAndRetakeBet(oldState);
 
         return GameStateBet.builder()
             .bet(newTotalBet)
             .betList(Collections.unmodifiableList(newBetList))
             .deckLen(deckAndPhase.deckLen())
             .targetPhase(deckAndPhase.targetPhase())
-            .prePhase(deckAndPhase.currentPhase())
+            .prePhase(deckAndPhase.prePhase())
             .build();
     }
 
@@ -55,11 +55,11 @@ public class BetService {
         int amountToReturn = updatedBetList.removeLast();
         int newTotalBet = oldState.getBet() - amountToReturn;
 
-        GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.calculateDeckAndPhase(oldState);
+        GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.phaseOfBetAndRetakeBet(oldState);
 
         PhaseState finalPrePhase = (updatedBetList.isEmpty())
             ? PhaseState.NONE
-            : deckAndPhase.currentPhase();
+            : deckAndPhase.prePhase();
 
         GameStateBet updatedBetInfo = GameStateBet.builder()
             .bet(newTotalBet)
