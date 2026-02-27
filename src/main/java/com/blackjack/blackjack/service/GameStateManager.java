@@ -67,7 +67,7 @@ public class GameStateManager {
             .natural21(0)
             .winner(0)
             .handCounter(0)
-            .wasSplitInRound(false)
+            .hasSplit(false)
             .splitReq(0)
             .isRoundActive(false)
             .players(new HashMap<>())
@@ -77,7 +77,7 @@ public class GameStateManager {
     public GameState createNewDeck(GameState state) {
         Deck newDeck = deckService.createNewDeck();
         logger.info("+++++++++++ createNewDeck {}", newDeck);
-        return state.toBuilder().deck(newDeck).currentPhase(state.getPrePhase()).build();
+        return state.toBuilder().deck(newDeck).build();
     }
 
     public GameService.DealResultWithState safeDealCard(GameState state) {

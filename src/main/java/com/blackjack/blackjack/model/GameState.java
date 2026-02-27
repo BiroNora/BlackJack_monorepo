@@ -33,7 +33,6 @@ public class GameState implements Serializable {
     boolean isRoundActive;
     @JsonProperty("is_session_init")
     boolean isSessionInit;
-    PhaseState currentPhase;
     @JsonProperty("target_phase")
     PhaseState targetPhase;
     @JsonProperty("pre_phase")
@@ -61,8 +60,10 @@ public class GameState implements Serializable {
 
     @JsonProperty("split_req")
     int splitReq;
+
     int handCounter;
-    boolean wasSplitInRound;
+    boolean isDouble;
+    boolean hasSplit;
 
     @Builder.Default
     Map<String, Boolean> playersIndex = Map.of();

@@ -8,6 +8,7 @@ import lombok.Builder;
 
 @Builder(toBuilder = true)
 public record GameStateStart(PlayerHand player, @JsonProperty("dealer_masked") DealerHandMasked dealerMasked,
-                             int deckLen, int bet, @JsonProperty("target_phase") PhaseState targetPhase,
+                             @JsonProperty("deck_len") int deckLen, int bet,
+                             @JsonProperty("target_phase") PhaseState targetPhase,
                              @JsonProperty("pre_phase") PhaseState prePhase) {
 }

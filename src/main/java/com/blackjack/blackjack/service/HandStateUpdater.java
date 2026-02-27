@@ -5,12 +5,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class HandStateUpdater {
-    public HandState updateHandState(int sum, int handSize, boolean isSplitHand) {
+    public HandState updateHandState(int sum, int handSize, boolean hasSplit) {
         if (sum > 21) {
             return HandState.BUST;
         }
         if (sum == 21) {
-            if (handSize == 2 && !isSplitHand) {
+            if (handSize == 2 && !hasSplit) {
                 return HandState.BLACKJACK;
             } else {
                 return HandState.TWENTY_ONE;

@@ -7,7 +7,8 @@ import lombok.Builder;
 import java.util.List;
 
 @Builder(toBuilder = true)
-public record GameStateBet(int bet, List<Integer> betList, int deckLen,
+public record GameStateBet(int bet, @JsonProperty("bet_list") List<Integer> betList,
+                           @JsonProperty("deck_len") int deckLen,
                            @JsonProperty("target_phase") PhaseState targetPhase,
                            @JsonProperty("pre_phase") PhaseState prePhase) {
 }
