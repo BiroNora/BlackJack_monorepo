@@ -66,24 +66,12 @@ public class GameController {
         GameState current = player.getCurrentGameState();
         if (current == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active game state");
 
-        // 2A. Üzleti logika futtatása
+        // 2. Üzleti logika futtatása
         GameState updated = action.apply(current);
-        // 2B. Phase (útválasztó) futtatása
-        GamePhaseService.PhaseResult result = gamePhaseService.calculateNextPhase(updated);
-        System.out.println("result: " + result);
-        System.out.println("DEBUG >>> Result Target: " + result.targetPhase());
-        System.out.println("DEBUG >>> Result Pre: " + result.prePhase());
-        System.out.println("DEBUG >>> Current: " + result.currentPhase());
-
-        GameState finalState = updated.toBuilder()
-            .currentPhase(result.currentPhase())
-            .targetPhase(result.targetPhase())
-            .prePhase(result.prePhase())
-            .build();
 
         // 3. Mentés előkészítése
         Player playerToSave = player.toBuilder()
-            .currentGameState(finalState)
+            .currentGameState(updated)
             .idempotencyKey(request.getIdempotencyKey())
             .build();
 
@@ -91,11 +79,11 @@ public class GameController {
         Player savedPlayer = (tokenChange != null && tokenChange != 0)
             ? playerService.updateTokens(playerToSave, tokenChange)
             : playerService.savePlayer(playerToSave);
-        System.out.println("DEBUG >>> FinalState Target: " + finalState.getTargetPhase());
-        // 5. Válasz küldése
+
+        // 6. Válasz küldése
         return ResponseEntity.ok(ApiResponse.builder()
             .status("SUCCESS")
-            .gameState(dtoBuilder.apply(finalState))
+            .gameState(dtoBuilder.apply(updated))
             .gameStateHint(hint)
             .currentTokens(savedPlayer.getTokens())
             .build());
@@ -104,17 +92,34 @@ public class GameController {
     // --- STANDARD JÁTÉK VÉGPONTOK ---
     @PostMapping("/create_deck")
     public ResponseEntity<?> createDeck(@RequestBody ActionRequest req) {
-        return handleAction(req, "DECK_CREATED", this::buildGameStateBet, gameStateManager::createNewDeck, null);
+        return handleAction(req, "DECK_CREATED", this::buildGameStateBet,
+            (state) -> {
+                GameState updated = gameStateManager.createNewDeck(state);
+                return gamePhaseService.phaseOfCreateDeck(updated);
+            },
+            null);
     }
 
     @PostMapping("/start_game")
     public ResponseEntity<?> initializeNewRound(@RequestBody ActionRequest req) {
-        return handleAction(req, "NEW_ROUND_INITIALIZED", this::buildGameStateStart, gameService::initializeNewRound, null);
+        return handleAction(req, "NEW_ROUND_INITIALIZED", this::buildGameStateStart,
+            (state) -> {
+                GameState updated = gameService.initializeNewRound(state);
+                return gamePhaseService.phaseOfStartGame(updated);
+            },
+            null);
     }
 
     @PostMapping("/hit")
     public ResponseEntity<?> playerHit(@RequestBody ActionRequest req) {
-        return handleAction(req, "HIT_RECEIVED", this::buildGameStateStart, gameService::playerHit, null);
+        boolean isDouble = false;
+
+        return handleAction(req, "HIT_RECEIVED", this::buildGameStateStart,
+            (state) -> {
+                GameState updated = gameService.playerHit(state);
+                return gamePhaseService.phaseOfHit(updated, isDouble);
+            },
+            null);
     }
 
     @PostMapping("/stand_and_rewards")
@@ -123,13 +128,17 @@ public class GameController {
 
         GameState stoodState = gameService.playerStand(player.getCurrentGameState());
         GameService.TransactionResult result = gameService.calculateRewards(stoodState);
+        int finalTokens = player.getTokens() + result.transactionResult();
 
         return handleAction(
             req,
             "REWARDS_PROCESSED",
             this::buildGameStateRewards,
-            state -> result.gameState(),    // Az új állapot (benne a dealer lapjaival)
-            result.transactionResult()      // A TÉNYLEGES nyeremény (pl. +200), így bekerül a DB-be!
+            state -> {
+                GameState rewardState = result.gameState();
+                return gamePhaseService.phaseOfStand(rewardState, finalTokens);
+            },
+            result.transactionResult()
         );
     }
 
@@ -154,41 +163,27 @@ public class GameController {
         if (p.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS");
         }
+        boolean isDouble = true;
 
         return handleAction(req, "DOUBLE_PROCESSED", this::buildGameStateDouble, state -> {
             GameState afterHit = gameService.playerHit(state);
-            return gameService.applyDoubleBet(afterHit, betToDeduct);
+            GameState afterBet = gameService.applyDoubleBet(afterHit, betToDeduct);
+            return gamePhaseService.phaseOfHit(afterBet, isDouble);
         }, -betToDeduct);
     }
 
     @PostMapping("/ins_request")
     public ResponseEntity<?> insuranceRequest(@RequestBody ActionRequest req) {
         Player player = playerService.getAndValidatePlayer(req.getClientId());
-        GameService.TransactionResult res = gameService.insuranceRequest(player.getCurrentGameState());
+        GameService.TransactionResult result = gameService.insuranceRequest(player.getCurrentGameState());
 
-        return handleAction(req, "INS_PROCESSED", this::buildGameStateInsurance,
-            state -> res.gameState(),
-            res.transactionResult()
-        );
-    }
-
-    @PostMapping("/rewards")
-    public ResponseEntity<?> rewards(@RequestBody ActionRequest req) {
-        Player player = playerService.getAndValidatePlayer(req.getClientId());
-        GameState current = player.getCurrentGameState();
-
-        if (current == null) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active game state for rewards");
-        }
-
-        GameService.TransactionResult rewardResult = gameService.calculateRewards(current);
-
-        return handleAction(
-            req,
-            "REWARDS_PROCESSED",
-            this::buildGameStateRewards,
-            state -> rewardResult.gameState(), // Az action visszaadja a már kiszámolt állapotot
-            rewardResult.transactionResult()   // Itt adjuk át a token változást (nyereményt)
+        return handleAction(req, "INS_PROCESSED",
+            this::buildGameStateInsurance,
+            state -> {
+                GameState rewardState = result.gameState();
+                return gamePhaseService.phaseOfInsRequest(rewardState);
+            },
+            result.transactionResult()
         );
     }
 
@@ -217,7 +212,13 @@ public class GameController {
 
     @PostMapping("/split_hit")
     public ResponseEntity<?> splitHit(@RequestBody ActionRequest req) {
-        return handleAction(req, "SPLIT_HIT_RECEIVED", this::buildGameStateSplitHand, gameService::playerHit, null);
+        boolean isDouble = false;
+
+        return handleAction(req, "SPLIT_HIT_RECEIVED", this::buildGameStateSplitHand, (state) -> {
+                GameState updated = gameService.playerHit(state);
+                return gamePhaseService.phaseOfHit(updated, false);
+            },
+            null);
     }
 
     @PostMapping("/split_stand_and_rewards")
@@ -262,6 +263,7 @@ public class GameController {
         if (p.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
         }
+        boolean isDouble = true;
 
         return handleAction(
             req,
@@ -269,7 +271,8 @@ public class GameController {
             this::buildGameStateSplitHand,
             state -> {
                 GameState afterHit = gameService.playerHit(state);
-                return gameService.applyDoubleBet(afterHit, betToDeduct);
+                GameState afterBet = gameService.applyDoubleBet(afterHit, betToDeduct);
+                return gamePhaseService.phaseOfHit(afterBet, isDouble);
             },
             -betToDeduct
         );
@@ -312,27 +315,27 @@ public class GameController {
     }
 
     private GameStateRewards buildGameStateRewards(GameState s) {
-        return GameStateRewards.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).deckLen(s.getDeckLen()).bet(s.getBet()).winner(s.getWinner()).isRoundActive(s.isRoundActive()).build();
+        return GameStateRewards.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).deckLen(s.getDeckLen()).bet(s.getBet()).winner(s.getWinner()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
     }
 
     private GameStateDouble buildGameStateDouble(GameState s) {
-        return GameStateDouble.builder().player(s.getPlayer()).deckLen(s.getDeckLen()).isRoundActive(s.isRoundActive()).build();
+        return GameStateDouble.builder().player(s.getPlayer()).deckLen(s.getDeckLen()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
     }
 
     private GameStateInsurance buildGameStateInsurance(GameState s) {
-        return GameStateInsurance.builder().player(s.getPlayer()).natural21(s.getNatural21()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).build();
+        return GameStateInsurance.builder().player(s.getPlayer()).natural21(s.getNatural21()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
     }
 
     private GameStateSplitHand buildGameStateSplitHand(GameState s) {
-        return GameStateSplitHand.builder().player(s.getPlayer()).dealerHandMasked(s.getDealerMasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).build();
+        return GameStateSplitHand.builder().player(s.getPlayer()).dealerHandMasked(s.getDealerMasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
     }
 
     private GameStateAddToPlayersByStand buildGameStateAddToPlayers(GameState s) {
-        return GameStateAddToPlayersByStand.builder().player(s.getPlayer()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).build();
+        return GameStateAddToPlayersByStand.builder().player(s.getPlayer()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
     }
 
     private GameStateAddPlayerFromPlayers buildGameStateAddPlayerFromPlayers(GameState s) {
-        return GameStateAddPlayerFromPlayers.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).build();
+        return GameStateAddPlayerFromPlayers.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
     }
 
     private GameStateSplitStandAndRewards buildGameStateSplitRewards(GameState state) {
@@ -345,6 +348,8 @@ public class GameController {
             .deckLen(state.getDeckLen())
             .bet(state.getBet())
             .isRoundActive(state.isRoundActive())
+            .targetPhase(state.getTargetPhase())
+            .prePhase(state.getPrePhase())
             .build();
     }
 }

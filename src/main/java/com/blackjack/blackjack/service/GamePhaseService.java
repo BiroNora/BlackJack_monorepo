@@ -8,8 +8,9 @@ import java.util.List;
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 
 @Service
+
 public class GamePhaseService {
-    public DeckPhaseResult calculateInitialPhase(Player player, GameState state) {
+    public DeckPhaseResult phaseOfInitialSession(Player player, GameState state) {
         PhaseState phase;
         int deckSize = (state.getDeck() != null) ? state.getDeck().getDeckLength() : INITIAL_DECK_LENGTH;
 
@@ -24,32 +25,38 @@ public class GamePhaseService {
         return new DeckPhaseResult(deckSize, phase, phase);
     }
 
-    public DeckPhaseResult calculateDeckAndPhase(GameState state) {
+    public PhaseState updatePrePhaseBasedOnTokens(GameState state, int currentTokens) {
+        PhaseState pre;
+        if (currentTokens <= 0 && state.getPlayers().isEmpty()) {
+            pre = PhaseState.OUT_OF_TOKENS;
+        } else {
+            pre = PhaseState.BETTING;
+        }
+
+        return pre;
+    }
+
+    public DeckPhaseResult phaseOfBetAndRetakeBet(GameState state) {
         int deckSize = (!state.isRoundActive() && state.isSessionInit()) || state.getDeck() == null
             ? INITIAL_DECK_LENGTH
             : state.getDeck().getDeckLength();
 
-        PhaseState prePhase = (deckSize == INITIAL_DECK_LENGTH || deckSize < 60)
+        PhaseState nextStep = (deckSize == INITIAL_DECK_LENGTH || deckSize < 60)
             ? PhaseState.SHUFFLING
             : PhaseState.INIT_GAME;
 
-        return new DeckPhaseResult(deckSize, PhaseState.BETTING, prePhase);
+        return new DeckPhaseResult(
+            deckSize,
+            PhaseState.BETTING,
+            nextStep
+        );
     }
 
-    public PhaseResult calculateNextPhase(GameState state) {
-        PhaseState currState = state.getCurrentPhase();
-        System.out.println("currState: " + currState);
-
-        return switch (currState) {
-            case SHUFFLING -> new PhaseResult(PhaseState.INIT_GAME, PhaseState.NONE, PhaseState.INIT_GAME);
-            case INIT_GAME -> handleStartGameTransition(state);
-            case MAIN_TURN -> handleHitTransition(state);
-
-            default -> throw new IllegalStateException("Ismeretlen fázis: " + currState);
-        };
+    public GameState phaseOfCreateDeck(GameState state) {
+        return state.toBuilder().targetPhase(PhaseState.INIT_GAME).prePhase(PhaseState.NONE).build();
     }
 
-    private PhaseResult handleStartGameTransition(GameState state) {
+    public GameState phaseOfStartGame(GameState state) {
         List<Integer> immediateStopStates = List.of(
             WinnerState.BLACKJACK_PLAYER_WON.getValue(),
             WinnerState.BLACKJACK_PUSH.getValue()
@@ -61,18 +68,79 @@ public class GamePhaseService {
             ? PhaseState.MAIN_STAND_REWARDS_TRANSIT
             : PhaseState.MAIN_TURN;
 
-        return new PhaseResult(PhaseState.INIT_GAME, pre, pre);
+        return state.toBuilder().targetPhase(PhaseState.INIT_GAME).prePhase(pre).build();
     }
 
-    private PhaseResult handleHitTransition(GameState state) {
-        assert state.getPlayer() != null;
-        int playerHandSum = state.getPlayer().sum();
-        System.out.println(" >>>>>>>>>>> playerHandSum: " + playerHandSum);
-        PhaseState target = playerHandSum < 21
-            ? PhaseState.MAIN_TURN
-            : PhaseState.MAIN_STAND_REWARDS_TRANSIT;
+    public GameState phaseOfHit(GameState state, boolean isDouble) {
+        if (state.getPlayer() == null) {
+            throw new IllegalStateException("No player hand.");
+        }
 
-        return new PhaseResult(target, PhaseState.NONE, target);
+        PhaseState target;
+        int playerHandSum = state.getPlayer().sum();
+        int hitCount = state.getPlayer().hasHit();
+        boolean isSplitted = state.isHasSplit();
+
+        if (!isSplitted) {
+            target = (playerHandSum >= 21 || isDouble)
+                ? PhaseState.MAIN_STAND_REWARDS_TRANSIT
+                : PhaseState.MAIN_TURN;
+        } else {
+            if (isDouble) {
+                target = PhaseState.SPLIT_STAND_DOUBLE;
+            } else if (playerHandSum >= 21) {
+                target = (hitCount == 1)
+                    ? PhaseState.SPLIT_STAND_DOUBLE
+                    : PhaseState.SPLIT_STAND;
+            } else {
+                target = PhaseState.SPLIT_TURN;
+            }
+        }
+
+        return state.toBuilder().targetPhase(target).prePhase(PhaseState.NONE).build();
+    }
+
+    public GameState phaseOfStand(GameState state, int finalTokens) {
+        PhaseState target;
+        PhaseState pre;
+        boolean isSplitted = state.isHasSplit();
+
+        target = (isSplitted)
+            ? PhaseState.SPLIT_FINISH_OUTCOME
+            : PhaseState.MAIN_STAND;
+
+        pre = updatePrePhaseBasedOnTokens(state, finalTokens);
+
+        return state.toBuilder().targetPhase(target).prePhase(pre).build();
+    }
+
+    public GameState phaseOfInsRequest(GameState state) {
+        if (state.getDealerUnmasked() == null) {
+            throw new IllegalStateException("No dealer hand.");
+        }
+        PhaseState target;
+        PhaseState pre;
+        boolean dealerBJ = state.getDealerUnmasked().natural21() == 3;
+
+        if (dealerBJ) {
+            target = PhaseState.MAIN_STAND;
+            pre = PhaseState.BETTING;
+        } else {
+            target = PhaseState.MAIN_TURN;
+            pre = PhaseState.NONE;
+        }
+
+        return state.toBuilder().targetPhase(target).prePhase(pre).build();
+    }
+
+
+    private PhaseResult handleStandAndRewards(GameState state) {
+        PhaseState target = (state.isHasSplit())
+            ? PhaseState.SPLIT_FINISH_OUTCOME
+            : PhaseState.MAIN_STAND;
+
+        return new PhaseResult(target, PhaseState.BETTING);
+
     }
 
     // A kiszervezett split logika
@@ -92,19 +160,26 @@ public class GamePhaseService {
 
         PhaseState pre = isFinished ? PhaseState.SPLIT_STAND : PhaseState.NONE;
 
-        return new PhaseResult(target, pre, PhaseState.SPLIT_TURN);
+        return new PhaseResult(target, pre);
     }
 
 
     public interface PhaseResultProvider {
-        PhaseState currentPhase();
+        PhaseState targetPhase();
+
+        PhaseState prePhase();
     }
 
-    public record PhaseResult(PhaseState targetPhase, PhaseState prePhase, PhaseState currentPhase)
+    public record PhaseResult(
+        PhaseState targetPhase,
+        PhaseState prePhase)
         implements PhaseResultProvider {
     }
 
-    public record DeckPhaseResult(int deckLen, PhaseState targetPhase, PhaseState currentPhase)
-        implements PhaseResultProvider {
+    public record DeckPhaseResult(
+        int deckLen,
+        PhaseState targetPhase,
+        PhaseState prePhase
+    ) implements PhaseResultProvider {
     }
 }

@@ -62,7 +62,6 @@ public class GameState implements Serializable {
     int splitReq;
 
     int handCounter;
-    boolean isDouble;
     boolean hasSplit;
 
     @Builder.Default

@@ -12,7 +12,7 @@ import java.util.List;
 @Jacksonized
 public record PlayerHand(String id, List<Card> hand, boolean canSplit, boolean stated,
                          int bet, int sum,
-                         int handState) implements Hand, Serializable {
+                         int handState, int hasHit) implements Hand, Serializable {
     public PlayerHand {
         hand = (hand == null) ? List.of() : List.copyOf(hand);
     }
@@ -26,6 +26,7 @@ public record PlayerHand(String id, List<Card> hand, boolean canSplit, boolean s
             .bet(0)
             .sum(0)
             .handState(0)
+            .hasHit(0)
             .build();
     }
 }

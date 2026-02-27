@@ -55,7 +55,7 @@ public class GameService {
         // ----------------------------------------------------
         LinkedList<Card> playerStartHand = new LinkedList<>(List.of(card1, card3));
         int playerSum = handValueCalculator.calculateSum(playerStartHand);
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isWasSplitInRound());
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isHasSplit());
         boolean isSplitPossible = gameRuleEngine.canSplit(playerStartHand);
 
         int nextCount = currentGameState.calculateNextHandCounter();
@@ -63,7 +63,7 @@ public class GameService {
 
         LinkedList<Card> dealerUnmaskedHand = new LinkedList<>(List.of(card2, card4));
         int dealerFullSum = handValueCalculator.calculateSum(dealerUnmaskedHand);
-        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isWasSplitInRound());
+        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isHasSplit());
 
         // ----------------------------------------------------
         // 4. IDEIGLENES OBJEKTUMOK ÉS BLACKJACK ELLENŐRZÉS
@@ -161,7 +161,7 @@ public class GameService {
         // ----------------------------------------------------
         LinkedList<Card> playerStartHand = new LinkedList<>(List.of(card1, card3));
         int playerSum = handValueCalculator.calculateSum(playerStartHand);
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isWasSplitInRound());
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isHasSplit());
 
         // Itt a canSplit true-t fog adni a King+Queen-re
         boolean isSplitPossible = gameRuleEngine.canSplit(playerStartHand);
@@ -171,7 +171,7 @@ public class GameService {
 
         LinkedList<Card> dealerUnmaskedHand = new LinkedList<>(List.of(card2, card4));
         int dealerFullSum = handValueCalculator.calculateSum(dealerUnmaskedHand);
-        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isWasSplitInRound());
+        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isHasSplit());
 
         // ----------------------------------------------------
         // 4. IDEIGLENES OBJEKTUMOK ÉS BLACKJACK ELLENŐRZÉS
@@ -265,7 +265,7 @@ public class GameService {
         // ----------------------------------------------------
         LinkedList<Card> playerStartHand = new LinkedList<>(List.of(card1, card3));
         int playerSum = handValueCalculator.calculateSum(playerStartHand);
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isWasSplitInRound());
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerStartHand.size(), currentGameState.isHasSplit());
 
         boolean isSplitPossible = gameRuleEngine.canSplit(playerStartHand);
 
@@ -274,7 +274,7 @@ public class GameService {
 
         LinkedList<Card> dealerUnmaskedHand = new LinkedList<>(List.of(card2, card4));
         int dealerFullSum = handValueCalculator.calculateSum(dealerUnmaskedHand);
-        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isWasSplitInRound());
+        HandState dealerHandState = handStateUpdater.updateHandState(dealerFullSum, dealerUnmaskedHand.size(), currentGameState.isHasSplit());
 
         // ----------------------------------------------------
         // 4. IDEIGLENES OBJEKTUMOK ÉS BLACKJACK ELLENŐRZÉS
@@ -350,12 +350,13 @@ public class GameService {
         newHandList.add(card);
 
         int newSum = handValueCalculator.calculateSum(newHandList);
-        HandState calculatedHandState = handStateUpdater.updateHandState(newSum, newHandList.size(), deckUpdatedState.isWasSplitInRound());
+        HandState calculatedHandState = handStateUpdater.updateHandState(newSum, newHandList.size(), deckUpdatedState.isHasSplit());
 
         PlayerHand newPlayerHand = playerHand.toBuilder()
             .hand(newHandList)
             .sum(newSum)
             .handState(calculatedHandState.getValue())
+            .hasHit(playerHand.hasHit() + 1)
             .build();
 
         return deckUpdatedState.toBuilder()
@@ -371,7 +372,7 @@ public class GameService {
         PlayerHand playerHand = currentState.getPlayer();
         assert playerHand != null;
         int playerSum = playerHand.sum();
-        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerHand.hand().size(), currentState.isWasSplitInRound());
+        HandState playerHandState = handStateUpdater.updateHandState(playerSum, playerHand.hand().size(), currentState.isHasSplit());
 
         PlayerHand playerHandStated = playerHand.toBuilder()
             .stated(true)
@@ -513,7 +514,7 @@ public class GameService {
         GameState updatedState = oldState.toBuilder()
             .player(primaryHandNewState)
             .splitReq(oldState.calculateNewSplitReq(1))
-            .wasSplitInRound(true)
+            .hasSplit(true)
             .build();
 
         GameState stateAfterFirstDeal = gameStateManager.dealSplitCard(updatedState, true, null);
@@ -610,7 +611,7 @@ public class GameService {
 
             boolean canSplit = gameRuleEngine.canSplit(newHandList);
             int sum = handValueCalculator.calculateSum(newHandList);
-            HandState playerState = handStateUpdater.updateHandState(sum, newHandList.size(), currentGameState.isWasSplitInRound());
+            HandState playerState = handStateUpdater.updateHandState(sum, newHandList.size(), currentGameState.isHasSplit());
 
 
             PlayerHand finalPlayerHand = playerToDealTo.toBuilder()
