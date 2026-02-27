@@ -199,7 +199,7 @@ public class GameServiceTest {
         when(handValueCalculator.calculateSum(anyList())).thenReturn(15);
         when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean()))
             .thenReturn(HandState.UNDER_21);
-        GameState result = gameService.playerHit(currentState);
+        GameState result = gameService.playerHit(currentState, false);
 
         assertNotNull(result);
         assertEquals(2, result.getPlayer().hand().size());
@@ -236,7 +236,7 @@ public class GameServiceTest {
         when(handStateUpdater.updateHandState(eq(23), anyInt(), anyBoolean()))
             .thenReturn(HandState.BUST);
 
-        GameState result = gameService.playerHit(state);
+        GameState result = gameService.playerHit(state, false);
 
         assertEquals(23, result.getPlayer().sum());
         assertEquals(HandState.BUST.getValue(), result.getPlayer().handState());
@@ -250,7 +250,7 @@ public class GameServiceTest {
             .isRoundActive(false)
             .build();
 
-        GameState result = gameService.playerHit(inactiveState);
+        GameState result = gameService.playerHit(inactiveState, false);
 
         assertSame(inactiveState, result, "Inaktív körnél az eredeti állapotot kell visszakapni");
 
@@ -263,7 +263,7 @@ public class GameServiceTest {
     void testPlayerHit_AfterSplit() {
         GameState splitState = GameState.builder()
             .isRoundActive(true)
-            .wasSplitInRound(true) // <--- Jelözzük, hogy volt split
+            .hasSplit(true) // <--- Jelözzük, hogy volt split
             .player(PlayerHand.builder().hand(new ArrayList<>()).build())
             .build();
 
@@ -275,7 +275,7 @@ public class GameServiceTest {
         when(handStateUpdater.updateHandState(anyInt(), anyInt(), eq(true)))
             .thenReturn(HandState.UNDER_21);
 
-        gameService.playerHit(splitState);
+        gameService.playerHit(splitState, false);
 
         verify(handStateUpdater).updateHandState(eq(11), eq(1), eq(true));
     }
@@ -292,7 +292,7 @@ public class GameServiceTest {
         GameState state = GameState.builder()
             .isRoundActive(true)
             .player(player)
-            .wasSplitInRound(false) // <--- NINCS SPLIT
+            .hasSplit(false) // <--- NINCS SPLIT
             .build();
 
         when(handStateUpdater.updateHandState(eq(18), anyInt(), eq(false)))
@@ -492,10 +492,10 @@ public class GameServiceTest {
             .player(originalHand)
             .players(new HashMap<>())
             .splitReq(0)
-            .wasSplitInRound(false)
+            .hasSplit(false)
             .build();
 
-        GameState stateAfterFirst = initialState.toBuilder().wasSplitInRound(true).build();
+        GameState stateAfterFirst = initialState.toBuilder().hasSplit(true).build();
         GameState finalState = stateAfterFirst.toBuilder().build();
 
         when(gameStateManager.dealSplitCard(any(GameState.class), eq(true), isNull()))
@@ -506,7 +506,7 @@ public class GameServiceTest {
         GameState result = gameService.splitHand(initialState);
 
         assertNotNull(result);
-        assertTrue(result.isWasSplitInRound(), "A wasSplitInRound flagnek true-nak kell lennie.");
+        assertTrue(result.isHasSplit(), "A wasSplitInRound flagnek true-nak kell lennie.");
 
         verify(gameStateManager).dealSplitCard(argThat(s -> {
             assertNotNull(s.getPlayer());
@@ -773,7 +773,7 @@ public class GameServiceTest {
 
         GameState glitchedState = GameState.builder()
             .isRoundActive(true)
-            .wasSplitInRound(true)
+            .hasSplit(true)
             .bet(100)
             .natural21(2)
             .winner(1)
@@ -795,7 +795,7 @@ public class GameServiceTest {
         assertAll("A helyreállítási folyamatnak minden mezőt és a paklit is nulláznia kell",
             () -> assertEquals(0, result.getBet(), "A tét nem maradhat meg."),
             () -> assertFalse(result.isRoundActive(), "A körnek lezártnak kell lennie."),
-            () -> assertFalse(result.isWasSplitInRound(), "A split flaget törölni kell."),
+            () -> assertFalse(result.isHasSplit(), "A split flaget törölni kell."),
             () -> assertEquals(0, result.getNatural21(), "A BlackJack jelzőt nullázni kell."),
             () -> assertEquals(0, result.getWinner(), "A győztest törölni kell."),
             // Pakli ellenőrzése

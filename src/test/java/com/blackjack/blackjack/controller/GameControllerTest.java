@@ -101,7 +101,7 @@ public class GameControllerTest {
 
         when(playerService.getAndValidatePlayer(clientId)).thenReturn(mockPlayer);
         when(playerService.isDuplicateRequest(any(), any())).thenReturn(false);
-        when(gameService.playerHit(any())).thenReturn(mockGameState);
+        when(gameService.playerHit(any(), false)).thenReturn(mockGameState);
         when(playerService.savePlayer(any())).thenReturn(mockPlayer);
 
         mockMvc.perform(post("/api/hit")
@@ -138,7 +138,7 @@ public class GameControllerTest {
             .build();
 
         when(playerService.getAndValidatePlayer(clientId)).thenReturn(playerWithHand);
-        when(gameService.playerHit(any())).thenReturn(stateWithHand);
+        when(gameService.playerHit(any(), false)).thenReturn(stateWithHand);
         when(gameService.applyDoubleBet(any(), anyInt())).thenReturn(stateWithHand);
         when(playerService.updateTokens(any(), anyInt())).thenReturn(playerWithHand);
 
