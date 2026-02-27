@@ -199,7 +199,7 @@ public class GameServiceTest {
         when(handValueCalculator.calculateSum(anyList())).thenReturn(15);
         when(handStateUpdater.updateHandState(anyInt(), anyInt(), anyBoolean()))
             .thenReturn(HandState.UNDER_21);
-        GameState result = gameService.playerHit(currentState, false);
+        GameState result = gameService.playerHit(currentState);
 
         assertNotNull(result);
         assertEquals(2, result.getPlayer().hand().size());
@@ -236,7 +236,7 @@ public class GameServiceTest {
         when(handStateUpdater.updateHandState(eq(23), anyInt(), anyBoolean()))
             .thenReturn(HandState.BUST);
 
-        GameState result = gameService.playerHit(state, false);
+        GameState result = gameService.playerHit(state);
 
         assertEquals(23, result.getPlayer().sum());
         assertEquals(HandState.BUST.getValue(), result.getPlayer().handState());
@@ -250,7 +250,7 @@ public class GameServiceTest {
             .isRoundActive(false)
             .build();
 
-        GameState result = gameService.playerHit(inactiveState, false);
+        GameState result = gameService.playerHit(inactiveState);
 
         assertSame(inactiveState, result, "Inaktív körnél az eredeti állapotot kell visszakapni");
 
@@ -275,7 +275,7 @@ public class GameServiceTest {
         when(handStateUpdater.updateHandState(anyInt(), anyInt(), eq(true)))
             .thenReturn(HandState.UNDER_21);
 
-        gameService.playerHit(splitState, false);
+        gameService.playerHit(splitState);
 
         verify(handStateUpdater).updateHandState(eq(11), eq(1), eq(true));
     }
