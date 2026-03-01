@@ -10,6 +10,7 @@ const CLIENT_STORAGE_ID_KEY = 'cid';
 
 
 export async function initializeSessionAPI(): Promise<SessionInitResponse> {
+  //console.log("🚀 initializeSessionAPI hívása elindult!");
   // 1. 🔑 BLOKKOLÁS ELLENŐRZÉS: Ellenőrizzük, hogy fut-e már inicializálás (__sik__ kulcs).
   const existingPromise = runningInitializations.get(SESSION_INIT_KEY);
   if (existingPromise) {
@@ -22,7 +23,7 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
 
   if (!clientStorageId) {
     // Ha még nincs mentve, generálunk egy újat és eltároljuk tartósan
-    clientStorageId = generateUUID();
+    clientStorageId = window.crypto.randomUUID();
     localStorage.setItem(CLIENT_STORAGE_ID_KEY, clientStorageId);
     console.info(`[LocalStorage] Új tartós ID generálva és mentve a ${CLIENT_STORAGE_ID_KEY} kulcs alatt.`);
   }
