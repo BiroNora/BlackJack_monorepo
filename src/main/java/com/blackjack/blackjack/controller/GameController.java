@@ -22,7 +22,6 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
-import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_TOKENS;
 
 @RestController
@@ -93,7 +92,7 @@ public class GameController {
     @PostMapping("/create_deck")
     public ResponseEntity<?> createDeck(@RequestBody ActionRequest req) {
         return handleAction(req, "DECK_CREATED", this::buildGameStateBet,
-            (state) -> {
+            state -> {
                 GameState updated = gameStateManager.createNewDeck(state);
                 return gamePhaseService.phaseOfCreateDeck(updated);
             },
@@ -103,7 +102,7 @@ public class GameController {
     @PostMapping("/start_game")
     public ResponseEntity<?> initializeNewRound(@RequestBody ActionRequest req) {
         return handleAction(req, "NEW_ROUND_INITIALIZED", this::buildGameStateStart,
-            (state) -> {
+            state -> {
                 GameState updated = gameService.initializeNewRound(state);
                 return gamePhaseService.phaseOfStartGame(updated);
             },
@@ -112,12 +111,10 @@ public class GameController {
 
     @PostMapping("/hit")
     public ResponseEntity<?> playerHit(@RequestBody ActionRequest req) {
-        boolean isDouble = false;
-
         return handleAction(req, "HIT_RECEIVED", this::buildGameStateStart,
-            (state) -> {
+            state -> {
                 GameState updated = gameService.playerHit(state);
-                return gamePhaseService.phaseOfHit(updated, isDouble);
+                return gamePhaseService.phaseOfHit(updated, false);
             },
             null);
     }
@@ -125,8 +122,12 @@ public class GameController {
     @PostMapping("/stand_and_rewards")
     public ResponseEntity<?> standAndRewards(@RequestBody ActionRequest req) {
         Player player = playerService.getAndValidatePlayer(req.getClientId());
+        GameState current = player.getCurrentGameState();
 
-        GameState stoodState = gameService.playerStand(player.getCurrentGameState());
+        if (current == null || !current.isRoundActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active round to stand");
+        }
+        GameState stoodState = gameService.playerStand(current);
         GameService.TransactionResult result = gameService.calculateRewards(stoodState);
         int finalTokens = player.getTokens() + result.transactionResult();
 
@@ -163,12 +164,11 @@ public class GameController {
         if (p.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS");
         }
-        boolean isDouble = true;
 
         return handleAction(req, "DOUBLE_PROCESSED", this::buildGameStateDouble, state -> {
             GameState afterHit = gameService.playerHit(state);
             GameState afterBet = gameService.applyDoubleBet(afterHit, betToDeduct);
-            return gamePhaseService.phaseOfHit(afterBet, isDouble);
+            return gamePhaseService.phaseOfHit(afterBet, true);
         }, -betToDeduct);
     }
 
@@ -191,29 +191,58 @@ public class GameController {
     @PostMapping("/split_request")
     public ResponseEntity<?> splitRequest(@RequestBody ActionRequest req) {
         Player p = playerService.getAndValidatePlayer(req.getClientId());
-        int bet = p.getCurrentGameState().getBet();
-        return handleAction(req, "SPLIT_PROCESSED", this::buildGameStateSplitHand, gameService::splitHand, -bet);
+        GameState current = p.getCurrentGameState();
+
+        if (current == null || !current.isRoundActive()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active round");
+        }
+
+        if (current.getPlayer() == null) {
+            throw new IllegalStateException("Critical error: Player object is missing during Split request");
+        }
+
+        if (current.getPlayer().hand().size() != 2) {
+            throw new GameRuleException("SPLIT_NOT_ALLOWED_MORE_THAN_TWO_CARDS");
+        }
+
+        int betToDeduct = current.getBet();
+        if (p.getTokens() < betToDeduct) {
+            throw new GameRuleException("NOT_ENOUGH_TOKENS");
+        }
+
+        return handleAction(req, "SPLIT_PROCESSED", this::buildGameStateSplitHand, state -> {
+            GameState splitted = gameService.splitHand(state);
+            return gamePhaseService.phaseOfSplitRequest(splitted);
+        }, -betToDeduct);
     }
 
+    // INNEN FOLYT! python serialban is!
     @PostMapping("/add_to_players_list_by_stand")
     public ResponseEntity<?> addToPlayersByStand(@RequestBody ActionRequest req) {
-        return handleAction(req, "HAND_SAVED", this::buildGameStateAddToPlayers, gameService::addToPlayersListByStand, null);
+        return handleAction(req, "HAND_SAVED", this::buildGameStateAddToPlayers, state -> {
+            GameState added = gameService.addToPlayersListByStand(state);
+            return gamePhaseService.phaseOfAddToPlayersListByStand(added);
+        }, null);
     }
 
     @PostMapping("/add_split_player_to_game")
     public ResponseEntity<?> addSplitPlayerToGame(@RequestBody ActionRequest req) {
-        return handleAction(req, "NEXT_SPLIT_HAND_ACTIVE", this::buildGameStateSplitHand, gameService::addSplitPlayerToGame, null);
+        return handleAction(req, "NEXT_SPLIT_HAND_ACTIVE", this::buildGameStateSplitHand, state -> {
+            GameState added = gameService.addSplitPlayerToGame(state);
+            return gamePhaseService.phaseOfAddSplitPlayerToGame(added);
+        }, null);
     }
 
     @PostMapping("/add_player_from_players")
     public ResponseEntity<?> addPlayerFromPlayers(@RequestBody ActionRequest req) {
-        return handleAction(req, "ALL_HANDS_COLLECTED", this::buildGameStateAddPlayerFromPlayers, gameService::addPlayerFromPlayers, null);
+        return handleAction(req, "ALL_HANDS_COLLECTED", this::buildGameStateAddPlayerFromPlayers, state -> {
+            GameState added = gameService.addPlayerFromPlayers(state);
+            return gamePhaseService.phaseOfAddPlayerFromPlayers(added);
+        }, null);
     }
 
     @PostMapping("/split_hit")
     public ResponseEntity<?> splitHit(@RequestBody ActionRequest req) {
-        boolean isDouble = false;
-
         return handleAction(req, "SPLIT_HIT_RECEIVED", this::buildGameStateSplitHand, (state) -> {
                 GameState updated = gameService.playerHit(state);
                 return gamePhaseService.phaseOfHit(updated, false);
@@ -231,14 +260,18 @@ public class GameController {
         }
 
         GameState stoodState = gameService.playerStand(current);
-        GameService.TransactionResult rewardResult = gameService.calculateRewards(stoodState);
+        GameService.TransactionResult result = gameService.calculateRewards(stoodState);
+        int finalTokens = player.getTokens() + result.transactionResult();
 
         return handleAction(
             req,
             "REWARDS_PROCESSED",
             this::buildGameStateSplitRewards,
-            state -> rewardResult.gameState(),
-            rewardResult.transactionResult()
+            state -> {
+                GameState rewardState = result.gameState();
+                return gamePhaseService.phaseOfStand(rewardState, finalTokens);
+            },
+            result.transactionResult()
         );
     }
 
@@ -263,7 +296,6 @@ public class GameController {
         if (p.getTokens() < betToDeduct) {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
         }
-        boolean isDouble = true;
 
         return handleAction(
             req,
@@ -272,7 +304,7 @@ public class GameController {
             state -> {
                 GameState afterHit = gameService.playerHit(state);
                 GameState afterBet = gameService.applyDoubleBet(afterHit, betToDeduct);
-                return gamePhaseService.phaseOfHit(afterBet, isDouble);
+                return gamePhaseService.phaseOfHit(afterBet, true);
             },
             -betToDeduct
         );
@@ -284,15 +316,12 @@ public class GameController {
 
         Player playerToUpdate = player.toBuilder()
             .tokens(INITIAL_TOKENS)
-            .currentGameState(null) // Ha már null volt, null marad, ha nem, akkor törlődik
+            .currentGameState(null)
             .idempotencyKey(actionRequest.getIdempotencyKey())
             .build();
 
         Player savedPlayer = playerService.savePlayer(playerToUpdate);
-
-        GameStateBet emptyGameState = GameStateBet.builder()
-            .deckLen(INITIAL_DECK_LENGTH)
-            .build();
+        GameStateBet emptyGameState = gamePhaseService.phaseOfSetRestart(null);
 
         return ResponseEntity.ok(ApiResponse.builder()
             .status("SUCCESS")

@@ -1,5 +1,7 @@
 package com.blackjack.blackjack.controller;
 
+import com.blackjack.blackjack.dto.ApiResponse;
+import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.init.InitializationRequest;
 import com.blackjack.blackjack.dto.init.InitializationResponse;
 import com.blackjack.blackjack.model.GameState;
@@ -9,6 +11,7 @@ import com.blackjack.blackjack.repository.PlayerRepository;
 import com.blackjack.blackjack.service.GamePhaseService;
 import com.blackjack.blackjack.service.GameStateManager;
 import com.blackjack.blackjack.service.PlayerService;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -90,11 +93,13 @@ public class PlayerController {
 
     @PostMapping("/force_restart")
     public ResponseEntity<?> forceRestart(@RequestBody Map<String, String> body) {
-        // A frontend "clientId"-t küld JSON-ben
         String clientIdStr = body.get("clientId");
 
         if (clientIdStr == null || clientIdStr.isBlank()) {
-            return ResponseEntity.badRequest().body(Map.of("error", "clientId is required"));
+            return ResponseEntity.badRequest().body(ApiResponse.builder()
+                .status("error")
+                .gameStateHint("CLIENT_ID_REQUIRED")
+                .build());
         }
 
         try {
@@ -102,21 +107,41 @@ public class PlayerController {
 
             return playerRepository.findByClientId(clientId)
                 .map(player -> {
-                    // Python: game.restart_game() megfelelője
-                    player.setCurrentGameState(null);
+                    PhaseState target = PhaseState.BETTING;
+                    PhaseState pre = PhaseState.SHUFFLING;
+
+                    GameState emptyState = GameState.builder()
+                        .isRoundActive(false)
+                        .isSessionInit(true)
+                        .targetPhase(target)
+                        .prePhase(pre)
+                        .build();
+
+                    player.setCurrentGameState(emptyState);
+                    player.setIdempotencyKey(null);
                     playerRepository.save(player);
 
-                    return ResponseEntity.ok(Map.of(
-                        "status", "success",
-                        "current_tokens", player.getTokens(),
-                        "game_state", Map.of("status", "BETTING"),
-                        "game_state_hint", "HIT_RESTART"
-                    ));
+                    return ResponseEntity.ok(ApiResponse.builder()
+                        .status("success")
+                        .currentTokens(player.getTokens())
+                        .gameState(GameStateBet.builder()
+                            .deckLen(INITIAL_DECK_LENGTH)
+                            .targetPhase(target)
+                            .prePhase(pre)
+                            .build())
+                        .gameStateHint("FORCE_RESTART_SUCCESSFUL")
+                        .build());
                 })
-                .orElse(ResponseEntity.status(404).body(Map.of("error", "Player not found")));
+                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.builder()
+                    .status("error")
+                    .gameStateHint("PLAYER_NOT_FOUND")
+                    .build()));
 
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(Map.of("error", "Invalid UUID format"));
+            return ResponseEntity.badRequest().body(ApiResponse.builder()
+                .status("error")
+                .gameStateHint("INVALID_UUID_FORMAT")
+                .build());
         }
     }
 }

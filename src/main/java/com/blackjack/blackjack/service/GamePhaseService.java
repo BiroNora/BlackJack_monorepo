@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.*;
 import org.springframework.stereotype.Service;
 
@@ -133,47 +134,66 @@ public class GamePhaseService {
         return state.toBuilder().targetPhase(target).prePhase(pre).build();
     }
 
+    public GameState phaseOfSplitRequest(GameState state) {
+        if (state.getPlayer() == null) {
+            throw new IllegalStateException("No player hand.");
+        }
+        boolean isAces = state.isAces();
+        boolean isHand21 = HandState.fromValue(state.getPlayer().handState()) == HandState.TWENTY_ONE;
 
-    private PhaseResult handleStandAndRewards(GameState state) {
-        PhaseState target = (state.isHasSplit())
-            ? PhaseState.SPLIT_FINISH_OUTCOME
-            : PhaseState.MAIN_STAND;
+        PhaseState target = isAces ? PhaseState.SPLIT_ACE_TRANSIT
+            : isHand21 ? PhaseState.SPLIT_NAT21_TRANSIT
+            : PhaseState.SPLIT_TURN;
+        PhaseState pre = (isHand21 && !isAces) ? PhaseState.SPLIT_STAND : PhaseState.NONE;
 
-        return new PhaseResult(target, PhaseState.BETTING);
-
+        return state.toBuilder().targetPhase(target).prePhase(pre).build();
     }
 
-    // A kiszervezett split logika
-    private PhaseResult handleSplitLogic(GameState state) {
-        boolean hasAces = state.isAces();
-        int splitReq = state.getSplitReq();
-        assert state.getPlayer() != null;
-        HandState playerHandState = HandState.fromValue(state.getPlayer().handState());
+    public GameState phaseOfAddToPlayersListByStand(GameState state) {
+        boolean isSplitFinished = state.getSplitReq() == 0;
 
-        boolean isFinished = playerHandState == HandState.TWENTY_ONE ||
-            playerHandState == HandState.BLACKJACK;
+        PhaseState target = isSplitFinished ? PhaseState.SPLIT_FINISH : PhaseState.SPLIT_ACE_TRANSIT;
 
-        PhaseState target = !hasAces && isFinished ? PhaseState.SPLIT_NAT21_TRANSIT :
-            hasAces && splitReq != 0 ? PhaseState.SPLIT_ACE_TRANSIT :
-                hasAces ? PhaseState.SPLIT_FINISH :
-                    PhaseState.SPLIT_TURN;
-
-        PhaseState pre = isFinished ? PhaseState.SPLIT_STAND : PhaseState.NONE;
-
-        return new PhaseResult(target, pre);
+        return state.toBuilder().targetPhase(target).prePhase(PhaseState.NONE).build();
     }
 
+    public GameState phaseOfAddSplitPlayerToGame(GameState state) {
+        if (state.getPlayer() == null) {
+            throw new IllegalStateException("Player hand is missing.");
+        }
+        boolean isAces = state.isAces();
+        boolean isSplitFinished = state.getSplitReq() == 0;
+        boolean isHand21 = HandState.fromValue(state.getPlayer().handState()) == HandState.TWENTY_ONE;
+
+        PhaseState target = !isAces && isHand21 ? PhaseState.SPLIT_NAT21_TRANSIT
+            : isAces && !isSplitFinished ? PhaseState.SPLIT_ACE_TRANSIT
+            : isAces ? PhaseState.SPLIT_FINISH
+            : PhaseState.SPLIT_TURN;
+
+        PhaseState pre = isHand21 ? PhaseState.SPLIT_STAND : PhaseState.NONE;
+
+        return state.toBuilder().targetPhase(target).prePhase(pre).build();
+    }
+
+    public GameState phaseOfAddPlayerFromPlayers(GameState state) {
+        return state.toBuilder().targetPhase(PhaseState.SPLIT_FINISH).prePhase(PhaseState.NONE).build();
+    }
+
+    public GameStateBet phaseOfSetRestart(GameState state) {
+        return GameStateBet.builder()
+            .deckLen(INITIAL_DECK_LENGTH)
+            .targetPhase(PhaseState.RESTART_GAME)
+            .prePhase(PhaseState.NONE)
+            .build();
+    }
+
+    /*public GameState phaseOfSetRestart(GameState state) {
+        return state.toBuilder().targetPhase(PhaseState.RESTART_GAME).prePhase(PhaseState.NONE).build();
+    }*/
 
     public interface PhaseResultProvider {
         PhaseState targetPhase();
-
         PhaseState prePhase();
-    }
-
-    public record PhaseResult(
-        PhaseState targetPhase,
-        PhaseState prePhase)
-        implements PhaseResultProvider {
     }
 
     public record DeckPhaseResult(
