@@ -1,5 +1,7 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.dto.bet.GameStateBet;
+import com.blackjack.blackjack.dto.others.*;
 import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
 import com.blackjack.blackjack.repository.PlayerRepository;
@@ -70,6 +72,7 @@ public class GameStateManager {
             .hasSplit(false)
             .splitReq(0)
             .isRoundActive(false)
+            .isSessionInit(false)
             .players(new HashMap<>())
             .build();
     }
@@ -225,5 +228,55 @@ public class GameStateManager {
         }
         return playersMap.values().stream()
             .anyMatch(hand -> !hand.stated());
+    }
+
+    // --- DTO BUILDEREK ---
+    public GameStateBet buildGameStateBet(GameState s) {
+        return GameStateBet.builder().bet(s.getBet()).betList(s.getBetList()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
+            .prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateStart buildGameStateStart(GameState s) {
+        return GameStateStart.builder().player(s.getPlayer()).dealerMasked(s.getDealerMasked()).bet(s.getBet()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
+            .prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateRewards buildGameStateRewards(GameState s) {
+        return GameStateRewards.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).deckLen(s.getDeckLen()).bet(s.getBet()).winner(s.getWinner()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateDouble buildGameStateDouble(GameState s) {
+        return GameStateDouble.builder().player(s.getPlayer()).deckLen(s.getDeckLen()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateInsurance buildGameStateInsurance(GameState s) {
+        return GameStateInsurance.builder().player(s.getPlayer()).natural21(s.getNatural21()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateSplitHand buildGameStateSplitHand(GameState s) {
+        return GameStateSplitHand.builder().player(s.getPlayer()).dealerHandMasked(s.getDealerMasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateAddToPlayersByStand buildGameStateAddToPlayers(GameState s) {
+        return GameStateAddToPlayersByStand.builder().player(s.getPlayer()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateAddPlayerFromPlayers buildGameStateAddPlayerFromPlayers(GameState s) {
+        return GameStateAddPlayerFromPlayers.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
+    }
+
+    public GameStateSplitStandAndRewards buildGameStateSplitRewards(GameState state) {
+        return GameStateSplitStandAndRewards.builder()
+            .player(state.getPlayer())
+            .dealerUnmasked(state.getDealerUnmasked())
+            .players(state.getPlayers())
+            .winner(state.getWinner())
+            .splitReq(state.getSplitReq())
+            .deckLen(state.getDeckLen())
+            .bet(state.getBet())
+            .isRoundActive(state.isRoundActive())
+            .targetPhase(state.getTargetPhase())
+            .prePhase(state.getPrePhase())
+            .build();
     }
 }

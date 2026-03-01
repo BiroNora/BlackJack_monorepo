@@ -11,19 +11,18 @@ import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 @Service
 
 public class GamePhaseService {
-    public DeckPhaseResult phaseOfInitialSession(Player player, GameState state) {
-        PhaseState phase;
-        int deckSize = (state.getDeck() != null) ? state.getDeck().getDeckLength() : INITIAL_DECK_LENGTH;
+    public GameState phaseOfInitialSession(Player player, GameState state) {
+        PhaseState target;
 
-        /*if (player.getTokens() <= 0 && !state.isRoundActive()) {
-            phase = PhaseState.OUT_OF_TOKENS;
+        if (player.getTokens() <= 0 && !state.isRoundActive()) {
+            target = PhaseState.OUT_OF_TOKENS;
         } else if (state.isRoundActive()) {
-            phase = PhaseState.RECOVERY_DECISION;
+            target = PhaseState.RECOVERY_DECISION;
         } else {
-            phase = PhaseState.BETTING;
-        }*/
-        phase = PhaseState.BETTING;
-        return new DeckPhaseResult(deckSize, phase, phase);
+            target = PhaseState.BETTING;
+        }
+
+        return state.toBuilder().targetPhase(target).build();
     }
 
     public PhaseState updatePrePhaseBasedOnTokens(GameState state, int currentTokens) {
@@ -64,7 +63,7 @@ public class GamePhaseService {
         );
 
         int nat21 = state.getNatural21();
-        System.out.println(" >>>>>>>>>>> nat21: " + nat21);
+
         PhaseState pre = immediateStopStates.contains(nat21)
             ? PhaseState.MAIN_STAND_REWARDS_TRANSIT
             : PhaseState.MAIN_TURN;
@@ -187,9 +186,26 @@ public class GamePhaseService {
             .build();
     }
 
-    /*public GameState phaseOfSetRestart(GameState state) {
-        return state.toBuilder().targetPhase(PhaseState.RESTART_GAME).prePhase(PhaseState.NONE).build();
-    }*/
+    public GameState phaseOfClearGameState(GameState state) {
+        return state.toBuilder().targetPhase(PhaseState.BETTING).prePhase(PhaseState.NONE).build();
+    }
+
+    public GameState phaseOfRecoverGameState(GameState state) {
+        PhaseState target;
+        PhaseState pre = null;
+
+        if ((state.getPlayers() != null && !state.getPlayers().isEmpty()) || state.getSplitReq() > 0) {
+            target = state.getTargetPhase();
+            pre = state.getPrePhase();
+        } else {
+            target = PhaseState.MAIN_TURN;
+        }
+
+        return state.toBuilder()
+            .targetPhase(target)
+            .prePhase(pre)
+            .build();
+    }
 
     public interface PhaseResultProvider {
         PhaseState targetPhase();

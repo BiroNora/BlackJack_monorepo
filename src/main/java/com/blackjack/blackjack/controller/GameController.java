@@ -91,7 +91,7 @@ public class GameController {
     // --- STANDARD JÁTÉK VÉGPONTOK ---
     @PostMapping("/create_deck")
     public ResponseEntity<?> createDeck(@RequestBody ActionRequest req) {
-        return handleAction(req, "DECK_CREATED", this::buildGameStateBet,
+        return handleAction(req, "DECK_CREATED", gameStateManager::buildGameStateBet,
             state -> {
                 GameState updated = gameStateManager.createNewDeck(state);
                 return gamePhaseService.phaseOfCreateDeck(updated);
@@ -101,7 +101,7 @@ public class GameController {
 
     @PostMapping("/start_game")
     public ResponseEntity<?> initializeNewRound(@RequestBody ActionRequest req) {
-        return handleAction(req, "NEW_ROUND_INITIALIZED", this::buildGameStateStart,
+        return handleAction(req, "NEW_ROUND_INITIALIZED", gameStateManager::buildGameStateStart,
             state -> {
                 GameState updated = gameService.initializeNewRound(state);
                 return gamePhaseService.phaseOfStartGame(updated);
@@ -111,7 +111,7 @@ public class GameController {
 
     @PostMapping("/hit")
     public ResponseEntity<?> playerHit(@RequestBody ActionRequest req) {
-        return handleAction(req, "HIT_RECEIVED", this::buildGameStateStart,
+        return handleAction(req, "HIT_RECEIVED", gameStateManager::buildGameStateStart,
             state -> {
                 GameState updated = gameService.playerHit(state);
                 return gamePhaseService.phaseOfHit(updated, false);
@@ -134,7 +134,7 @@ public class GameController {
         return handleAction(
             req,
             "REWARDS_PROCESSED",
-            this::buildGameStateRewards,
+            gameStateManager::buildGameStateRewards,
             state -> {
                 GameState rewardState = result.gameState();
                 return gamePhaseService.phaseOfStand(rewardState, finalTokens);
@@ -165,7 +165,7 @@ public class GameController {
             throw new GameRuleException("NOT_ENOUGH_TOKENS");
         }
 
-        return handleAction(req, "DOUBLE_PROCESSED", this::buildGameStateDouble, state -> {
+        return handleAction(req, "DOUBLE_PROCESSED", gameStateManager::buildGameStateDouble, state -> {
             GameState afterHit = gameService.playerHit(state);
             GameState afterBet = gameService.applyDoubleBet(afterHit, betToDeduct);
             return gamePhaseService.phaseOfHit(afterBet, true);
@@ -178,7 +178,7 @@ public class GameController {
         GameService.TransactionResult result = gameService.insuranceRequest(player.getCurrentGameState());
 
         return handleAction(req, "INS_PROCESSED",
-            this::buildGameStateInsurance,
+            gameStateManager::buildGameStateInsurance,
             state -> {
                 GameState rewardState = result.gameState();
                 return gamePhaseService.phaseOfInsRequest(rewardState);
@@ -210,16 +210,15 @@ public class GameController {
             throw new GameRuleException("NOT_ENOUGH_TOKENS");
         }
 
-        return handleAction(req, "SPLIT_PROCESSED", this::buildGameStateSplitHand, state -> {
+        return handleAction(req, "SPLIT_PROCESSED", gameStateManager::buildGameStateSplitHand, state -> {
             GameState splitted = gameService.splitHand(state);
             return gamePhaseService.phaseOfSplitRequest(splitted);
         }, -betToDeduct);
     }
 
-    // INNEN FOLYT! python serialban is!
     @PostMapping("/add_to_players_list_by_stand")
     public ResponseEntity<?> addToPlayersByStand(@RequestBody ActionRequest req) {
-        return handleAction(req, "HAND_SAVED", this::buildGameStateAddToPlayers, state -> {
+        return handleAction(req, "HAND_SAVED", gameStateManager::buildGameStateAddToPlayers, state -> {
             GameState added = gameService.addToPlayersListByStand(state);
             return gamePhaseService.phaseOfAddToPlayersListByStand(added);
         }, null);
@@ -227,7 +226,7 @@ public class GameController {
 
     @PostMapping("/add_split_player_to_game")
     public ResponseEntity<?> addSplitPlayerToGame(@RequestBody ActionRequest req) {
-        return handleAction(req, "NEXT_SPLIT_HAND_ACTIVE", this::buildGameStateSplitHand, state -> {
+        return handleAction(req, "NEXT_SPLIT_HAND_ACTIVE", gameStateManager::buildGameStateSplitHand, state -> {
             GameState added = gameService.addSplitPlayerToGame(state);
             return gamePhaseService.phaseOfAddSplitPlayerToGame(added);
         }, null);
@@ -235,7 +234,7 @@ public class GameController {
 
     @PostMapping("/add_player_from_players")
     public ResponseEntity<?> addPlayerFromPlayers(@RequestBody ActionRequest req) {
-        return handleAction(req, "ALL_HANDS_COLLECTED", this::buildGameStateAddPlayerFromPlayers, state -> {
+        return handleAction(req, "ALL_HANDS_COLLECTED", gameStateManager::buildGameStateAddPlayerFromPlayers, state -> {
             GameState added = gameService.addPlayerFromPlayers(state);
             return gamePhaseService.phaseOfAddPlayerFromPlayers(added);
         }, null);
@@ -243,7 +242,7 @@ public class GameController {
 
     @PostMapping("/split_hit")
     public ResponseEntity<?> splitHit(@RequestBody ActionRequest req) {
-        return handleAction(req, "SPLIT_HIT_RECEIVED", this::buildGameStateSplitHand, (state) -> {
+        return handleAction(req, "SPLIT_HIT_RECEIVED", gameStateManager::buildGameStateSplitHand, (state) -> {
                 GameState updated = gameService.playerHit(state);
                 return gamePhaseService.phaseOfHit(updated, false);
             },
@@ -266,7 +265,7 @@ public class GameController {
         return handleAction(
             req,
             "REWARDS_PROCESSED",
-            this::buildGameStateSplitRewards,
+            gameStateManager::buildGameStateSplitRewards,
             state -> {
                 GameState rewardState = result.gameState();
                 return gamePhaseService.phaseOfStand(rewardState, finalTokens);
@@ -300,7 +299,7 @@ public class GameController {
         return handleAction(
             req,
             "SPLT_REQUEST_PROCESSED",
-            this::buildGameStateSplitHand,
+            gameStateManager::buildGameStateSplitHand,
             state -> {
                 GameState afterHit = gameService.playerHit(state);
                 GameState afterBet = gameService.applyDoubleBet(afterHit, betToDeduct);
@@ -329,56 +328,5 @@ public class GameController {
             .gameState(emptyGameState)
             .gameStateHint("GAME_RESET_TO_NULL")
             .build());
-    }
-
-
-    // --- DTO BUILDEREK ---
-    private GameStateBet buildGameStateBet(GameState s) {
-        return GameStateBet.builder().bet(s.getBet()).betList(s.getBetList()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
-            .prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateStart buildGameStateStart(GameState s) {
-        return GameStateStart.builder().player(s.getPlayer()).dealerMasked(s.getDealerMasked()).bet(s.getBet()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
-            .prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateRewards buildGameStateRewards(GameState s) {
-        return GameStateRewards.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).deckLen(s.getDeckLen()).bet(s.getBet()).winner(s.getWinner()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateDouble buildGameStateDouble(GameState s) {
-        return GameStateDouble.builder().player(s.getPlayer()).deckLen(s.getDeckLen()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateInsurance buildGameStateInsurance(GameState s) {
-        return GameStateInsurance.builder().player(s.getPlayer()).natural21(s.getNatural21()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateSplitHand buildGameStateSplitHand(GameState s) {
-        return GameStateSplitHand.builder().player(s.getPlayer()).dealerHandMasked(s.getDealerMasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateAddToPlayersByStand buildGameStateAddToPlayers(GameState s) {
-        return GameStateAddToPlayersByStand.builder().player(s.getPlayer()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).dealerMasked(s.getDealerMasked()).dealerUnmasked(s.getDealerUnmasked()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateAddPlayerFromPlayers buildGameStateAddPlayerFromPlayers(GameState s) {
-        return GameStateAddPlayerFromPlayers.builder().player(s.getPlayer()).dealerUnmasked(s.getDealerUnmasked()).aces(s.isAces()).players(s.getPlayers()).splitReq(s.getSplitReq()).deckLen(s.getDeckLen()).bet(s.getBet()).isRoundActive(s.isRoundActive()).targetPhase(s.getTargetPhase()).prePhase(s.getPrePhase()).build();
-    }
-
-    private GameStateSplitStandAndRewards buildGameStateSplitRewards(GameState state) {
-        return GameStateSplitStandAndRewards.builder()
-            .player(state.getPlayer())
-            .dealerUnmasked(state.getDealerUnmasked())
-            .players(state.getPlayers())
-            .winner(state.getWinner())
-            .splitReq(state.getSplitReq())
-            .deckLen(state.getDeckLen())
-            .bet(state.getBet())
-            .isRoundActive(state.isRoundActive())
-            .targetPhase(state.getTargetPhase())
-            .prePhase(state.getPrePhase())
-            .build();
     }
 }

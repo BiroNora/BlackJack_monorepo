@@ -14,6 +14,7 @@ import com.blackjack.blackjack.service.PlayerService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
 import java.util.Map;
@@ -65,20 +66,19 @@ public class PlayerController {
             currState = GameState.builder().build();
         }
 
-        GamePhaseService.DeckPhaseResult phase = gamePhaseService.phaseOfInitialSession(player, currState);
-
         GameState updatedState = currState.toBuilder()
             .isSessionInit(true)
-            .prePhase(PhaseState.NONE)
             .build();
 
         player.setCurrentGameState(updatedState);
         playerRepository.save(player);
 
+        GameState calcPhase = gamePhaseService.phaseOfInitialSession(player, currState);
+
         InitializationResponse.GameStateInit gameStateData =
             InitializationResponse.GameStateInit.builder()
-                .deckLen(phase.deckLen())
-                .targetPhase(phase.targetPhase())
+                .deckLen(INITIAL_DECK_LENGTH)
+                .targetPhase(calcPhase.getTargetPhase())
                 .build();
 
         return ResponseEntity.ok(InitializationResponse.builder()
@@ -91,57 +91,124 @@ public class PlayerController {
             .build());
     }
 
-    @PostMapping("/force_restart")
-    public ResponseEntity<?> forceRestart(@RequestBody Map<String, String> body) {
-        String clientIdStr = body.get("clientId");
+    @PostMapping("/recover_game_state")
+    public ResponseEntity<?> recoverGameState(@RequestBody Map<String, String> body) {
+        UUID clientId = validateAndGetClientId(body);
 
-        if (clientIdStr == null || clientIdStr.isBlank()) {
-            return ResponseEntity.badRequest().body(ApiResponse.builder()
-                .status("error")
-                .gameStateHint("CLIENT_ID_REQUIRED")
-                .build());
+        Player player = playerRepository.findByClientId(clientId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND"));
+
+        GameState currentState = player.getCurrentGameState();
+
+        // Ellenőrizzük, van-e mentett állapota
+        if (currentState == null) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "NO_ACTIVE_SESSION_TO_RECOVER");
         }
 
+        GameState phaseResult = gamePhaseService.phaseOfRecoverGameState(currentState);
+
+        GameState recoveredState = phaseResult.toBuilder()
+            .isSessionInit(false)
+            .build();
+
+        player.setCurrentGameState(recoveredState);
+        playerRepository.save(player);
+
+        boolean isSplit = (recoveredState.getPlayers() != null && !recoveredState.getPlayers().isEmpty())
+            || recoveredState.getSplitReq() > 0;
+
+        Object specificGameState = isSplit ?
+            gameStateManager.buildGameStateSplitHand(recoveredState) :
+            gameStateManager.buildGameStateStart(recoveredState);
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(specificGameState)
+            .gameStateHint("RECOVERY_DATA_LOADED")
+            .build());
+    }
+
+    @PostMapping("/clear_game_state")
+    public ResponseEntity<?> clearGameState(@RequestBody Map<String, String> body) {
+        UUID clientId = validateAndGetClientId(body);
+
+        Player player = playerRepository.findByClientId(clientId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND"));
+
+        GameState currentState = player.getCurrentGameState() != null
+            ? player.getCurrentGameState()
+            : GameState.builder().build();
+
+        GameState clearedData = gameStateManager.resetRoundState(currentState);
+        GameState finalState = gamePhaseService.phaseOfClearGameState(clearedData).toBuilder()
+            .isSessionInit(true)
+            .bet(0)
+            .build();
+
+        player.setCurrentGameState(finalState);
+        player.setIdempotencyKey(UUID.randomUUID());
+        playerRepository.save(player);
+
+        GameStateBet responseDto = gameStateManager.buildGameStateBet(finalState)
+            .toBuilder()
+            .deckLen(INITIAL_DECK_LENGTH)
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(responseDto)
+            .gameStateHint("GAME_STATE_CLEARED")
+            .build());
+    }
+
+    @PostMapping("/force_restart")
+    public ResponseEntity<?> forceRestart(@RequestBody Map<String, String> body) {
+        UUID clientId = validateAndGetClientId(body);
+
+        Player player = playerRepository.findByClientId(clientId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND"));
+
+        GameState freshState = GameState.builder().build();
+        GameState clearedState = gameStateManager.resetRoundState(freshState);
+
+        PhaseState target = PhaseState.BETTING;
+        PhaseState pre = PhaseState.SHUFFLING;
+
+        GameState finalState = clearedState.toBuilder()
+            .isRoundActive(false)
+            .isSessionInit(true)
+            .targetPhase(target)
+            .prePhase(pre)
+            .bet(0)
+            .build();
+
+        player.setCurrentGameState(finalState);
+        player.setIdempotencyKey(UUID.randomUUID());
+        playerRepository.save(player);
+
+        GameStateBet responseDto = gameStateManager.buildGameStateBet(finalState).toBuilder()
+            .deckLen(INITIAL_DECK_LENGTH)
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .gameState(responseDto)
+            .gameStateHint("FORCE_RESTART_SUCCESSFUL")
+            .build());
+    }
+
+    private UUID validateAndGetClientId(Map<String, String> body) {
+        String clientIdStr = body.get("clientId");
+        if (clientIdStr == null || clientIdStr.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CLIENT_ID_REQUIRED");
+        }
         try {
-            UUID clientId = UUID.fromString(clientIdStr);
-
-            return playerRepository.findByClientId(clientId)
-                .map(player -> {
-                    PhaseState target = PhaseState.BETTING;
-                    PhaseState pre = PhaseState.SHUFFLING;
-
-                    GameState emptyState = GameState.builder()
-                        .isRoundActive(false)
-                        .isSessionInit(true)
-                        .targetPhase(target)
-                        .prePhase(pre)
-                        .build();
-
-                    player.setCurrentGameState(emptyState);
-                    player.setIdempotencyKey(null);
-                    playerRepository.save(player);
-
-                    return ResponseEntity.ok(ApiResponse.builder()
-                        .status("success")
-                        .currentTokens(player.getTokens())
-                        .gameState(GameStateBet.builder()
-                            .deckLen(INITIAL_DECK_LENGTH)
-                            .targetPhase(target)
-                            .prePhase(pre)
-                            .build())
-                        .gameStateHint("FORCE_RESTART_SUCCESSFUL")
-                        .build());
-                })
-                .orElse(ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.builder()
-                    .status("error")
-                    .gameStateHint("PLAYER_NOT_FOUND")
-                    .build()));
-
+            return UUID.fromString(clientIdStr);
         } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(ApiResponse.builder()
-                .status("error")
-                .gameStateHint("INVALID_UUID_FORMAT")
-                .build());
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "INVALID_UUID_FORMAT");
         }
     }
 }
