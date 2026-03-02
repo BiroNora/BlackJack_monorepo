@@ -108,6 +108,7 @@ public class GameService {
         assert currentGameState.getDealerMasked() != null;
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
             .hand(new LinkedList<>(List.of(Card.createMaskedCard(), card4)))
+            .sum(card4.getBaseValue())
             .canInsure(canInsure)
             .build();
 
@@ -214,6 +215,7 @@ public class GameService {
         assert currentGameState.getDealerMasked() != null;
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
             .hand(new LinkedList<>(List.of(Card.createMaskedCard(), card4)))
+            .sum(card4.getBaseValue())
             .canInsure(canInsure)
             .build();
 
@@ -322,7 +324,8 @@ public class GameService {
         assert currentGameState.getDealerMasked() != null;
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
             .hand(new LinkedList<>(List.of(Card.createMaskedCard(), card4)))
-            .canInsure(canInsure) // TRUE
+            .sum(card4.getBaseValue())
+            .canInsure(canInsure)
             .build();
 
         return currentGameState.toBuilder()

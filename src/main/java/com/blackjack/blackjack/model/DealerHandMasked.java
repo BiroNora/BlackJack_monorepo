@@ -9,6 +9,7 @@ import java.util.List;
 @Builder(toBuilder = true)
 public record DealerHandMasked(
     List<Card> hand,
+    int sum,
     boolean canInsure
 ) implements Hand, Serializable {
 
@@ -19,6 +20,7 @@ public record DealerHandMasked(
     public static DealerHandMasked createEmptyHand() {
         return DealerHandMasked.builder()
             .hand(List.of())
+            .sum(0)
             .canInsure(false)
             .build();
     }
