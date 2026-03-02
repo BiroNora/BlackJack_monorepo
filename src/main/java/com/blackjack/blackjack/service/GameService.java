@@ -109,7 +109,6 @@ public class GameService {
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
             .hand(new LinkedList<>(List.of(Card.createMaskedCard(), card4)))
             .canInsure(canInsure)
-            .nat21(maskedStateForDealer)
             .build();
 
         // Visszatérünk a kész, új állapottal (MENTÉS NÉLKÜL)
@@ -216,7 +215,6 @@ public class GameService {
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
             .hand(new LinkedList<>(List.of(Card.createMaskedCard(), card4)))
             .canInsure(canInsure)
-            .nat21(maskedStateForDealer)
             .build();
 
         // Visszatérünk
@@ -248,9 +246,13 @@ public class GameService {
         currentGameState = gameStateManager.safeDealCard(currentGameState).newGameState();
 
         // OSZTÓ 1. LAPJA: Marad véletlen
-        DealResultWithState deal2 = gameStateManager.safeDealCard(currentGameState);
+        /*DealResultWithState deal2 = gameStateManager.safeDealCard(currentGameState);
         Card card2 = deal2.dealtCard();
-        currentGameState = deal2.newGameState();
+        currentGameState = deal2.newGameState();*/
+
+        // OSZTÓ 1. LAPJA: FIX 10-es
+        Card card2 = new Card(Suit.CLUBS, Rank.TEN);
+        currentGameState = gameStateManager.safeDealCard(currentGameState).newGameState();
 
         // JÁTÉKOS 2. LAPJA: FIX QUEEN
         Card card3 = new Card(Suit.DIAMONDS, Rank.QUEEN);
@@ -321,7 +323,6 @@ public class GameService {
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
             .hand(new LinkedList<>(List.of(Card.createMaskedCard(), card4)))
             .canInsure(canInsure) // TRUE
-            .nat21(maskedStateForDealer)
             .build();
 
         return currentGameState.toBuilder()

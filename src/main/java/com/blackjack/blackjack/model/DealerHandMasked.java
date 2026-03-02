@@ -9,8 +9,7 @@ import java.util.List;
 @Builder(toBuilder = true)
 public record DealerHandMasked(
     List<Card> hand,
-    boolean canInsure,
-    @JsonProperty("nat_21") int nat21
+    boolean canInsure
 ) implements Hand, Serializable {
 
     public DealerHandMasked {
@@ -21,7 +20,6 @@ public record DealerHandMasked(
         return DealerHandMasked.builder()
             .hand(List.of())
             .canInsure(false)
-            .nat21(0)
             .build();
     }
 }
