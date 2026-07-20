@@ -7,8 +7,6 @@ import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.BetService;
 import com.blackjack.blackjack.service.BetService.RetakeResult;
-import com.blackjack.blackjack.service.GamePhaseService;
-import com.blackjack.blackjack.service.GameStateManager;
 import com.blackjack.blackjack.service.PlayerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;

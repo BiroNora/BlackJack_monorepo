@@ -101,9 +101,6 @@ public class GameService {
             .build();
 
         boolean canInsure = card4.rank() == Rank.ACE;
-        int maskedStateForDealer = (initialOutcome == WinnerState.BLACKJACK_DEALER_WON.getValue())
-            ? WinnerState.NONE.getValue()
-            : initialOutcome;
 
         assert currentGameState.getDealerMasked() != null;
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
@@ -208,9 +205,6 @@ public class GameService {
             .build();
 
         boolean canInsure = card4.rank() == Rank.ACE;
-        int maskedStateForDealer = (initialOutcome == WinnerState.BLACKJACK_DEALER_WON.getValue())
-            ? WinnerState.NONE.getValue()
-            : initialOutcome;
 
         assert currentGameState.getDealerMasked() != null;
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()
@@ -316,10 +310,6 @@ public class GameService {
 
         // Mivel card4 Ász, ez most TRUE lesz!
         boolean canInsure = card4.rank() == Rank.ACE;
-
-        int maskedStateForDealer = (initialOutcome == WinnerState.BLACKJACK_DEALER_WON.getValue())
-            ? WinnerState.NONE.getValue()
-            : initialOutcome;
 
         assert currentGameState.getDealerMasked() != null;
         DealerHandMasked updatedDealerMasked = currentGameState.getDealerMasked().toBuilder()

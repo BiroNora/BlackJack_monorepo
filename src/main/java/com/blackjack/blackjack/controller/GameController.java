@@ -20,8 +20,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
-import java.util.function.Function;
-import java.util.function.UnaryOperator;
 
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_TOKENS;
 
