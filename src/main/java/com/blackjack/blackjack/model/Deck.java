@@ -2,7 +2,6 @@ package com.blackjack.blackjack.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
-import lombok.extern.jackson.Jacksonized;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -14,7 +13,6 @@ import static com.blackjack.blackjack.common.GameConstants.NUM_DECKS;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Builder(toBuilder = true)
-@Jacksonized
 public record Deck(List<Card> deck) implements Serializable {
 
     public static Deck createNewDeck() {

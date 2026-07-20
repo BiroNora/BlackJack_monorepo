@@ -8,6 +8,7 @@ import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.PhaseState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
+import com.blackjack.blackjack.security.JwtService;
 import com.blackjack.blackjack.service.GamePhaseService;
 import com.blackjack.blackjack.service.GameStateManager;
 import com.blackjack.blackjack.service.PlayerService;
@@ -16,6 +17,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.Principal;
 import java.time.OffsetDateTime;
 import java.util.Map;
 import java.util.UUID;
@@ -31,12 +33,16 @@ public class PlayerController {
     private final GameStateManager gameStateManager;
     private final PlayerService playerService;
     private final GamePhaseService gamePhaseService;
+    private final JwtService jwtService;
+    private final ControllerHelper controllerHelper;
 
-    public PlayerController(PlayerRepository playerRepository, GameStateManager gameStateManager, PlayerService playerService, GamePhaseService gamePhaseService) {
+    public PlayerController(PlayerRepository playerRepository, GameStateManager gameStateManager, PlayerService playerService, GamePhaseService gamePhaseService, JwtService jwtService, ControllerHelper controllerHelper) {
         this.playerRepository = playerRepository;
         this.gameStateManager = gameStateManager;
         this.playerService = playerService;
         this.gamePhaseService = gamePhaseService;
+        this.jwtService = jwtService;
+        this.controllerHelper = controllerHelper;
     }
 
     @PostMapping("/initialize_session")
@@ -53,6 +59,8 @@ public class PlayerController {
                 .lastActivity(OffsetDateTime.now())
                 .idempotencyKey(UUID.randomUUID())
                 .build()));
+
+        String jwtToken = jwtService.generateToken(String.valueOf(player.getClientId()));
 
         int refund = gameStateManager.getRefundAmount(player);
         if (refund > 0) {
@@ -83,6 +91,7 @@ public class PlayerController {
         return ResponseEntity.ok(InitializationResponse.builder()
             .status("success")
             .message("success.")
+            .token(jwtToken)
             .gameState(gameStateData)
             .gameStateHint("INITIALIZING_IS_DONE.")
             .tokens(player.getTokens())
@@ -91,8 +100,8 @@ public class PlayerController {
     }
 
     @PostMapping("/recover_game_state")
-    public ResponseEntity<?> recoverGameState(@RequestBody Map<String, String> body) {
-        UUID clientId = validateAndGetClientId(body);
+    public ResponseEntity<?> recoverGameState(@RequestBody Map<String, String> body, Principal principal) {
+        UUID clientId = controllerHelper.validateAndGetClientId(body, principal);
 
         Player player = playerRepository.findByClientId(clientId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND"));
@@ -129,8 +138,8 @@ public class PlayerController {
     }
 
     @PostMapping("/clear_game_state")
-    public ResponseEntity<?> clearGameState(@RequestBody Map<String, String> body) {
-        UUID clientId = validateAndGetClientId(body);
+    public ResponseEntity<?> clearGameState(@RequestBody Map<String, String> body, Principal principal) {
+        UUID clientId = controllerHelper.validateAndGetClientId(body, principal);
 
         Player player = playerRepository.findByClientId(clientId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND"));
@@ -163,8 +172,8 @@ public class PlayerController {
     }
 
     @PostMapping("/force_restart")
-    public ResponseEntity<?> forceRestart(@RequestBody Map<String, String> body) {
-        UUID clientId = validateAndGetClientId(body);
+    public ResponseEntity<?> forceRestart(@RequestBody Map<String, String> body, Principal principal) {
+        UUID clientId = controllerHelper.validateAndGetClientId(body, principal);
 
         Player player = playerRepository.findByClientId(clientId)
             .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "PLAYER_NOT_FOUND"));
@@ -197,17 +206,5 @@ public class PlayerController {
             .gameState(responseDto)
             .gameStateHint("FORCE_RESTART_SUCCESSFUL")
             .build());
-    }
-
-    private UUID validateAndGetClientId(Map<String, String> body) {
-        String clientIdStr = body.get("clientId");
-        if (clientIdStr == null || clientIdStr.isBlank()) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "CLIENT_ID_REQUIRED");
-        }
-        try {
-            return UUID.fromString(clientIdStr);
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "INVALID_UUID_FORMAT");
-        }
     }
 }

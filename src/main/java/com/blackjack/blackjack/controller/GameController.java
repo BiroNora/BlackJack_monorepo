@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.security.Principal;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
 
@@ -32,66 +33,20 @@ public class GameController {
     private final PlayerService playerService;
     private final GameStateManager gameStateManager;
     private final GamePhaseService gamePhaseService;
+    private final ControllerHelper controllerHelper;
 
-    public GameController(GameService gameService, PlayerService playerService, GameStateManager gameStateManager, GamePhaseService gamePhaseService) {
+    public GameController(GameService gameService, PlayerService playerService, GameStateManager gameStateManager, GamePhaseService gamePhaseService, ControllerHelper controllerHelper) {
         this.gameService = gameService;
         this.playerService = playerService;
         this.gameStateManager = gameStateManager;
         this.gamePhaseService = gamePhaseService;
-    }
-
-    /**
-     * GENERIKUS KERETRENDSZER (DRY)
-     * Ez a metódus kezeli a validálást, idempotenciát, mentést és DTO konverziót.
-     */
-    private <T> ResponseEntity<?> handleAction(
-        ActionRequest request,
-        String hint,
-        Function<GameState, T> dtoBuilder,
-        UnaryOperator<GameState> action,
-        Integer tokenChange
-    ) {
-        Player player = playerService.getAndValidatePlayer(request.getClientId());
-
-        // 1. Idempotencia ellenőrzés
-        if (playerService.isDuplicateRequest(player, request.getIdempotencyKey())) {
-            return ResponseEntity.ok(ApiResponse.builder()
-                .status("SUCCESS")
-                .currentTokens(player.getTokens())
-                .gameState(dtoBuilder.apply(player.getCurrentGameState()))
-                .build());
-        }
-
-        GameState current = player.getCurrentGameState();
-        if (current == null) throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "No active game state");
-
-        // 2. Üzleti logika futtatása
-        GameState updated = action.apply(current);
-
-        // 3. Mentés előkészítése
-        Player playerToSave = player.toBuilder()
-            .currentGameState(updated)
-            .idempotencyKey(request.getIdempotencyKey())
-            .build();
-
-        // 4. Atomi mentés (Token változással vagy anélkül)
-        Player savedPlayer = (tokenChange != null && tokenChange != 0)
-            ? playerService.updateTokens(playerToSave, tokenChange)
-            : playerService.savePlayer(playerToSave);
-
-        // 6. Válasz küldése
-        return ResponseEntity.ok(ApiResponse.builder()
-            .status("SUCCESS")
-            .gameState(dtoBuilder.apply(updated))
-            .gameStateHint(hint)
-            .currentTokens(savedPlayer.getTokens())
-            .build());
+        this.controllerHelper = controllerHelper;
     }
 
     // --- STANDARD JÁTÉK VÉGPONTOK ---
     @PostMapping("/create_deck")
-    public ResponseEntity<?> createDeck(@RequestBody ActionRequest req) {
-        return handleAction(req, "DECK_CREATED", gameStateManager::buildGameStateBet,
+    public ResponseEntity<?> createDeck(@RequestBody ActionRequest req, Principal principal) {
+        return controllerHelper.handleAction(req, principal, "DECK_CREATED", gameStateManager::buildGameStateBet,
             state -> {
                 GameState updated = gameStateManager.createNewDeck(state);
                 return gamePhaseService.phaseOfCreateDeck(updated);
@@ -100,8 +55,8 @@ public class GameController {
     }
 
     @PostMapping("/start_game")
-    public ResponseEntity<?> initializeNewRound(@RequestBody ActionRequest req) {
-        return handleAction(req, "NEW_ROUND_INITIALIZED", gameStateManager::buildGameStateStart,
+    public ResponseEntity<?> initializeNewRound(@RequestBody ActionRequest req, Principal principal) {
+        return controllerHelper.handleAction(req, principal, "NEW_ROUND_INITIALIZED", gameStateManager::buildGameStateStart,
             state -> {
                 GameState updated = gameService.initializeNewRound(state);
                 return gamePhaseService.phaseOfStartGame(updated);
@@ -110,8 +65,8 @@ public class GameController {
     }
 
     @PostMapping("/hit")
-    public ResponseEntity<?> playerHit(@RequestBody ActionRequest req) {
-        return handleAction(req, "HIT_RECEIVED", gameStateManager::buildGameStateStart,
+    public ResponseEntity<?> playerHit(@RequestBody ActionRequest req, Principal principal) {
+        return controllerHelper.handleAction(req, principal, "HIT_RECEIVED", gameStateManager::buildGameStateStart,
             state -> {
                 GameState updated = gameService.playerHit(state);
                 return gamePhaseService.phaseOfHit(updated, false);
@@ -120,7 +75,7 @@ public class GameController {
     }
 
     @PostMapping("/stand_and_rewards")
-    public ResponseEntity<?> standAndRewards(@RequestBody ActionRequest req) {
+    public ResponseEntity<?> standAndRewards(@RequestBody ActionRequest req, Principal principal) {
         Player player = playerService.getAndValidatePlayer(req.getClientId());
         GameState current = player.getCurrentGameState();
 
@@ -131,8 +86,8 @@ public class GameController {
         GameService.TransactionResult result = gameService.calculateRewards(stoodState);
         int finalTokens = player.getTokens() + result.transactionResult();
 
-        return handleAction(
-            req,
+        return controllerHelper.handleAction(
+            req, principal,
             "REWARDS_PROCESSED",
             gameStateManager::buildGameStateRewards,
             state -> {
@@ -144,7 +99,7 @@ public class GameController {
     }
 
     @PostMapping("/double_request")
-    public ResponseEntity<?> doubleRequest(@RequestBody ActionRequest req) {
+    public ResponseEntity<?> doubleRequest(@RequestBody ActionRequest req, Principal principal) {
         Player p = playerService.getAndValidatePlayer(req.getClientId());
         GameState current = p.getCurrentGameState();
 
@@ -165,7 +120,7 @@ public class GameController {
             throw new GameRuleException("NOT_ENOUGH_TOKENS");
         }
 
-        return handleAction(req, "DOUBLE_PROCESSED", gameStateManager::buildGameStateDouble, state -> {
+        return controllerHelper.handleAction(req, principal, "DOUBLE_PROCESSED", gameStateManager::buildGameStateDouble, state -> {
             GameState afterHit = gameService.playerHit(state);
             GameState afterBet = gameService.applyDoubleBet(afterHit, betToDeduct);
             return gamePhaseService.phaseOfHit(afterBet, true);
@@ -173,11 +128,11 @@ public class GameController {
     }
 
     @PostMapping("/ins_request")
-    public ResponseEntity<?> insuranceRequest(@RequestBody ActionRequest req) {
+    public ResponseEntity<?> insuranceRequest(@RequestBody ActionRequest req, Principal principal) {
         Player player = playerService.getAndValidatePlayer(req.getClientId());
         GameService.TransactionResult result = gameService.insuranceRequest(player.getCurrentGameState());
 
-        return handleAction(req, "INS_PROCESSED",
+        return controllerHelper.handleAction(req, principal, "INS_PROCESSED",
             gameStateManager::buildGameStateInsurance,
             state -> {
                 GameState rewardState = result.gameState();
@@ -189,7 +144,7 @@ public class GameController {
 
     // --- SPLIT VÉGPONTOK ---
     @PostMapping("/split_request")
-    public ResponseEntity<?> splitRequest(@RequestBody ActionRequest req) {
+    public ResponseEntity<?> splitRequest(@RequestBody ActionRequest req, Principal principal) {
         Player p = playerService.getAndValidatePlayer(req.getClientId());
         GameState current = p.getCurrentGameState();
 
@@ -210,39 +165,39 @@ public class GameController {
             throw new GameRuleException("NOT_ENOUGH_TOKENS");
         }
 
-        return handleAction(req, "SPLIT_PROCESSED", gameStateManager::buildGameStateSplitHand, state -> {
+        return controllerHelper.handleAction(req, principal, "SPLIT_PROCESSED", gameStateManager::buildGameStateSplitHand, state -> {
             GameState splitted = gameService.splitHand(state);
             return gamePhaseService.phaseOfSplitRequest(splitted);
         }, -betToDeduct);
     }
 
     @PostMapping("/add_to_players_list_by_stand")
-    public ResponseEntity<?> addToPlayersByStand(@RequestBody ActionRequest req) {
-        return handleAction(req, "HAND_SAVED", gameStateManager::buildGameStateAddToPlayers, state -> {
+    public ResponseEntity<?> addToPlayersByStand(@RequestBody ActionRequest req, Principal principal) {
+        return controllerHelper.handleAction(req, principal, "HAND_SAVED", gameStateManager::buildGameStateAddToPlayers, state -> {
             GameState added = gameService.addToPlayersListByStand(state);
             return gamePhaseService.phaseOfAddToPlayersListByStand(added);
         }, null);
     }
 
     @PostMapping("/add_split_player_to_game")
-    public ResponseEntity<?> addSplitPlayerToGame(@RequestBody ActionRequest req) {
-        return handleAction(req, "NEXT_SPLIT_HAND_ACTIVE", gameStateManager::buildGameStateSplitHand, state -> {
+    public ResponseEntity<?> addSplitPlayerToGame(@RequestBody ActionRequest req, Principal principal) {
+        return controllerHelper.handleAction(req, principal, "NEXT_SPLIT_HAND_ACTIVE", gameStateManager::buildGameStateSplitHand, state -> {
             GameState added = gameService.addSplitPlayerToGame(state);
             return gamePhaseService.phaseOfAddSplitPlayerToGame(added);
         }, null);
     }
 
     @PostMapping("/add_player_from_players")
-    public ResponseEntity<?> addPlayerFromPlayers(@RequestBody ActionRequest req) {
-        return handleAction(req, "ALL_HANDS_COLLECTED", gameStateManager::buildGameStateAddPlayerFromPlayers, state -> {
+    public ResponseEntity<?> addPlayerFromPlayers(@RequestBody ActionRequest req, Principal principal) {
+        return controllerHelper.handleAction(req, principal, "ALL_HANDS_COLLECTED", gameStateManager::buildGameStateAddPlayerFromPlayers, state -> {
             GameState added = gameService.addPlayerFromPlayers(state);
             return gamePhaseService.phaseOfAddPlayerFromPlayers(added);
         }, null);
     }
 
     @PostMapping("/split_hit")
-    public ResponseEntity<?> splitHit(@RequestBody ActionRequest req) {
-        return handleAction(req, "SPLIT_HIT_RECEIVED", gameStateManager::buildGameStateSplitHand, (state) -> {
+    public ResponseEntity<?> splitHit(@RequestBody ActionRequest req, Principal principal) {
+        return controllerHelper.handleAction(req, principal, "SPLIT_HIT_RECEIVED", gameStateManager::buildGameStateSplitHand, (state) -> {
                 GameState updated = gameService.playerHit(state);
                 return gamePhaseService.phaseOfHit(updated, false);
             },
@@ -250,7 +205,7 @@ public class GameController {
     }
 
     @PostMapping("/split_stand_and_rewards")
-    public ResponseEntity<?> splitStandAndRewards(@RequestBody ActionRequest req) {
+    public ResponseEntity<?> splitStandAndRewards(@RequestBody ActionRequest req, Principal principal) {
         Player player = playerService.getAndValidatePlayer(req.getClientId());
         GameState current = player.getCurrentGameState();
 
@@ -262,8 +217,8 @@ public class GameController {
         GameService.TransactionResult result = gameService.calculateRewards(stoodState);
         int finalTokens = player.getTokens() + result.transactionResult();
 
-        return handleAction(
-            req,
+        return controllerHelper.handleAction(
+            req, principal,
             "REWARDS_PROCESSED",
             gameStateManager::buildGameStateSplitRewards,
             state -> {
@@ -275,8 +230,9 @@ public class GameController {
     }
 
     @PostMapping("/split_double_request")
-    public ResponseEntity<?> splitDoubleRequest(@RequestBody ActionRequest req) {
+    public ResponseEntity<?> splitDoubleRequest(@RequestBody ActionRequest req, Principal principal) {
         Player p = playerService.getAndValidatePlayer(req.getClientId());
+
         GameState current = p.getCurrentGameState();
 
         if (current == null || !current.isRoundActive()) {
@@ -296,8 +252,8 @@ public class GameController {
             throw new GameRuleException("NOT_ENOUGH_TOKENS_FOR_DOUBLE");
         }
 
-        return handleAction(
-            req,
+        return controllerHelper.handleAction(
+            req, principal,
             "SPLT_REQUEST_PROCESSED",
             gameStateManager::buildGameStateSplitHand,
             state -> {
@@ -310,7 +266,8 @@ public class GameController {
     }
 
     @PostMapping("/set_restart")
-    public ResponseEntity<?> setRestart(@RequestBody ActionRequest actionRequest) {
+    public ResponseEntity<?> setRestart(@RequestBody ActionRequest actionRequest, Principal principal) {
+        controllerHelper.validateClientAuthorization(principal, String.valueOf(actionRequest.getClientId()));
         Player player = playerService.getAndValidatePlayer(actionRequest.getClientId());
 
         Player playerToUpdate = player.toBuilder()

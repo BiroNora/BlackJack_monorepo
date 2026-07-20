@@ -6,7 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.NoArgsConstructor;
 import lombok.Value;
-import lombok.extern.jackson.Jacksonized;
 
 import java.io.Serializable;
 import java.util.List;
@@ -18,7 +17,6 @@ import java.util.UUID;
 @Builder(toBuilder = true)
 @NoArgsConstructor(force = true)
 @AllArgsConstructor
-@Jacksonized
 public class GameState implements Serializable {
     UUID clientId;
 

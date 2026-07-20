@@ -17,6 +17,8 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.security.Principal;
+
 import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 
 @RestController
@@ -24,19 +26,20 @@ import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 public class BetController {
     private final PlayerService playerService;
     private final BetService betService;
-    private final GamePhaseService gamePhaseService;
+    private final ControllerHelper controllerHelper;
 
     @Autowired
     public BetController(
         PlayerService playerService,
-        BetService betService, GamePhaseService gamePhaseService, GameStateManager gameStateManager) {
+        BetService betService, ControllerHelper controllerHelper) {
         this.playerService = playerService;
         this.betService = betService;
-        this.gamePhaseService = gamePhaseService;
+        this.controllerHelper = controllerHelper;
     }
 
     @PostMapping("/bet")
-    public ResponseEntity<?> placeBet(@RequestBody BetRequest betRequest) {
+    public ResponseEntity<?> placeBet(@RequestBody BetRequest betRequest, Principal principal) {
+        controllerHelper.validateClientAuthorization(principal, String.valueOf(betRequest.clientId()));
         Player player = playerService.getAndValidatePlayer(betRequest.clientId());
 
         if (playerService.isDuplicateRequest(player, betRequest.idempotencyKey())) {
@@ -76,16 +79,16 @@ public class BetController {
     }
 
     @PostMapping("/retake_bet")
-    public ResponseEntity<?> retakeBet(@RequestBody BetRequest betRequest) {
-        // 1. Validálás és betöltés: Az AuthenticationService helyett a PlayerService-t használjuk
+    public ResponseEntity<?> retakeBet(@RequestBody BetRequest betRequest, Principal principal) {
+        controllerHelper.validateClientAuthorization(principal, String.valueOf(betRequest.clientId()));
         Player player = playerService.getAndValidatePlayer(betRequest.clientId());
 
-        // 2. Idempotencia ellenőrzés: Ne lehessen kétszer visszakérni ugyanazt a tétet
+        // Idempotencia ellenőrzés: Ne lehessen kétszer visszakérni ugyanazt a tétet
         if (playerService.isDuplicateRequest(player, betRequest.idempotencyKey())) {
             return ResponseEntity.ok(createDuplicateResponse(player));
         }
 
-        // 3. Jelenlegi állapot kinyerése
+        // Jelenlegi állapot kinyerése
         GameState currentState = player.getCurrentGameState();
         if (currentState == null) {
             currentState = GameState.builder()
@@ -93,11 +96,11 @@ public class BetController {
                 .build();
         }
 
-        // 4. Üzleti logika: Tét visszavétele
+        // Üzleti logika: Tét visszavétele
         RetakeResult result = betService.retakeBet(currentState);
         GameStateBet betDto = result.newState();
 
-        // 5. Player előkészítése (JSON frissítés + új kulcs mentése)
+        // Player előkészítése (JSON frissítés + új kulcs mentése)
         Player playerToSave = player.toBuilder()
             .currentGameState(currentState.toBuilder()
                 .bet(betDto.bet())
@@ -109,7 +112,7 @@ public class BetController {
             .idempotencyKey(betRequest.idempotencyKey())
             .build();
 
-        // 6. Tokenek visszajuttatása és mentés egyetlen lépésben
+        // Tokenek visszajuttatása és mentés egyetlen lépésben
         // A PlayerService.updateTokens elvégzi a mentést is!
         Player savedPlayer = playerService.updateTokens(playerToSave, result.amountReturned());
 

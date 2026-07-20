@@ -41,11 +41,17 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
 
     for (let i = 0; i < maxRetries; i++) {
       try {
-        return await callApiEndpoint<SessionInitResponse>(
-          "/api/initialize_session",
-          "POST",
-          { clientId: idToSend }
+        const response = await callApiEndpoint<SessionInitResponse>(
+            "/api/initialize_session",
+            "POST",
+            { clientId: idToSend }
         );
+
+        if (response && response.token) {
+          localStorage.setItem("jwtToken", response.token);
+        }
+
+        return response;
       } catch (error) {
         const isLastAttempt = i === maxRetries - 1;
 
@@ -218,7 +224,7 @@ export interface HttpError extends Error {
 export async function callApiEndpoint<T>(
   endpoint: string,
   method: string = "GET",
-  body?: any
+  body?: Record<string, unknown>,
 ): Promise<T> {
   const fullUrl = `${API_BASE_URL}${endpoint}`;
 
@@ -239,6 +245,7 @@ export async function callApiEndpoint<T>(
       idempotencyKey: idempotencyKey
     };
   }
+  const jwtToken = localStorage.getItem("jwtToken");
 
   try {
     const options: RequestInit = {
@@ -246,6 +253,7 @@ export async function callApiEndpoint<T>(
       headers: {
         "Content-Type": "application/json",
         ...(clientId ? { "X-Client-Id": clientId } : {}),
+        ...(jwtToken ? { "Authorization": `Bearer ${jwtToken}` } : {}),
       },
       body: finalBody ? JSON.stringify(finalBody) : undefined,
       credentials: 'omit',

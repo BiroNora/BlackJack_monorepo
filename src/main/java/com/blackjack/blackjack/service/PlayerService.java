@@ -10,8 +10,6 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.UUID;
 
-import static com.blackjack.blackjack.common.GameConstants.INITIAL_TOKENS;
-
 @Service
 public class PlayerService {
     private final PlayerRepository playerRepository;
@@ -83,22 +81,6 @@ public class PlayerService {
             .build();
 
         return playerRepository.save(updatedPlayer);
-    }
-
-    @Transactional
-    public Player getOrCreatePlayer(UUID clientId) {
-        return playerRepository.findByClientId(clientId)
-            .orElseGet(() -> {
-                // Ez fut le, ha a kliens most jár nálunk először
-                Player newPlayer = Player.builder()
-                    .clientId(clientId)
-                    .tokens(INITIAL_TOKENS)
-                    .idempotencyKey(UUID.randomUUID())
-                    .currentGameState(null)
-                    .build();
-
-                return playerRepository.save(newPlayer);
-            });
     }
 
     public Player getAndValidatePlayer(UUID clientId) {

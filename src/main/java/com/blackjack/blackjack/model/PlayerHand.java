@@ -2,14 +2,12 @@ package com.blackjack.blackjack.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
-import lombok.extern.jackson.Jacksonized;
 
 import java.io.Serializable;
 import java.util.List;
 
 @Builder(toBuilder = true)
 @JsonIgnoreProperties(ignoreUnknown = true)
-@Jacksonized
 public record PlayerHand(String id, List<Card> hand, boolean canSplit, boolean stated,
                          int bet, int sum,
                          int handState, int hasHit) implements Hand, Serializable {

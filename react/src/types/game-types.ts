@@ -68,6 +68,7 @@ export type GameStateForClient = {
 export type SessionInitResponse = {
   status: "success";
   message: string;
+  token: string;
   user_id: string;
   client_id: string;
   tokens: number;
