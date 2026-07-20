@@ -230,8 +230,7 @@ export async function callApiEndpoint<T>(
         return {} as T;
       }
 
-      const data = await response.json();
-      return data as T;
+      return await response.json();
     } else {
       let errorData: ErrorResponse = {};
       try {
