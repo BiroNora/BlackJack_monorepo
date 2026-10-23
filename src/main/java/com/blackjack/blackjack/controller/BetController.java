@@ -3,6 +3,7 @@ package com.blackjack.blackjack.controller;
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.bet.BetRequest;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
+import com.blackjack.blackjack.dto.bet.RetakeBetRequest;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.BetService;
@@ -77,7 +78,7 @@ public class BetController {
     }
 
     @PostMapping("/retake_bet")
-    public ResponseEntity<?> retakeBet(@RequestBody BetRequest betRequest, Principal principal) {
+    public ResponseEntity<?> retakeBet(@RequestBody RetakeBetRequest betRequest, Principal principal) {
         controllerHelper.validateClientAuthorization(principal, String.valueOf(betRequest.clientId()));
         Player player = playerService.getAndValidatePlayer(betRequest.clientId());
 

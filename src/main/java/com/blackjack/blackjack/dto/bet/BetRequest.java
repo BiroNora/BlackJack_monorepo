@@ -7,7 +7,7 @@ import java.util.UUID;
 public record BetRequest(@JsonProperty("clientId")
                          UUID clientId,
                          @JsonProperty("bet")
-                         int bet, @JsonProperty("idempotencyKey") UUID idempotencyKey) {
+                         Integer bet, @JsonProperty("idempotencyKey") UUID idempotencyKey) {
     public UUID getClientId() {
         return clientId;
     }
