@@ -89,7 +89,7 @@ public class ControllerHelper {
         // 1. Idempotencia ellenőrzés
         if (playerService.isDuplicateRequest(player, request.getIdempotencyKey())) {
             return ResponseEntity.ok(ApiResponse.builder()
-                .status("SUCCESS")
+                .status("success")
                 .currentTokens(player.getTokens())
                 .gameState(dtoBuilder.apply(player.getCurrentGameState()))
                 .build());
@@ -114,7 +114,7 @@ public class ControllerHelper {
 
         // 6. Válasz küldése
         return ResponseEntity.ok(ApiResponse.builder()
-            .status("SUCCESS")
+            .status("success")
             .gameState(dtoBuilder.apply(updated))
             .gameStateHint(hint)
             .currentTokens(savedPlayer.getTokens())

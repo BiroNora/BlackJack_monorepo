@@ -278,7 +278,7 @@ public class GameController {
         GameStateBet emptyGameState = gamePhaseService.phaseOfSetRestart(null);
 
         return ResponseEntity.ok(ApiResponse.builder()
-            .status("SUCCESS")
+            .status("success")
             .currentTokens(savedPlayer.getTokens())
             .gameState(emptyGameState)
             .gameStateHint("GAME_RESET_TO_NULL")
