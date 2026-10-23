@@ -1,4 +1,11 @@
-/* src/styles/loading.css */
+@keyframes fadeInSimple {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
 /* Ez a konténer felelős a LOADING... felirat középre igazításáért a képernyőn */
 .loading-container-centered {
@@ -15,6 +22,8 @@
   background-color: transparent; /* Teljesen átlátszó háttér */
   z-index: 9999; /* Legyen felül, ha van más tartalom */
   box-sizing: border-box;
+
+  animation: fadeInSimple 1s ease-out forwards;
 }
 
 /* A LOADING... felirat stílusa */

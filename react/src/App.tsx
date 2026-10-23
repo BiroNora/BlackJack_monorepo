@@ -68,9 +68,7 @@ function App() {
             case "LOADING":
               return (
                 <div>
-                  <PageWrapper>
-                    <Loading />
-                  </PageWrapper>
+                  <Loading />
                 </div>
               );
             case "RECOVERY_DECISION":
@@ -89,9 +87,7 @@ function App() {
             case "SHUFFLING":
               return (
                 <div>
-                  <PageWrapper>
                     <Shuffling />
-                  </PageWrapper>
                 </div>
               );
             case "INIT_GAME":
