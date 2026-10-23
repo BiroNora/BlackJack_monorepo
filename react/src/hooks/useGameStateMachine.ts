@@ -1,35 +1,30 @@
-import { useState, useEffect, useCallback, useRef, useReducer } from "react";
+import {useCallback, useEffect, useReducer, useRef, useState} from "react";
 import {
-  initializeSessionAPI,
-  setBet,
-  takeBackDeal,
+  addPlayerFromPlayers,
+  addSplitPlayerToGame,
+  addToPlayersListByStand,
   clearGameState,
-  recoverGameState,
+  forceRestart,
   getShuffling,
-  startGame,
+  handleDouble,
   handleHit,
   handleInsurance,
-  handleDouble,
-  handleStandAndRewards,
-  handleSplitHand,
-  addToPlayersListByStand,
-  addSplitPlayerToGame,
-  addPlayerFromPlayers,
   handleSplitDouble,
-  handleSplitStandAndRewards,
-  setRestart,
-  forceRestart,
+  handleSplitHand,
   handleSplitHit,
+  handleSplitStandAndRewards,
+  handleStandAndRewards,
   type HttpError,
+  initializeSessionAPI,
+  recoverGameState,
+  setBet,
+  setRestart,
+  startGame,
+  takeBackDeal,
 } from "../api/api-calls";
-import type {
-  GameState,
-  GameStateData,
-  GameStateMachineHookResult,
-  SessionInitResponse,
-} from "../types/game-types";
-import { extractGameStateData } from "../utilities/utils";
-import { gameReducer, initialGameDataState } from "../context/gameReducer";
+import type {GameState, GameStateData, GameStateMachineHookResult, SessionInitResponse,} from "../types/game-types";
+import {extractGameStateData} from "../utilities/utils";
+import {gameReducer, initialGameDataState} from "../context/gameReducer";
 
 // A hook visszatérési típusa most inline van deklarálva, nincs külön 'type' definíció.
 export function useGameStateMachine(): GameStateMachineHookResult {
@@ -58,7 +53,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         } as GameStateData
       });
 
-      //console.log(`>>> Állapotváltás: -> ${newState}`);
+      console.log(`>>> Állapotváltás: -> ${newState}`);
     },
     [dispatch]
   );
@@ -79,7 +74,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   }, [state.gameState, dispatch]);
 
   const resetGameVariables = useCallback(() => {
-    dispatch({ type: 'RESET_TURN_VARIABLES' });
+    dispatch({type: 'RESET_TURN_VARIABLES'});
     setIsWFSR(false);
     isProcessingRef.current = false;
 
@@ -108,7 +103,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   }, [transitionToState]);
 
   const handleApiAction = useCallback(
-    async <T,>(apiCallFn: () => Promise<T>): Promise<T | null> => {
+    async <T, >(apiCallFn: () => Promise<T>): Promise<T | null> => {
       try {
         return await apiCallFn();
       } catch (error) {
@@ -127,23 +122,23 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     [transitionToState],
   );
 
-  const handleOnContinue = useCallback(() => {
-    executeAsyncAction(async () => {
+  const handleOnContinue = useCallback(async () => {
+    await executeAsyncAction(async () => {
       const data = await handleApiAction(recoverGameState);
 
       const response = extractGameStateData(data);
       if (!response) return;
       dispatch({
-          type: 'SET_DECK_LEN',
-          payload: response.deck_len ?? null
-        });
+        type: 'SET_DECK_LEN',
+        payload: response.deck_len ?? null
+      });
 
       transitionToState(response?.target_phase as GameState, response);
     });
   }, [executeAsyncAction, handleApiAction, transitionToState]);
 
-  const handleOnStartNew = useCallback(() => {
-    executeAsyncAction(async () => {
+  const handleOnStartNew = useCallback(async () => {
+    await executeAsyncAction(async () => {
       // 1. Meghívjuk az API-t a diplomata (handleApiAction) segítségével
       // Ha hiba van, a throw miatt itt megáll, és az executeAsyncAction catch ága vált ERROR-ra
       const data = await handleApiAction(clearGameState);
@@ -162,7 +157,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       const currentTokens = state.gameState.tokens;
       if (currentTokens < amount || amount <= 0) return;
 
-      executeAsyncAction(async () => {
+      await executeAsyncAction(async () => {
         const data = await handleApiAction(() => setBet(amount));
 
         const response = extractGameStateData(data);
@@ -174,12 +169,12 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     [state.gameState.tokens, executeAsyncAction, handleApiAction, transitionToState]
   );
 
-  const handleRetakeBet = useCallback(() => {
+  const handleRetakeBet = useCallback(async () => {
     // Guard clause: csak akkor indítunk, ha van mit visszavenni
     const currentBetList = state.gameState.bet_list;
     if (!currentBetList || currentBetList.length === 0) return;
 
-    executeAsyncAction(async () => {
+    await executeAsyncAction(async () => {
       const data = await handleApiAction(takeBackDeal);
 
       const response = extractGameStateData(data);
@@ -205,8 +200,8 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     setIsWFSR(false);
   }, [state.gameState, transitionToState]);
 
-  const handleHitRequest = useCallback(() => {
-    executeAsyncAction(async () => {
+  const handleHitRequest = useCallback(async () => {
+    await executeAsyncAction(async () => {
       dispatch({
         type: 'SET_SHOW_INS_LOST',
         payload: false
@@ -222,9 +217,9 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     });
   }, [executeAsyncAction, savePreActionState, handleApiAction, transitionToState]);
 
-  const handleStandRequest = useCallback(() => {
-    executeAsyncAction(async () => {
-      dispatch({ type: 'SET_SHOW_INS_LOST', payload: false });
+  const handleStandRequest = useCallback(async () => {
+    await executeAsyncAction(async () => {
+      dispatch({type: 'SET_SHOW_INS_LOST', payload: false});
       savePreActionState();
 
       const data = await handleApiAction(handleStandAndRewards);
@@ -236,8 +231,8 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     });
   }, [executeAsyncAction, savePreActionState, handleApiAction, transitionToState]);
 
-  const handleDoubleRequest = useCallback(() => {
-    executeAsyncAction(async () => {
+  const handleDoubleRequest = useCallback(async () => {
+    await executeAsyncAction(async () => {
       dispatch({
         type: 'SET_SHOW_INS_LOST',
         payload: false
@@ -256,8 +251,8 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     });
   }, [executeAsyncAction, handleApiAction, savePreActionState, transitionToState]);
 
-  const handleInsRequest = useCallback(() => {
-    executeAsyncAction(async () => {
+  const handleInsRequest = useCallback(async () => {
+    await executeAsyncAction(async () => {
       dispatch({
         type: 'SET_INS_PLACED',
         payload: true
@@ -269,7 +264,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       if (!response) return;
 
       if (response.target_phase === "MAIN_TURN") {
-        dispatch({ type: 'SET_SHOW_INS_LOST', payload: true });
+        dispatch({type: 'SET_SHOW_INS_LOST', payload: true});
       }
       transitionToState(response?.target_phase as GameState, response);
     });
@@ -277,7 +272,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
 
   // SPLIT PART
   const handleSplitRequest = useCallback(async () => {
-    executeAsyncAction(async () => {
+    await executeAsyncAction(async () => {
       dispatch({
         type: 'SET_SHOW_INS_LOST',
         payload: false
@@ -295,7 +290,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   }, [executeAsyncAction, handleApiAction, savePreActionState, transitionToState]);
 
   const handleSplitHitRequest = useCallback(async () => {
-    executeAsyncAction(async () => {
+    await executeAsyncAction(async () => {
       const data = await handleApiAction(handleSplitHit);
 
       const response = extractGameStateData(data);
@@ -306,7 +301,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   }, [executeAsyncAction, handleApiAction, transitionToState]);
 
   const handleSplitStandRequest = useCallback(async () => {
-    executeAsyncAction(async () => {
+    await executeAsyncAction(async () => {
 
       const hasHit = state.gameState.player.has_hit || 0;
 
@@ -319,7 +314,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   }, [executeAsyncAction, state.gameState, transitionToState]);
 
   const handleSplitDoubleRequest = useCallback(async () => {
-    executeAsyncAction(async () => {
+    await executeAsyncAction(async () => {
 
       const data = await handleApiAction(handleSplitDouble);
       const response = extractGameStateData(data);
@@ -362,11 +357,11 @@ export function useGameStateMachine(): GameStateMachineHookResult {
 
         if (!isMountedRef.current) return;
 
-        const { tokens, game_state, total_initial_cards } = initData as SessionInitResponse;
+        const {tokens, game_state, total_initial_cards} = initData as SessionInitResponse;
         const nextPhase = game_state.target_phase as GameState;
         dispatch({
           type: 'SET_CONFIG',
-          payload: { totalInitialCards: total_initial_cards }
+          payload: {totalInitialCards: total_initial_cards}
         });
 
         dispatch({
@@ -375,7 +370,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         });
 
         // Itt egyetlen hívással lerendezzük az adatot és a fázisváltást is a Reducerben
-        transitionToState(nextPhase, { tokens, ...game_state });
+        transitionToState(nextPhase, {tokens, ...game_state});
 
         // Ezután a state.gameState.currentGameState megváltozik,
         // és ez az effekt már nem fog újra belépni a legfelső IF miatt.
@@ -383,11 +378,11 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       } catch (error) {
         console.error("Initialization Error: ", error);
         isProcessingRef.current = false;
-        if (isMountedRef.current) transitionToState("ERROR", { tokens: 0, deck_len: 0 });
+        if (isMountedRef.current) transitionToState("ERROR", {tokens: 0, deck_len: 0});
       }
     };
 
-    initializeApplicationOnLoad();
+    void initializeApplicationOnLoad();
   }, [state.gameState.currentGameState, transitionToState, handleApiAction]);
 
   // --- SHUFFLING ---
@@ -404,15 +399,18 @@ export function useGameStateMachine(): GameStateMachineHookResult {
 
         if (response) {
           // A setTimeout ID-t elmentjük, hogy törölhessük ha kell
-          timeoutIdRef.current = window.setTimeout(() => {
-            if (isMountedRef.current) {
-              const currentDeckLen = response.deck_len ?? state.totalInitialCards;
+          await new Promise<void>((resolve) => {
+            timeoutIdRef.current = window.setTimeout(() => {
+              if (isMountedRef.current) {
+                const currentDeckLen = response.deck_len ?? state.totalInitialCards;
 
-              dispatch({ type: 'SET_DECK_LEN', payload: currentDeckLen });
-              transitionToState(response?.target_phase as GameState, response);
-              isProcessingRef.current = false;
-            }
-          }, 4000);
+                dispatch({type: 'SET_DECK_LEN', payload: currentDeckLen});
+                transitionToState(response?.target_phase as GameState, response);
+                isProcessingRef.current = false;
+              }
+              resolve();
+            }, 4000);
+          });
         }
       } catch {
         if (isMountedRef.current) {
@@ -421,7 +419,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         }
       }
     };
-    shufflingAct();
+    void shufflingAct();
 
     // CLEANUP
     return () => {
@@ -444,7 +442,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         resetGameVariables();
 
         const currentDeckLen = state.gameState.deck_len;
-        dispatch({ type: 'SET_DECK_LEN', payload: currentDeckLen });
+        dispatch({type: 'SET_DECK_LEN', payload: currentDeckLen});
 
         const data = await handleApiAction(startGame);
         const response = extractGameStateData(data);
@@ -463,7 +461,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       }
     };
 
-    initGameAct();
+    void initGameAct();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.gameState.currentGameState,
     transitionToState,
@@ -514,7 +512,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         isProcessingRef.current = false;
       }
     };
-    MainStandTransit();
+    void MainStandTransit();
   }, [state.gameState.currentGameState, handleApiAction, transitionToState, savePreActionState]);
 
   // --- SPLIT_STAND and SPLIT_STAND_DOUBLE
@@ -573,7 +571,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         }
       }
     };
-    SplitStand();
+    void SplitStand();
 
     return () => {
       if (timeoutIdRef.current) window.clearTimeout(timeoutIdRef.current);
@@ -596,7 +594,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         }
       }
     };
-    SplitNat21Transit();
+    void SplitNat21Transit();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.gameState.currentGameState, state.gameState.pre_phase, transitionToState]);
 
@@ -647,7 +645,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         }
       }
     };
-    SplitAce21Transit();
+    void SplitAce21Transit();
 
     return () => {
       if (timeoutIdRef.current) window.clearTimeout(timeoutIdRef.current);
@@ -674,8 +672,6 @@ export function useGameStateMachine(): GameStateMachineHookResult {
 
         if (response) {
           transitionToState(response?.target_phase as GameState, response);
-        } else {
-          throw new Error("Missing response data");
         }
       } catch (e) {
         console.error("Hiba a SPLIT_FINISH fázisban:", e);
@@ -685,7 +681,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         }
       }
     };
-    SplitFinish();
+    void SplitFinish();
   }, [state.gameState.currentGameState, handleApiAction, savePreActionState, transitionToState]);
 
   // --- SPLIT_FINISH_OUTCOME ---
@@ -697,7 +693,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       isProcessingRef.current = true;
 
       try {
-        const { players, tokens, deck_len, pre_phase } = state.gameState;
+        const {players, tokens, deck_len, pre_phase} = state.gameState;
         if (players && Object.keys(players).length === 0) {
           timeoutIdRef.current = window.setTimeout(() => {
             if (isMountedRef.current) {
@@ -741,7 +737,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         }
       }
     };
-    SplitFinishTransit();
+    void SplitFinishTransit();
 
     return () => {
       if (timeoutIdRef.current) {
@@ -781,7 +777,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           }
         }
       };
-      HandleOutOfTokens();
+      void HandleOutOfTokens();
     }
   }, [state.gameState.currentGameState, handleApiAction, transitionToState, resetGameVariables]);
 
@@ -804,7 +800,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           }
         }
       };
-      RestartGame();
+      void RestartGame();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.gameState.currentGameState, resetGameVariables, transitionToState]);
@@ -839,7 +835,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           }
         }
       };
-      ForceRestart();
+      void ForceRestart();
     }
   }, [state.gameState.currentGameState, handleApiAction, transitionToState, resetGameVariables]);
 
@@ -859,7 +855,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           console.error("Error: ", error);
         }
       };
-      Reloading();
+      void Reloading();
     }
   }, [state.gameState, transitionToState]);
 

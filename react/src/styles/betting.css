@@ -35,7 +35,6 @@
   text-align: left; /* A szöveget az elemen belül balra igazítja */
   justify-content: flex-start;
   font-size: clamp(1.2rem, 1.2vw, 1.8rem);
-  font-weight: 500;
   padding-top: var(--extra-vertical-padding1);
 }
 
@@ -50,7 +49,6 @@
 
 .bank2 {
   display: flex;
-  justify-content: space-around;
   align-items: center;
   gap: 0.5vw; /* A jelek közötti távolság is a szélességtől függ */
   width: 100%;
@@ -61,7 +59,6 @@
      de minimum 0.8rem és maximum 1.8rem */
   font-size: clamp(1rem, 4vw, 1.8rem);
 
-  width: 100%;
   overflow: hidden; /* Biztonsági háló */
   padding-top: var(--extra-vertical-padding1);
 }

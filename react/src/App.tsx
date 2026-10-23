@@ -21,6 +21,7 @@ import SplitPlayerDealerMasked from "./components/SplitPlayerDealerMasked";
 import { Reloading } from "./components/Reloading";
 import RecoveryDec from "./components/RecoveryDec";
 import UniqueBetBank from "./components/UniqueBetBank";
+import React from "react";
 
 function App() {
   const {
@@ -52,7 +53,7 @@ function App() {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        transition={{ duration: 2, ease: "easeOut" }}
+        transition={{ duration: 1, ease: "easeOut" }}
       >
         {children}
       </motion.div>
