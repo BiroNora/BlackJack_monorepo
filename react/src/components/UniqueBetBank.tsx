@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
-import type { GameStateData } from "../types/game-types";
-import { formatNumber } from "../utilities/utils";
-import { AnimatePresence, motion } from "motion/react";
+import {useEffect, useState} from "react";
+import type {GameStateData} from "../types/game-types";
+import {formatNumber} from "../utilities/utils";
 
 interface UniqueBetBankProps {
   gameState: GameStateData;
@@ -11,11 +10,11 @@ interface UniqueBetBankProps {
 }
 
 const UniqueBetBank: React.FC<UniqueBetBankProps> = ({
-  gameState,
-  isResultPhase,
-  preRewardBet,
-  preRewardTokens,
-}) => {
+                                                       gameState,
+                                                       isResultPhase,
+                                                       preRewardBet,
+                                                       preRewardTokens,
+                                                     }) => {
   // Belső állapot a megjelenített értékeknek
   const [displayedBet, setDisplayBet] = useState(gameState.player.bet);
   const [displayedTokens, setDisplayTokens] = useState(gameState.tokens);
@@ -54,29 +53,18 @@ const UniqueBetBank: React.FC<UniqueBetBankProps> = ({
   const betToDisplay =
     displayedBet !== null ? formatNumber(displayedBet) : "---";
 
-  const fadeProps = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: 0.4 }, // Egy picit gyorsabb animáció általában profibb érzetet kelt
-  };
-
   return (
     <div className="bank-area-wrapper">
       {/* BET SZEKCIÓ */}
       <div className="bank1 merriweather">
         Bet:{"\u00A0"}
-        <div style={{ display: "inline-grid", verticalAlign: "bottom" }}>
-          <AnimatePresence mode="popLayout">
-            <motion.span
-              key={betToDisplay}
-              {...fadeProps}
-              className="bet-amount"
-              style={{ gridArea: "1 / 1", whiteSpace: "nowrap" }}
+        <div style={{display: "inline-grid", verticalAlign: "bottom"}}>
+            <span
+              className="bet-amount uniquebet-fade-in"
+              style={{gridArea: "1 / 1", whiteSpace: "nowrap"}}
             >
               {betToDisplay}
-            </motion.span>
-          </AnimatePresence>
+            </span>
         </div>
       </div>
 
@@ -91,19 +79,16 @@ const UniqueBetBank: React.FC<UniqueBetBankProps> = ({
             width: "5rem",
           }}
         >
-          <AnimatePresence mode="popLayout">
-            <motion.span
-              key={tokensToDisplay}
-              {...fadeProps}
-              style={{
-                gridArea: "1 / 1",
-                whiteSpace: "nowrap",
-                display: "inline-block", // Biztosítja, hogy legyen kiterjedése
-              }}
-            >
-              {tokensToDisplay}
-            </motion.span>
-          </AnimatePresence>
+          <span
+            className="uniquebet-fade-in"
+            style={{
+              gridArea: "1 / 1",
+              whiteSpace: "nowrap",
+              display: "inline-block", // Biztosítja, hogy legyen kiterjedése
+            }}
+          >
+            {tokensToDisplay}
+          </span>
         </div>
       </div>
     </div>

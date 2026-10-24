@@ -78,13 +78,107 @@
   font-weight: 500;
 }
 
-/* Példa: Ha láthatóvá akarod tenni a Deal Bank szekciót egy bizonyos állapotban */
-/* Ezt egy React komponenssel vagy JavaScripttel adnád hozzá az elemhez */
-/* .deal-bank.active {
-  display: flex;
-} */
+@keyframes bettingFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 
-/* Példa: Láthatóvá tesszük a chips szekciót */
-/* .chips.active {
-  display: flex;
-} */
+.bet-fade-in {
+  animation: bettingFadeIn 0.8s ease-out both;
+}
+
+.uniquebet-fade-in {
+  animation: bettingFadeIn 0.4s ease-out both;
+}
+
+/* Alap beállítás az elemekhez */
+.element-state-base {
+  transform: scale(1);
+  transition: opacity ease, transform ease;
+}
+
+/* Enabled állapot (0.7s tartam) */
+.element-enabled {
+  opacity: 1;
+  transform: scale(1);
+  transition-duration: 0.7s;
+}
+
+/* Disabled by user állapot (0.7s tartam) */
+.element-disabled-user {
+  opacity: 0.7;
+  transform: scale(1);
+  transition-duration: 0.7s;
+}
+
+/* Disabled by server állapot (gyorsabb, 0.3s tartam) */
+.element-disabled-server {
+  opacity: 0.7;
+  transform: scale(1);
+  transition-duration: 0.3s;
+}
+
+/* Alap beállítás a szövegekhez */
+.text-state-base {
+  transform: scale(1);
+  transition: opacity 1s ease, transform 1s ease;
+}
+
+/* Enabled szöveg */
+.text-enabled {
+  opacity: 1;
+}
+
+/* Disabled szöveg */
+.text-disabled {
+  opacity: 0.4;
+}
+
+/* Alap gomb stílus és transition */
+#start-button {
+  transform: scale(1);
+  transition: opacity ease, transform ease;
+  cursor: pointer;
+}
+
+#start-button:disabled {
+  cursor: not-allowed;
+}
+
+/* Állapotok a gombhoz */
+#start-button.btn-enabled {
+  opacity: 1;
+  transition-duration: 0.7s;
+}
+
+#start-button.btn-disabled-user {
+  opacity: 0.7;
+  transition-duration: 0.7s;
+}
+
+#start-button.btn-disabled-server {
+  opacity: 0.7;
+  transition-duration: 0.3s; /* A megadott 0.3s-es gyorsabb átmenet */
+}
+
+#start-button span,
+#deal-button span {
+  transform: scale(1);
+  transition: opacity 1s ease, transform 1s ease;
+}
+
+#start-button.btn-enabled span,
+#deal-button.btn-enabled span {
+  opacity: 1;
+}
+
+#start-button.btn-disabled-user span,
+#start-button.btn-disabled-server span,
+#deal-button.btn-disabled-user span,
+#deal-button.btn-disabled-server span {
+  opacity: 0.4; /* Ez felel meg a textVariants 'disabled' állapotának */
+}

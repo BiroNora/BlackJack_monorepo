@@ -1,8 +1,7 @@
-import type { GameStateData } from "../types/game-types";
+import type {GameStateData} from "../types/game-types";
 import "../styles/betting.css";
-import { formatNumber } from "../utilities/utils";
-import { useEffect, useRef, useState } from "react";
-import { AnimatePresence, motion } from "motion/react";
+import {formatNumber} from "../utilities/utils";
+import React, {useEffect, useRef, useState} from "react";
 
 interface BettingProps {
   gameState: GameStateData;
@@ -13,13 +12,13 @@ interface BettingProps {
 }
 
 const Betting: React.FC<BettingProps> = ({
-  gameState,
-  onPlaceBet,
-  retakeBet,
-  onStartGame,
-  isWFSR,
-}) => {
-  const { tokens, bet } = gameState;
+                                           gameState,
+                                           onPlaceBet,
+                                           retakeBet,
+                                           onStartGame,
+                                           isWFSR,
+                                         }) => {
+  const {tokens, bet} = gameState;
 
   const [showButtons, setShowButtons] = useState(false);
   const timeoutIdRef = useRef<number | null>(null);
@@ -44,82 +43,37 @@ const Betting: React.FC<BettingProps> = ({
 
   const isDisabled = bet === 0;
 
-  const variants = {
-    enabled: {
-      opacity: 1,
-      scale: 1,
-      transition: {
-        duration: 0.7,
-      },
-    },
-    disabledByUser: {
-      opacity: 0.7, // Alapértelmezett letiltott állapot
-      scale: 1,
-      transition: {
-        duration: 0.7,
-      },
-    },
-    disabledByServer: {
-      opacity: 0.7, // Vagy 1, ha a gombnak aktívnak kell kinéznie
-      scale: 1,
-      transition: {
-        duration: 0.3,
-      },
-    },
-  };
-  const textVariants = {
-    disabled: {
-      opacity: 0.4,
-      scale: 1,
-      transition: {
-        duration: 1,
-      },
-    },
-    enabled: {
-      opacity: 1,
-      scale: 1,
-      transition: {
-        duration: 1,
-      },
-    },
-  };
-
-  const fadeProps = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0 },
-    transition: { duration: 0.8 }, // Egy picit gyorsabb animáció általában profibb érzetet kelt
+  const getButtonStateClass = () => {
+    if (isWFSR) return "btn-disabled-server";
+    if (isDisabled) return "btn-disabled-user";
+    return "btn-enabled";
   };
 
   return (
     <div className="betting-screen-container">
-      <motion.button
+      <button
         id="start-button"
+        className={`start-button-base ${getButtonStateClass()}`}
         onClick={onStartGame}
         disabled={isDisabled || isWFSR}
-        variants={variants}
-        animate={isDisabled || isWFSR ? "disabled" : "enabled"}
-        transition={isWFSR ? { duration: 0.3 } : undefined}
       >
-        <motion.span variants={textVariants}>Start Game</motion.span>
-      </motion.button>
+        <span>Start Game</span>
+      </button>
 
       <div id="deal-bank" className="deal-bank">
-        <motion.button
+        <button
           id="deal-button"
+          className={getButtonStateClass()}
           onClick={() => retakeBet()}
           disabled={isDisabled || isWFSR}
-          variants={variants}
-          animate={isDisabled || isWFSR ? "disabled" : "enabled"}
-          transition={isWFSR ? { duration: 0.3 } : undefined}
         >
-          <motion.span variants={textVariants}>
+          <span>
             Bet: {"  " + formatNumber(bet)}
-          </motion.span>
-        </motion.button>
+          </span>
+        </button>
       </div>
 
-      {/* BANK SZEKCIÓ */}
+      {/* BANK section */}
       <div className="bank merriweather">
         Player's bank:{"\u00A0"}
         <div
@@ -130,19 +84,17 @@ const Betting: React.FC<BettingProps> = ({
             width: "5rem",
           }}
         >
-          <AnimatePresence mode="popLayout">
-            <motion.span
-              key={formatNumber(tokens)}
-              {...fadeProps}
-              style={{
-                gridArea: "1 / 1",
-                whiteSpace: "nowrap",
-                display: "inline-block", // Biztosítja, hogy legyen kiterjedése
-              }}
-            > {"\u00A0"}
-              {formatNumber(tokens)}
-            </motion.span>
-          </AnimatePresence>
+          <span
+            key={formatNumber(tokens)}
+            className="bet-fade-in"
+            style={{
+              gridArea: "1 / 1",
+              whiteSpace: "nowrap",
+              display: "inline-block",
+            }}
+          > {"\u00A0"}
+            {formatNumber(tokens)}
+          </span>
         </div>
       </div>
 
@@ -150,45 +102,46 @@ const Betting: React.FC<BettingProps> = ({
         id="chips"
         className={`button-container ${showButtons ? "show-buttons" : ""}`}
       >
-        <motion.button
+        {/* All In */}
+        <button
           id="all-in"
           type="button"
           onClick={handleAllIn}
-          variants={variants}
-          disabled={tokens === 0 || isWFSR}
-          animate={
-            tokens === 0
-              ? "disabledByUser"
-              : isWFSR
-              ? "disabledByServer"
-              : "enabled"
+          className={
+            isWFSR
+              ? "btn-disabled-server"
+              : tokens === 0
+                ? "btn-disabled-user"
+                : "btn-enabled"
           }
-          transition={isWFSR ? { duration: 0.3 } : undefined}
+          disabled={tokens === 0 || isWFSR}
         >
           All In
-        </motion.button>
+        </button>
 
-        {betAmounts.map((amount) => (
-          <motion.button
-            key={amount}
-            id={String(amount)}
-            type="button"
-            data-bet={amount}
-            onClick={() => onPlaceBet(amount)}
-            variants={variants}
-            disabled={tokens < amount || isWFSR}
-            animate={
-              tokens < amount
-                ? "disabledByUser"
-                : isWFSR
-                ? "disabledByServer"
-                : "enabled"
-            }
-            transition={isWFSR ? { duration: 0.3 } : undefined}
-          >
-            {formatNumber(amount)}
-          </motion.button>
-        ))}
+        {/* Bets */}
+        {betAmounts.map((amount) => {
+          const isUserDisabled = tokens < amount;
+          const btnClass = isWFSR
+            ? "btn-disabled-server"
+            : isUserDisabled
+            ? "btn-disabled-user"
+            : "btn-enabled";
+
+          return (
+            <button
+              key={amount}
+              id={String(amount)}
+              type="button"
+              data-bet={amount}
+              onClick={() => onPlaceBet(amount)}
+              className={btnClass}
+              disabled={isUserDisabled || isWFSR}
+            >
+              {formatNumber(amount)}
+            </button>
+          );
+        })}
       </div>
     </div>
   );
