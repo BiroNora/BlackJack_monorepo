@@ -1,5 +1,4 @@
 import React, { type JSX } from "react";
-import { AnimatePresence, motion } from "motion/react";
 import type { GameStateData } from "../types/game-types";
 import "../styles/playerDealer.css";
 
@@ -74,18 +73,6 @@ const PlayerDealerMasked: React.FC<TableProps> = ({
 
   const formattedPlayerHand = formatHand(playerHand);
   const formattedDealerHand = formatHand(dealerHand);
-  
-  const fadeProps = {
-    initial: { opacity: 0 },
-    animate: {
-      // 0: láthatatlan, 1: látható, 1: még mindig látható (várakozás), 0: eltűnik
-      opacity: [0, 1, 1, 0],
-    },
-    transition: {
-      duration: 3.5, // A teljes folyamat hossza (megjelenés + várakozás + eltűnés)
-      times: [0, 0.3, 0.8, 1], // Mikor történjenek a fenti állapotok (0-tól 1-ig skálázva)
-    },
-  };
 
   return (
     <div>
@@ -105,27 +92,20 @@ const PlayerDealerMasked: React.FC<TableProps> = ({
           <span className="label-text1"> {player.sum}</span>
         </div>
         <div className="score-area-wrapper">
-          <AnimatePresence mode="wait">
             {" "}
-            {/* Ajánlott a sima váltáshoz */}
             {showInsLost ? (
-              <motion.span
-                key="ins-lost" // Fix kulcs a feliratnak
-                {...fadeProps}
-                className="score-mood merriweather9red"
+              <span
+                className="score-mood merriweather9red ins-fade-animation"
               >
                 Insurance lost
-              </motion.span>
+              </span>
             ) : (
-              <motion.span
-                key="ins-empty" // Fix kulcs az üres állapotnak
-                {...fadeProps}
+              <span
                 className="score-mood merriweather5grey2"
               >
                 {"\u00A0"} {/* Üres karakter, hogy a magasság megmaradjon */}
-              </motion.span>
+              </span>
             )}
-          </AnimatePresence>
         </div>
         <div className="hand hand-area-wrapper">{formattedPlayerHand}</div>
       </div>

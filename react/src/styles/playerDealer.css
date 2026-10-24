@@ -107,3 +107,34 @@
     gap: 0.2rem; /* Elválasztó tér a tartalomnak */
   }
 }
+
+/* Az alap fade-in animáció (duration: 1s) */
+@keyframes fadeInCustom {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* fadeProps átültetve: 1 másodperc tartam, 0.3 másodperc késleltetés */
+.css-fade-props {
+  animation: fadeInCustom 1s ease-out 0.3s both;
+}
+
+/* fadeProps1 átültetve: 1 másodperc tartam, 0.7 másodperc késleltetés */
+.css-fade-props-1 {
+  animation: fadeInCustom 1s ease-out 0.7s both;
+}
+
+@keyframes insFadeSequence {
+  0% { opacity: 0; }
+  30% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.ins-fade-animation {
+  animation: insFadeSequence 3.5s ease-in-out forwards;
+}

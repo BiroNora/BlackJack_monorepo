@@ -1,17 +1,27 @@
-import React, { type JSX } from "react";
-import { AnimatePresence, motion } from "motion/react";
-import { states, type GameStateData } from "../types/game-types";
+import React, {type JSX, useRef} from "react";
+import {type GameStateData, states} from "../types/game-types";
 import "../styles/playerDealer.css";
 
 interface TableProps {
   gameState: GameStateData;
 }
 
-const PlayerDealer: React.FC<TableProps> = ({ gameState }) => {
+const PlayerDealer: React.FC<TableProps> = React.memo(({gameState}) => {
+  // --- 1. ITT A MÉRŐMŰSZER ---
+  const renderCount = useRef(0);
+  renderCount.current += 1;
+
+  console.log(`🔥 PlayerDealer render # ${renderCount.current}`, {
+    gameState: gameState,
+    currentGameState: gameState?.currentGameState,
+    playerSum: gameState?.player?.sum,
+    dealerSum: gameState?.dealer_unmasked?.sum,
+  });
+  // ---------------------------
   if (!gameState || !gameState.player || !gameState.dealer_unmasked) {
     return null;
   }
-  const { player, dealer_unmasked, currentGameState } = gameState;
+  const {player, dealer_unmasked, currentGameState} = gameState;
 
   const formatCard = (card: string): JSX.Element | string => {
     const suit = card[0]; // Az első karakter a szín
@@ -28,7 +38,7 @@ const PlayerDealer: React.FC<TableProps> = ({ gameState }) => {
 
     return (
       <React.Fragment>
-        <span style={{ whiteSpace: "nowrap" }}>
+        <span style={{whiteSpace: "nowrap"}}>
           <span className={suitClass}>{suit}</span>
           <span className="merriweatherblack">{value}</span>
         </span>
@@ -90,86 +100,52 @@ const PlayerDealer: React.FC<TableProps> = ({ gameState }) => {
       dealer_unmasked.sum
     );
 
-  const fadeProps = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    transition: {
-      duration: 1,
-      delay: 0.3,
-    },
-  };
-
-  const fadeProps1 = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    transition: {
-      duration: 0.8,
-    },
-  };
-
   return (
-    <div >
+    <div>
       <div id="dealer-hand" className="play">
-        <motion.div
-          key={`d-hand-${dealerHand.length}`}
-          {...fadeProps}
-          className="hand hand-area-wrapper"
-        >
-          {formattedDealerHand}
-        </motion.div>
-        <div className="score-area-wrapper">
-          <motion.span
-            key={`d-state-${dealer_unmasked.hand_state}`}
-            {...fadeProps}
-            className="score-mood merriweather5grey2 animate-fade"
-          >
-            {d_state}
-          </motion.span>
+        <div className="hand hand-area-wrapper">
+          <div className="css-fade-props">
+            {formattedDealerHand}
+          </div>
         </div>
+
+        <div className="score-area-wrapper">
+          <span className="score-mood merriweather5grey2 css-fade-props animate-fade">
+            {d_state}
+          </span>
+        </div>
+
         <div className="band-area-wrapper">
           <span className="label-text">Dealer: </span>
-          <motion.span
-            key={`d-sum-${dealer_unmasked.sum}`}
-            {...fadeProps}
-            className="label-text1 animate-fade"
-          >
+          <span className="label-text1 css-fade-props animate-fade">
             {sum}
-          </motion.span>
+          </span>
         </div>
       </div>
+
+      {/* PLAYER SECTION */}
       <div id="player-hand" className="play">
         <div className="band-area-wrapper">
           <span className="label-text">Player: </span>
-          <span className="label-text1">{player.sum}</span>
+          <span className="label-text1 css-fade-props1">{player.sum}</span>
         </div>
+
         <div className="score-area-wrapper">
-          <AnimatePresence mode="wait">
             {" "}
-            {/* Ajánlott a sima váltáshoz */}
             {shouldShowScore ? (
-              <motion.span
-                key={`p-state-${p_state}`}
-                {...fadeProps1}
-                className="score-mood merriweather5grey"
-              >
-                {p_state}
-              </motion.span>
+              <span className="score-mood merriweather5grey css-fade-props-1">
+              {p_state}
+            </span>
             ) : (
-              /* Ez a láthatatlan span megtartja a helyet */
-              <motion.span
-                key="empty-state"
-                initial={{ opacity: 0 }}
-                className="score-mood"
-              >
-                {"\u00A0"}
-              </motion.span>
+              <span className="score-mood">
+              {"\u00A0"}
+            </span>
             )}
-          </AnimatePresence>
         </div>
         <div className="hand hand-area-wrapper">{formattedPlayerHand}</div>
       </div>
     </div>
   );
-};
+});
 
 export default PlayerDealer;

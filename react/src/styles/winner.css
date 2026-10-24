@@ -1,0 +1,16 @@
+@keyframes winnerFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+.winners-fade-in {
+    animation: winnerFadeIn 1s ease-out 1.5s both;
+}
+
+.winners-base {
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}

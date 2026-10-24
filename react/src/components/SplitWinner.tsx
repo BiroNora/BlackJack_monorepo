@@ -1,5 +1,7 @@
 import { motion } from "motion/react";
 import { states, type GameStateData } from "../types/game-types";
+import "../styles/winner.css";
+import React from "react";
 
 interface TableProps {
   gameState: GameStateData;
