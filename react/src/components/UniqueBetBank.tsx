@@ -18,6 +18,7 @@ const UniqueBetBank: React.FC<UniqueBetBankProps> = ({
   // Belső állapot a megjelenített értékeknek
   const [displayedBet, setDisplayBet] = useState(gameState.player.bet);
   const [displayedTokens, setDisplayTokens] = useState(gameState.tokens);
+  const isTransit = gameState.currentGameState === "MAIN_STAND_REWARDS_TRANSIT";
 
   useEffect(() => {
     if (
@@ -60,7 +61,7 @@ const UniqueBetBank: React.FC<UniqueBetBankProps> = ({
         Bet:{"\u00A0"}
         <div style={{display: "inline-grid", verticalAlign: "bottom"}}>
             <span
-              className="bet-amount uniquebet-fade-in"
+              className="uniquebet-fade-in"
               style={{gridArea: "1 / 1", whiteSpace: "nowrap"}}
             >
               {betToDisplay}
@@ -80,11 +81,12 @@ const UniqueBetBank: React.FC<UniqueBetBankProps> = ({
           }}
         >
           <span
-            className="uniquebet-fade-in"
+            key={tokensToDisplay}
+            className={isTransit ? "bet-fade-in" : "bet-fade-in-delayed"}
             style={{
               gridArea: "1 / 1",
               whiteSpace: "nowrap",
-              display: "inline-block", // Biztosítja, hogy legyen kiterjedése
+              display: "inline-block",
             }}
           >
             {tokensToDisplay}

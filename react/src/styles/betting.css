@@ -95,6 +95,10 @@
   animation: bettingFadeIn 0.4s ease-out both;
 }
 
+.bet-fade-in-delayed {
+  animation: bettingFadeIn 0.4s ease-out 0.5s both;
+}
+
 /* Alap beállítás az elemekhez */
 .element-state-base {
   transform: scale(1);
@@ -181,4 +185,19 @@
 #deal-button.btn-disabled-user span,
 #deal-button.btn-disabled-server span {
   opacity: 0.4; /* Ez felel meg a textVariants 'disabled' állapotának */
+}
+
+@keyframes playersBankFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.players-bank-fade-in {
+  animation: playersBankFadeIn 1s cubic-bezier(0.16, 1, 0.3, 1) both; /* Gyorsabb, de vajpuha easing */
 }

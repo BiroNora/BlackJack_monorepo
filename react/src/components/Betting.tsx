@@ -86,7 +86,7 @@ const Betting: React.FC<BettingProps> = ({
         >
           <span
             key={formatNumber(tokens)}
-            className="bet-fade-in"
+            className="players-bank-fade-in"
             style={{
               gridArea: "1 / 1",
               whiteSpace: "nowrap",
