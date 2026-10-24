@@ -1,5 +1,4 @@
-import { motion } from "motion/react";
-import { states, type GameStateData } from "../types/game-types";
+import {type GameStateData, states} from "../types/game-types";
 import "../styles/winner.css";
 import React from "react";
 
@@ -7,8 +6,8 @@ interface TableProps {
   gameState: GameStateData;
 }
 
-const SplitWinner: React.FC<TableProps> = ({ gameState }) => {
-  const { dealer_unmasked, winner } = gameState;
+const SplitWinner: React.FC<TableProps> = ({gameState}) => {
+  const {dealer_unmasked, winner} = gameState;
   const BJ_DEALER_WON = 3;
 
   const winners =
@@ -16,19 +15,11 @@ const SplitWinner: React.FC<TableProps> = ({ gameState }) => {
       ? states[BJ_DEALER_WON]
       : states[winner];
 
-  const props = {
-    initial: { opacity: 0 },
-    animate: { opacity: 1 },
-    exit: { opacity: 0, scale: 0.8 },
-    transition: {
-      duration: 1,
-      delay: 0.5,
-    },
-  };
-
   return (
     <div className="winners merriweather9black">
-      <motion.span {...props}>{winners}</motion.span>
+      <span className="winners-fade-in">
+      {winners}
+      </span>
     </div>
   );
 };
