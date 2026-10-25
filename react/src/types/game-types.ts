@@ -17,7 +17,9 @@ export type GameState =
   | "OUT_OF_TOKENS"
   | "RESTART_GAME"
   | "ERROR"
-  | "RELOADING";
+  | "RELOADING"
+  | "FORGOT_PASSWORD"
+  | "CONFLICT";
 
 export interface GameStateData {
   currentGameState: GameState;
@@ -34,6 +36,28 @@ export interface GameStateData {
   bet_list: number[];
   target_phase: GameState | null;
   pre_phase: GameState | null;
+  conflict_data?: ConflictDetails;
+  username?: string;
+}
+
+export interface ApiResponse {
+  status: string;
+  message?: string;
+  current_tokens: number;
+  is_guest: boolean;
+  game_state: GameStateData; // Csak a játék adatai
+  game_state_hint: string;
+  conflict_data?: ConflictDetails;
+}
+
+export interface ConflictDetails {
+  existing_user: {
+    balance: number;
+    updated_at?: string;
+  };
+  current_session: {
+    balance: number;
+  };
 }
 
 export interface PlayerData {
@@ -91,10 +115,28 @@ export type GameStateMachineHookResult = {
     newState: GameState,
     newData?: Partial<GameStateData>
   ) => void;
+  handleSkipAuth: () => Promise<void>;
+  handleAuth: (
+    email: string,
+    username: string,
+    password: string,
+    isLogIn: boolean,
+  ) => Promise<{ status: string } | void>;
+  handleUpdateUsername: (
+    username: string,
+  ) => Promise<{ status: string } | void>;
+  handleConflict: (version_new: boolean) => Promise<{ status: string } | void>;
+  handleCloseNewPassCase: () => void;
+  handleForgotPassword: (
+    identifier: string,
+  ) => Promise<{ status: string } | void>;
+  handleForgotPasswordSubmit: (
+    token: string,
+    password: string,
+  ) => Promise<{ status: string } | void>;
   handleOnContinue: () => void;
   handleOnStartNew: () => void;
   handlePlaceBet: (amount: number) => Promise<void>;
-  //handleDeal: () => Promise<void>; // Hozzáadva a visszatérési típushoz
   handleRetakeBet: () => void;
   handleStartGame: () => void;
   handleHitRequest: () => void;
@@ -111,6 +153,7 @@ export type GameStateMachineHookResult = {
   showInsLost: boolean;
   initDeckLen: number | null;
   isWFSR: boolean;
+  isGuest: boolean;
 };
 
 export const states = [

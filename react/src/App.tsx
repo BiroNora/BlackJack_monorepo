@@ -1,7 +1,7 @@
 import Cards from "./components/Cards";
 import { ErrorPage } from "./components/ErrorPage";
 import HeaderTitles from "./components/HeaderTitles";
-import { Loading } from "./components/Loading";
+import Loading from "./components/Loading";
 import { OutOfTokens } from "./components/OutOfTokens";
 import PlayButtons from "./components/PlayButtons";
 import PlayerDealer from "./components/PlayerDealer";
@@ -21,11 +21,22 @@ import SplitPlayerDealerMasked from "./components/SplitPlayerDealerMasked";
 import { Reloading } from "./components/Reloading";
 import RecoveryDec from "./components/RecoveryDec";
 import UniqueBetBank from "./components/UniqueBetBank";
-import React from "react";
+import React, {useState} from "react";
+import { AuthModal } from "./components/AuthModal";
+import {ProfileModal} from "./components/ProfileModal.tsx";
+import {Toaster} from "react-hot-toast";
+import {defaultToastOptions} from "./utilities/toast-config.ts";
 
 function App() {
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+
   const {
     gameState,
+    handleAuth,
+    handleUpdateUsername,
+    handleForgotPassword,
+    handleSkipAuth,
     handleOnContinue,
     handleOnStartNew,
     handlePlaceBet,
@@ -63,13 +74,43 @@ function App() {
   return (
     <>
       <HeaderTitles />
+      <AnimatePresence>
+        {isAuthOpen && (
+          <AuthModal
+            onClose={() => setIsAuthOpen(false)}
+            onAuthSubmit={handleAuth}
+            onHandleForgotPassword={handleForgotPassword}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {isProfileOpen && (
+          <ProfileModal
+            onClose={() => setIsProfileOpen(false)}
+            username={gameState.username || ""}
+            handleSave={handleUpdateUsername}
+          />
+        )}
+      </AnimatePresence>
+      <Toaster
+        position="top-center"
+        containerStyle={{
+          top: "40%",
+        }}
+        toastOptions={defaultToastOptions}
+      />
       <AnimatePresence mode="wait">
         {(() => {
           switch (gameState.currentGameState) {
             case "LOADING":
               return (
                 <div>
-                  <Loading />
+                  <Loading
+                    onOpenAuth={() => setIsAuthOpen(true)}
+                    onSkipAuth={() => handleSkipAuth()}
+                    isAuthOpen={isAuthOpen}
+                    isWFSR={isWFSR}
+                  />
                 </div>
               );
             case "RECOVERY_DECISION":
