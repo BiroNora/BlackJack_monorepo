@@ -9,7 +9,9 @@ const SESSION_INIT_KEY = '__sik__';
 const CLIENT_STORAGE_ID_KEY = 'cid';
 
 
-export async function initializeSessionAPI(): Promise<SessionInitResponse> {
+export async function initializeSessionAPI(
+  skipAuth: boolean = false,
+): Promise<SessionInitResponse> {
   //console.log("🚀 initializeSessionAPI hívása elindult!");
   // 1. 🔑 BLOKKOLÁS ELLENŐRZÉS: Ellenőrizzük, hogy fut-e már inicializálás (__sik__ kulcs).
   const existingPromise = runningInitializations.get(SESSION_INIT_KEY);
@@ -44,7 +46,7 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
         const response = await callApiEndpoint<SessionInitResponse>(
             "/api/initialize_session",
             "POST",
-            { clientId: idToSend }
+            { clientId: idToSend, skip_auth: skipAuth }
         );
 
         if (response && response.token) {
@@ -77,6 +79,48 @@ export async function initializeSessionAPI(): Promise<SessionInitResponse> {
 
   // 5. Visszaadjuk a Promise-t.
   return initializationPromise;
+}
+
+export async function checkSessionAPI() {
+  return await callApiEndpoint("/api/check_session", "POST", {});
+}
+
+export async function setAuth(
+  email: string,
+  username: string,
+  password: string,
+  isLogIn: boolean,
+) {
+  return await callApiEndpoint("/api/handle_auth", "POST", {
+    email: email,
+    username: username,
+    password: password,
+    is_login: isLogIn,
+  });
+}
+
+export async function updateUsername(username: string) {
+  return await callApiEndpoint(`/api/update_username`, "POST", {
+    username: username,
+  });
+}
+
+export async function handleConflictAPI(version_new: boolean) {
+  return await callApiEndpoint(`/api/handle_conflict`, "POST", {
+    version_new: version_new,
+  });
+}
+
+export async function handleForgotPasswordAPI(identifier: string) {
+  return await callApiEndpoint(`/api/forgot_password`, "POST", {
+    identifier: identifier,
+  });
+}
+
+export async function setForgotPasswordSubmit(token: string, password: string) {
+  return await callApiEndpoint(`/api/reset_password/${token}`, "POST", {
+    password: password,
+  });
 }
 
 export async function clearGameState() {

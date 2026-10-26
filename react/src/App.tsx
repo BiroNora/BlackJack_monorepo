@@ -1,31 +1,33 @@
+import Betting from "./components/Betting";
 import Cards from "./components/Cards";
-import { ErrorPage } from "./components/ErrorPage";
 import HeaderTitles from "./components/HeaderTitles";
 import Loading from "./components/Loading";
-import { OutOfTokens } from "./components/OutOfTokens";
 import PlayButtons from "./components/PlayButtons";
 import PlayerDealer from "./components/PlayerDealer";
 import PlayerDealerMasked from "./components/PlayerDealerMasked";
-import { Restart } from "./components/RestartGame";
-import { Shuffling } from "./components/Shuffling";
+import React, {useState} from "react";
+import RecoveryDec from "./components/RecoveryDec";
 import SplitPlayButtons from "./components/SplitPlayButtons";
 import SplitPlayDisabledButtons from "./components/SplitPlayDisabledButtons";
 import SplitPlayDoubleDisabledButtons from "./components/SplitPlayDoubleDisabledButtons";
+import SplitPlayerDealerMasked from "./components/SplitPlayerDealerMasked";
 import SplitPlayers from "./components/SplitPlayers";
 import SplitWinner from "./components/SplitWinner";
-import Winner from "./components/Winner";
-import { useGameStateMachine } from "./hooks/useGameStateMachine";
-import Betting from "./components/Betting";
-import { AnimatePresence, motion } from "motion/react";
-import SplitPlayerDealerMasked from "./components/SplitPlayerDealerMasked";
-import { Reloading } from "./components/Reloading";
-import RecoveryDec from "./components/RecoveryDec";
 import UniqueBetBank from "./components/UniqueBetBank";
-import React, {useState} from "react";
-import { AuthModal } from "./components/AuthModal";
+import Winner from "./components/Winner";
+import toast, {Toaster} from "react-hot-toast";
+import {AnimatePresence, motion} from "motion/react";
+import {AuthModal} from "./components/AuthModal";
+import {ConflictModal} from "./components/ConflictModal.tsx";
+import {ErrorPage} from "./components/ErrorPage";
+import {ForgotPasswordModal} from "./components/ForgotPasswordModal.tsx";
+import {OutOfTokens} from "./components/OutOfTokens";
 import {ProfileModal} from "./components/ProfileModal.tsx";
-import {Toaster} from "react-hot-toast";
+import {Reloading} from "./components/Reloading";
+import {Restart} from "./components/RestartGame";
+import {Shuffling} from "./components/Shuffling";
 import {defaultToastOptions} from "./utilities/toast-config.ts";
+import {useGameStateMachine} from "./hooks/useGameStateMachine";
 
 function App() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -34,28 +36,31 @@ function App() {
   const {
     gameState,
     handleAuth,
-    handleUpdateUsername,
+    handleCloseNewPassCase,
+    handleConflict,
+    handleDoubleRequest,
     handleForgotPassword,
-    handleSkipAuth,
+    handleForgotPasswordSubmit,
+    handleHitRequest,
+    handleInsRequest,
     handleOnContinue,
     handleOnStartNew,
     handlePlaceBet,
     handleRetakeBet,
-    handleStartGame,
-    handleHitRequest,
-    handleStandRequest,
-    handleDoubleRequest,
-    handleSplitRequest,
-    handleSplitHitRequest,
-    handleSplitStandRequest,
+    handleSkipAuth,
     handleSplitDoubleRequest,
-    handleInsRequest,
+    handleSplitHitRequest,
+    handleSplitRequest,
+    handleSplitStandRequest,
+    handleStandRequest,
+    handleStartGame,
+    handleUpdateUsername,
+    initDeckLen,
+    insPlaced,
+    isWFSR,
     preRewardBet,
     preRewardTokens,
-    insPlaced,
     showInsLost,
-    initDeckLen,
-    isWFSR,
   } = useGameStateMachine();
 
   function PageWrapper({ children }: React.PropsWithChildren<object>) {
@@ -70,6 +75,27 @@ function App() {
       </motion.div>
     );
   }
+
+  // Segédfg, megnyitja a login modalt a betting felületen sikeres
+  // jelszó módosítás után
+  const handlePasswordResetAndOpenLogin = async (
+    token: string,
+    password: string,
+  ) => {
+    const result = await handleForgotPasswordSubmit(token, password);
+    if (result?.status === "IC") {
+      handleCloseNewPassCase();
+      return result;
+    }
+    toast("Password successfully changed!", {
+      duration: 3000,
+      id: "password-changed-toast",
+    });
+
+    setTimeout(() => {
+      setIsAuthOpen(true);
+    }, 3000);
+  };
 
   return (
     <>
@@ -372,6 +398,28 @@ function App() {
                   <div className="players-area-wrapper">
                     <SplitPlayers gameState={gameState} />
                   </div>
+                </div>
+              );
+            case "FORGOT_PASSWORD":
+              return (
+                <div>
+                  <PageWrapper>
+                    <ForgotPasswordModal
+                      onCloseForm={handleCloseNewPassCase}
+                      onResetSubmit={handlePasswordResetAndOpenLogin}
+                    />
+                  </PageWrapper>
+                </div>
+              );
+            case "CONFLICT":
+              return (
+                <div>
+                  <PageWrapper>
+                    <ConflictModal
+                      onResolve={handleConflict}
+                      conflictData={gameState.conflict_data}
+                    />
+                  </PageWrapper>
                 </div>
               );
             case "OUT_OF_TOKENS":

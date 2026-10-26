@@ -2,11 +2,13 @@ import {useCallback, useEffect, useReducer, useRef, useState} from "react";
 import {
   addPlayerFromPlayers,
   addSplitPlayerToGame,
-  addToPlayersListByStand,
+  addToPlayersListByStand, checkSessionAPI,
   clearGameState,
   forceRestart,
   getShuffling,
+  handleConflictAPI,
   handleDouble,
+  handleForgotPasswordAPI,
   handleHit,
   handleInsurance,
   handleSplitDouble,
@@ -17,14 +19,24 @@ import {
   type HttpError,
   initializeSessionAPI,
   recoverGameState,
+  setAuth,
   setBet,
+  setForgotPasswordSubmit,
   setRestart,
   startGame,
   takeBackDeal,
+  updateUsername,
 } from "../api/api-calls";
-import type {GameState, GameStateData, GameStateMachineHookResult, SessionInitResponse,} from "../types/game-types";
+import type {
+  ApiResponse,
+  GameState,
+  GameStateData,
+  GameStateMachineHookResult,
+  SessionInitResponse,
+} from "../types/game-types";
 import {extractGameStateData} from "../utilities/utils";
 import {gameReducer, initialGameDataState} from "../context/gameReducer";
+import toast from "react-hot-toast";
 
 // A hook visszatérési típusa most inline van deklarálva, nincs külön 'type' definíció.
 export function useGameStateMachine(): GameStateMachineHookResult {
@@ -37,7 +49,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   const isMountedRef = useRef(true);
   // Ez a védelmi zár (lock) az ismételt hívások ellen
   const isProcessingRef = useRef(false);
-  const isAppInitializedRef = useRef(false);
+  //const isAppInitializedRef = useRef(false);
 
   // Állapotváltó funkció a logolással és Reducer szinkronizációval
   const transitionToState = useCallback(
@@ -121,6 +133,242 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     },
     [transitionToState],
   );
+
+  // Ez fut le, ha a felhasználó kihagyja az auth-ot ("No, thanks")
+  const handleSkipAuth = useCallback(async () => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+    setIsWFSR(true);
+
+    try {
+      const minLoadingTimePromise = new Promise((resolve) =>
+        setTimeout(resolve, 2000),
+      );
+
+      const initializationPromise = handleApiAction(() =>
+        initializeSessionAPI(true),
+      );
+
+      const [initData] = await Promise.all([
+        initializationPromise,
+        minLoadingTimePromise,
+      ]);
+      if (!initData || !isMountedRef.current) return;
+
+      const { tokens, game_state } = initData as SessionInitResponse;
+      const nextPhase = game_state.target_phase as GameState;
+
+      dispatch({
+        type: "SET_DECK_LEN",
+        payload: game_state.deck_len,
+      });
+
+      transitionToState(nextPhase, { tokens, ...game_state });
+    } catch (error) {
+      console.error("Initialization Error: ", error);
+      if (isMountedRef.current) {
+        transitionToState("ERROR", { tokens: 0, deck_len: 0 });
+      }
+    } finally {
+      if (isMountedRef.current) {
+        setIsWFSR(false);
+        isProcessingRef.current = false;
+      }
+    }
+  }, [handleApiAction, transitionToState]);
+
+  const handleAuth = useCallback(
+    async (
+      email: string,
+      username: string,
+      password: string,
+      isLogIn: boolean,
+    ): Promise<{ status: string } | void> => {
+      if (!password || password.length < 6) {
+        throw new Error("Password must be at least 6 characters long");
+      }
+      let resultStatus = "success";
+
+      await executeAsyncAction(async () => {
+        const data = await handleApiAction(() =>
+          setAuth(email, username, password, isLogIn),
+        );
+
+        const resData = data as {
+          status?: string;
+          is_guest?: boolean;
+          username?: string;
+        };
+        if (
+          resData &&
+          (resData.status === "IC" ||
+            resData.status === "UAE" ||
+            resData.status === "IU")
+        ) {
+          resultStatus = resData.status;
+          return;
+        }
+
+        if (resData && resData.status === "CONFLICT") {
+          resultStatus = "CONFLICT";
+
+          const response = extractGameStateData(data);
+          if (response) {
+            transitionToState(response?.target_phase as GameState, response);
+          }
+          return;
+        }
+
+        const response = extractGameStateData(data);
+        if (!response) return;
+
+        if (resData && typeof resData.is_guest === "boolean") {
+          dispatch({ type: "SET_IS_GUEST", payload: resData.is_guest });
+        }
+        if (response.username) {
+          dispatch({ type: "SET_USERNAME", payload: response.username });
+        }
+
+        transitionToState(response?.target_phase as GameState, response);
+      });
+
+      return { status: resultStatus };
+    },
+    [executeAsyncAction, handleApiAction, transitionToState],
+  );
+
+  const handleUpdateUsername = useCallback(
+    async (username: string): Promise<{ status: string } | void> => {
+      if (!username || username.length < 3 || username.length > 25) {
+        throw new Error("Username incorrect long");
+      }
+      let resultStatus = "success";
+
+      await executeAsyncAction(async () => {
+        const data = await handleApiAction(() => updateUsername(username));
+
+        const resData = data as {
+          status?: string;
+          username?: string;
+        };
+        if (resData && resData.status === "IC") {
+          resultStatus = resData.status;
+          return;
+        }
+
+        const response = extractGameStateData(resData);
+        if (!response) return;
+
+        if (response.username) {
+          dispatch({ type: "SET_USERNAME", payload: response.username });
+        }
+
+        transitionToState(response?.target_phase as GameState, response);
+      });
+      return { status: resultStatus };
+    },
+    [executeAsyncAction, handleApiAction, transitionToState],
+  );
+
+  const handleCloseNewPassCase = useCallback(() => {
+    sessionStorage.removeItem("_rf_");
+
+    transitionToState("BETTING" as GameState, { target_phase: "BETTING" });
+  }, [transitionToState]);
+
+  const handleConflict = useCallback(
+    async (version_new: boolean): Promise<{ status: string } | void> => {
+      let resultStatus = "success";
+
+      await executeAsyncAction(async () => {
+        const data = await handleApiAction(() =>
+          handleConflictAPI(version_new),
+        );
+
+        const resData = data as { status?: string; is_guest?: boolean };
+        if (resData && resData.status === "IC") {
+          resultStatus = resData.status;
+          return;
+        }
+
+        if (resData && typeof resData.is_guest === "boolean") {
+          dispatch({ type: "SET_IS_GUEST", payload: resData.is_guest });
+        }
+        const response = extractGameStateData(data);
+        if (!response) return;
+        transitionToState(response?.target_phase as GameState, response);
+      });
+
+      return { status: resultStatus };
+    },
+    [executeAsyncAction, handleApiAction, transitionToState],
+  );
+
+  const handleForgotPassword = useCallback(
+    async (identifier: string): Promise<{ status: string } | void> => {
+      if (!identifier || identifier.trim() === "") {
+        toast("Missing email address", {
+          id: "forgot-pass-error",
+          duration: 2000,
+        });
+        return;
+      }
+
+      let resultStatus = "success";
+
+      await executeAsyncAction(async () => {
+        const data = await handleApiAction(() =>
+          handleForgotPasswordAPI(identifier),
+        );
+
+        const resData = data as { status?: string; token?: string };
+        if (resData && resData.status === "IC") {
+          resultStatus = "IC";
+          return;
+        }
+
+        // Token mentése sessionStorage-ba
+        if (resData?.token) {
+          sessionStorage.setItem("_rf_", resData.token);
+        }
+
+        const response = extractGameStateData(data);
+        if (!response) return;
+        transitionToState(response?.target_phase as GameState, response);
+      });
+      return { status: resultStatus };
+    },
+    [executeAsyncAction, handleApiAction, transitionToState],
+  );
+
+  const handleForgotPasswordSubmit = useCallback(
+    async (
+      token: string,
+      password: string,
+    ): Promise<{ status: string } | void> => {
+      let resultStatus = "success";
+
+      await executeAsyncAction(async () => {
+        const data = await handleApiAction(() =>
+          setForgotPasswordSubmit(token, password),
+        );
+
+        const resData = data as { status?: string };
+        if (resData && resData.status === "IC") {
+          resultStatus = resData.status;
+          return;
+        }
+
+        const response = extractGameStateData(data);
+        if (!response) return;
+        transitionToState(response?.target_phase as GameState, response);
+      });
+
+      return { status: resultStatus };
+    },
+    [executeAsyncAction, handleApiAction, transitionToState],
+  );
+
 
   const handleOnContinue = useCallback(async () => {
     await executeAsyncAction(async () => {
@@ -333,7 +581,54 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   }, []);
 
   // --- SPECIÁLIS EFFECT: Csak az app indulásakor/inicializálásakor ---
-  // --- LOADING ---
+  // --- ÚJRATÖLTÉS, INDÍTÁS ---
+  useEffect(() => {
+    if (isProcessingRef.current) return;
+    isProcessingRef.current = true;
+
+    const checkExistingSession = async () => {
+      try {
+        // Ellenőrizzük a session-t
+        const sessionData = (await handleApiAction(() =>
+          checkSessionAPI(),
+        )) as ApiResponse;
+        const response = extractGameStateData(sessionData);
+
+        const resData = sessionData as {
+          is_guest?: boolean;
+          username?: string;
+        };
+        if (resData && typeof resData.is_guest === "boolean") {
+          dispatch({ type: "SET_IS_GUEST", payload: resData.is_guest });
+        }
+        if (resData.username) {
+          dispatch({ type: "SET_USERNAME", payload: resData.username });
+        }
+
+        if (
+          isMountedRef.current &&
+          response &&
+          sessionData &&
+          sessionData.status === "success"
+        ) {
+          transitionToState(response.target_phase as GameState, response);
+        } else {
+          isProcessingRef.current = false;
+        }
+      } catch {
+        if (isMountedRef.current) {
+          isProcessingRef.current = false;
+          // A transitionToState("ERROR")-t a handleApiAction már megcsinálta belül!
+        }
+      }
+    };
+
+    checkExistingSession();
+  }, [handleApiAction, transitionToState]);
+
+
+
+  /*// --- LOADING ---
   useEffect(() => {
     // 1. Kapuőr: Csak ha LOADING fázisban vagyunk és nem dolgozunk éppen
     if (state.gameState.currentGameState !== "LOADING" || isProcessingRef.current) return;
@@ -383,7 +678,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
     };
 
     void initializeApplicationOnLoad();
-  }, [state.gameState.currentGameState, transitionToState, handleApiAction]);
+  }, [state.gameState.currentGameState, transitionToState, handleApiAction]);*/
 
   // --- SHUFFLING ---
   useEffect(() => {
@@ -862,25 +1157,33 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   return {
     gameState: state.gameState,
     currentGameState: state.gameState.currentGameState,
-    transitionToState,
-    handleStartGame,
+    isGuest: state.isGuest,
+    handleAuth,
+    handleCloseNewPassCase,
+    handleConflict,
+    handleDoubleRequest,
+    handleForgotPassword,
+    handleForgotPasswordSubmit,
+    handleHitRequest,
+    handleInsRequest,
     handleOnContinue,
     handleOnStartNew,
     handlePlaceBet,
     handleRetakeBet,
-    handleHitRequest,
-    handleStandRequest,
-    handleDoubleRequest,
-    handleSplitRequest,
-    handleSplitHitRequest,
-    handleSplitStandRequest,
+    handleSkipAuth,
     handleSplitDoubleRequest,
-    handleInsRequest,
+    handleSplitHitRequest,
+    handleSplitRequest,
+    handleSplitStandRequest,
+    handleStandRequest,
+    handleStartGame,
+    handleUpdateUsername,
+    transitionToState,
+    initDeckLen: state.initDeckLen,
+    insPlaced: state.insPlaced,
+    isWFSR,
     preRewardBet: state.preRewardBet,
     preRewardTokens: state.preRewardTokens,
     showInsLost: state.showInsLost,
-    insPlaced: state.insPlaced,
-    initDeckLen: state.initDeckLen,
-    isWFSR,
   };
 }
