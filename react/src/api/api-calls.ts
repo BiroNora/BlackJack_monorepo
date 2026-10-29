@@ -10,7 +10,6 @@ const CLIENT_STORAGE_ID_KEY = 'cid';
 
 
 export async function initializeSessionAPI(
-  skipAuth: boolean = false,
 ): Promise<SessionInitResponse> {
   //console.log("🚀 initializeSessionAPI hívása elindult!");
   // 1. 🔑 BLOKKOLÁS ELLENŐRZÉS: Ellenőrizzük, hogy fut-e már inicializálás (__sik__ kulcs).
@@ -46,7 +45,7 @@ export async function initializeSessionAPI(
         const response = await callApiEndpoint<SessionInitResponse>(
             "/api/initialize_session",
             "POST",
-            { clientId: idToSend, skip_auth: skipAuth }
+            { clientId: idToSend }
         );
 
         if (response && response.token) {

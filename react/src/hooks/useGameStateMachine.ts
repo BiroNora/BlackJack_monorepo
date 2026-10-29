@@ -146,7 +146,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       );
 
       const initializationPromise = handleApiAction(() =>
-        initializeSessionAPI(true),
+        initializeSessionAPI(),
       );
 
       const [initData] = await Promise.all([
