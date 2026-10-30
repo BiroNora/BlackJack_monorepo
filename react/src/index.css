@@ -15,7 +15,6 @@
     -moz-osx-font-smoothing: grayscale;
 
     min-height: 100dvh; /* Legalább a teljes viewport magasságát foglalja el */
-    box-sizing: border-box; /* Fontos: padding és border is beleszámít a szélességbe */
     margin: 0 auto; /* Középre igazítás és nincs felesleges margó */
     position: relative;
     display: flex;
@@ -161,7 +160,6 @@ button:not(:disabled):hover,
 button:not(:disabled):focus {
     background-color: rgb(53, 154, 74) !important;
     color: white;
-    border-color: rgb(206, 212, 220) !important;
     border: 2px solid #d41515 !important;
     outline: none;
 }
@@ -242,7 +240,6 @@ button:disabled {
 #new-button:focus {
     background-color: rgb(53, 154, 74) !important;
     color: white;
-    border-color: rgb(166, 180, 199) !important;
     border: 2px solid #d41515 !important;
     outline: none;
 }
