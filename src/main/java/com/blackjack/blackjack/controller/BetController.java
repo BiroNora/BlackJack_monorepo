@@ -73,6 +73,7 @@ public class BetController {
             .status("success")
             .gameState(betDto)
             .currentTokens(savedPlayer.getTokens())
+            .isGuest(savedPlayer.isGuest())
             .gameStateHint("BET_SUCCESSFULLY_PLACED")
             .build());
     }
@@ -119,6 +120,7 @@ public class BetController {
             .status("success")
             .gameState(betDto)
             .currentTokens(savedPlayer.getTokens())
+            .isGuest(savedPlayer.isGuest())
             .gameStateHint("BET_SUCCESSFULLY_RETAKEN")
             .build());
     }
@@ -134,6 +136,7 @@ public class BetController {
         return ApiResponse.<GameStateBet>builder()
             .status("success")
             .currentTokens(player.getTokens())
+            .isGuest(player.isGuest())
             .gameState(currentBetDto)
             .gameStateHint("BET_SUCCESS")
             .build();

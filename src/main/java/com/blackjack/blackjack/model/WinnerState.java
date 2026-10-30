@@ -37,4 +37,12 @@ public enum WinnerState {
     public int getValue() {
         return value;
     }
+
+    public boolean isImmediateStop() {
+        return this == BLACKJACK_PLAYER_WON || this == BLACKJACK_PUSH;
+    }
+
+    public static boolean isImmediateStop(int value) {
+        return value == 1 || value == 2;
+    }
 }

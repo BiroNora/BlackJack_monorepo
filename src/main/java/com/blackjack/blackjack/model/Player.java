@@ -31,8 +31,20 @@ public class Player {
     @JdbcTypeCode(SqlTypes.UUID)
     private UUID clientId;
 
+    @Column(name = "is_guest", nullable = false, columnDefinition = "BOOLEAN DEFAULT TRUE")
+    private boolean isGuest = true;
+
     @Column(name = "tokens", nullable = false)
     private int tokens;
+
+    @Column(name = "email", length = 150, unique = true)
+    private String email;
+
+    @Column(name = "user_name", length = 150, unique = true)
+    private String userName;
+
+    @Column(name = "password_hash", length = 255)
+    private String passwordHash;
 
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "current_game_state", columnDefinition = "jsonb")

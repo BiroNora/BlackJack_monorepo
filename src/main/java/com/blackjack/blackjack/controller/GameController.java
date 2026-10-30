@@ -280,6 +280,7 @@ public class GameController {
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(savedPlayer.getTokens())
+            .isGuest(savedPlayer.isGuest())
             .gameState(emptyGameState)
             .gameStateHint("GAME_RESET_TO_NULL")
             .build());

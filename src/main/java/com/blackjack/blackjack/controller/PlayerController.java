@@ -80,7 +80,7 @@ public class PlayerController {
         player.setCurrentGameState(updatedState);
         playerRepository.save(player);
 
-        GameState calcPhase = gamePhaseService.phaseOfInitialSession(player, currState);
+        GameState calcPhase = gamePhaseService.phaseOfInitialSession(player, updatedState);
 
         InitializationResponse.GameStateInit gameStateData =
             InitializationResponse.GameStateInit.builder()
@@ -95,7 +95,51 @@ public class PlayerController {
             .gameState(gameStateData)
             .gameStateHint("INITIALIZING_IS_DONE.")
             .tokens(player.getTokens())
+            .isGuest(player.isGuest())
             .totalInitialCards(INITIAL_DECK_LENGTH)
+            .build());
+    }
+
+    @PostMapping("/check_session")
+    public ResponseEntity<?> checkSession(@RequestBody Map<String, String> body, Principal principal) {
+        UUID clientId = null;
+
+        try {
+            clientId = controllerHelper.validateAndGetClientId(body, principal);
+        } catch (Exception e) {
+            // Ha nincs clientId vagy lejárt/hibás a token, azt itt elkapjuk,
+            // és nem hagyjuk, hogy 400-as hibával elszálljon a szerver!
+        }
+
+        if (clientId == null) {
+            return ResponseEntity.ok(Map.of(
+                "status", "not_logged_in",
+                "gameState", Map.of("targetPhase", "LOADING")
+            ));
+        }
+
+        Player player = playerRepository.findByClientId(clientId).orElse(null);
+
+        if (player == null || player.getCurrentGameState() == null) {
+            return ResponseEntity.ok(Map.of(
+                "status", "not_logged_in",
+                "gameState", Map.of("targetPhase", "LOADING")
+            ));
+        }
+
+        GameState currentState = player.getCurrentGameState();
+
+        GameState phaseResult = gamePhaseService.phaseOfCheckSession(player, currentState);
+
+        player.setCurrentGameState(phaseResult);
+        playerRepository.save(player);
+
+        return ResponseEntity.ok(ApiResponse.builder()
+            .status("success")
+            .currentTokens(player.getTokens())
+            .isGuest(player.isGuest())
+            .gameState(phaseResult)
+            .gameStateHint("SESSION_LOADED")
             .build());
     }
 
@@ -132,6 +176,7 @@ public class PlayerController {
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())
+            .isGuest(player.isGuest())
             .gameState(specificGameState)
             .gameStateHint("RECOVERY_DATA_LOADED")
             .build());
@@ -166,6 +211,7 @@ public class PlayerController {
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())
+            .isGuest(player.isGuest())
             .gameState(responseDto)
             .gameStateHint("GAME_STATE_CLEARED")
             .build());
@@ -203,6 +249,7 @@ public class PlayerController {
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())
+            .isGuest(player.isGuest())
             .gameState(responseDto)
             .gameStateHint("FORCE_RESTART_SUCCESSFUL")
             .build());

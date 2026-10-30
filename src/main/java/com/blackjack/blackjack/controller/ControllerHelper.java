@@ -91,6 +91,7 @@ public class ControllerHelper {
             return ResponseEntity.ok(ApiResponse.builder()
                 .status("success")
                 .currentTokens(player.getTokens())
+                .isGuest(player.isGuest())
                 .gameState(dtoBuilder.apply(player.getCurrentGameState()))
                 .build());
         }
@@ -118,6 +119,7 @@ public class ControllerHelper {
             .gameState(dtoBuilder.apply(updated))
             .gameStateHint(hint)
             .currentTokens(savedPlayer.getTokens())
+            .isGuest(savedPlayer.isGuest())
             .build());
     }
 }
