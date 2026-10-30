@@ -1,13 +1,22 @@
 import React, { useEffect, useState } from "react";
 import type { GameStateData } from "../types/game-types";
+import "../styles/cards.css";
 
 interface CardsProps {
   gameState: GameStateData;
   initDeckLen: number | null;
+  isGuest?: boolean;
+  username?: string;
+  onOpenAuth?: () => void;
+  onOpenProfile?: () => void;
 }
 
-const Cards: React.FC<CardsProps> = ({ gameState, initDeckLen }) => {
-  const { deck_len } = gameState;
+const Cards: React.FC<CardsProps> = ({ gameState, initDeckLen,
+                                       isGuest,
+                                       username,
+                                       onOpenAuth,
+                                       onOpenProfile, }) => {
+  const { deck_len, currentGameState } = gameState;
   const [displayedDeckLen, setDisplayedDeckLen] = useState(deck_len);
   const [tmp, setTmp] = useState(initDeckLen);
 
@@ -31,10 +40,44 @@ const Cards: React.FC<CardsProps> = ({ gameState, initDeckLen }) => {
     }
   }, [deck_len, initDeckLen, tmp]);
 
+  const isBettingPhase = currentGameState === "BETTING" || !currentGameState;
+  const truncateUsername = (name: string, maxLen = 12) => {
+    return name.length > maxLen ? name.substring(0, maxLen) + "..." : name;
+  };
+
   return (
     <div className="cards merriweather" id="cards">
-      <span className="label">Cards:</span>
-      <span className="deck-count">{displayedDeckLen}</span>
+      <div className="cards-left">
+        <span className="label">Cards:</span>
+        <span className="deck-count">{displayedDeckLen}</span>
+      </div>
+
+      <div className="cards-right">
+        {isBettingPhase &&
+          (isGuest ? (
+            <a
+              href="#auth"
+              className="login-link"
+              onClick={(e) => {
+                e.preventDefault();
+                onOpenAuth?.();
+              }}
+            >
+              Log in / Sign up
+            </a>
+          ) : (
+            <a
+              href="#profile"
+              className="login-link"
+              onClick={(e) => {
+                e.preventDefault();
+                onOpenProfile?.();
+              }}
+            >
+              {truncateUsername(username || "")}'s profile
+            </a>
+          ))}
+      </div>
     </div>
   );
 };

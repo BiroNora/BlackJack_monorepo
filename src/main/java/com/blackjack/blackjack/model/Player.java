@@ -32,6 +32,7 @@ public class Player {
     private UUID clientId;
 
     @Column(name = "is_guest", nullable = false, columnDefinition = "BOOLEAN DEFAULT TRUE")
+    @Builder.Default
     private boolean isGuest = true;
 
     @Column(name = "tokens", nullable = false)

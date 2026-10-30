@@ -57,6 +57,7 @@ function App() {
     handleUpdateUsername,
     initDeckLen,
     insPlaced,
+    isGuest,
     isWFSR,
     preRewardBet,
     preRewardTokens,
@@ -167,7 +168,14 @@ function App() {
             case "BETTING":
               return (
                 <div>
-                  <Cards gameState={gameState} initDeckLen={initDeckLen} />
+                  <Cards
+                    gameState={gameState}
+                    initDeckLen={initDeckLen}
+                    isGuest={isGuest}
+                    username={gameState.username || ""}
+                    onOpenAuth={() => setIsAuthOpen(true)}
+                    onOpenProfile={() => setIsProfileOpen(true)}
+                  />
                   <Betting
                     gameState={gameState}
                     onPlaceBet={handlePlaceBet}
