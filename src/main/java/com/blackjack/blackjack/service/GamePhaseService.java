@@ -1,6 +1,5 @@
 package com.blackjack.blackjack.service;
 
-import com.blackjack.blackjack.common.GameConstants;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.*;
 import org.springframework.stereotype.Service;
@@ -205,7 +204,7 @@ public class GamePhaseService {
         return state.toBuilder().targetPhase(PhaseState.SPLIT_FINISH).prePhase(PhaseState.NONE).build();
     }
 
-    public GameStateBet phaseOfSetRestart(GameState state) {
+    public GameStateBet phaseOfSetRestart() {
         return GameStateBet.builder()
             .deckLen(INITIAL_DECK_LENGTH)
             .targetPhase(PhaseState.RESTART_GAME)

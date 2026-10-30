@@ -275,7 +275,7 @@ public class GameController {
             .build();
 
         Player savedPlayer = playerService.savePlayer(playerToUpdate);
-        GameStateBet emptyGameState = gamePhaseService.phaseOfSetRestart(null);
+        GameStateBet emptyGameState = gamePhaseService.phaseOfSetRestart();
 
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")

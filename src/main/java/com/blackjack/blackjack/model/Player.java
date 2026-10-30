@@ -44,7 +44,7 @@ public class Player {
     @Column(name = "user_name", length = 150, unique = true)
     private String userName;
 
-    @Column(name = "password_hash", length = 255)
+    @Column(name = "password_hash")
     private String passwordHash;
 
     @JdbcTypeCode(SqlTypes.JSON)

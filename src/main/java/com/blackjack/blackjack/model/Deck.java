@@ -1,6 +1,5 @@
 package com.blackjack.blackjack.model;
 
-import com.blackjack.blackjack.common.GameConstants;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
 
