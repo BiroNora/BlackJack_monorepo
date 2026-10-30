@@ -12,6 +12,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 @Value
 @Builder(toBuilder = true)
@@ -66,7 +68,7 @@ public class GameState implements Serializable {
     Map<String, Boolean> playersIndex = Map.of();
 
     public int getDeckLen() {
-        return this.deck != null ? this.deck.getDeckLength() : 0;
+        return this.deck != null ? this.deck.getDeckLength() : INITIAL_DECK_LENGTH;
     }
 
     public int calculateNextHandCounter() {

@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.service;
 
+import com.blackjack.blackjack.common.GameConstants;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.model.*;
 import org.springframework.stereotype.Service;
@@ -11,18 +12,44 @@ import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 @Service
 
 public class GamePhaseService {
-    public GameState phaseOfInitialSession(Player player, GameState state) {
-        PhaseState target;
+    private final GameRuleEngine gameRuleEngine;
 
-        if (player.getTokens() <= 0 && !state.isRoundActive()) {
-            target = PhaseState.OUT_OF_TOKENS;
-        } else if (state.isRoundActive()) {
-            target = PhaseState.RECOVERY_DECISION;
-        } else {
-            target = PhaseState.BETTING;
-        }
+    public GamePhaseService(GameRuleEngine gameRuleEngine) {
+        this.gameRuleEngine = gameRuleEngine;
+    }
+
+    public GameState phaseOfInitialSession(Player player, GameState state) {
+        PhaseState target = determineDefaultPhase(player, state);
 
         return state.toBuilder().targetPhase(target).build();
+    }
+
+    public GameState phaseOfCheckSession(Player player, GameState state) {
+        if (state.getPlayers() != null && !state.getPlayers().isEmpty() || state.getSplitReq() > 0) {
+            return state;
+        }
+
+        PhaseState target;
+        PhaseState pre = null;
+
+        if (state.getPlayer() != null && state.isRoundActive()) {
+            int initialOutcome = gameRuleEngine.initNatural21State(state);
+            target = WinnerState.isImmediateStop(initialOutcome)
+                ? PhaseState.MAIN_STAND_REWARDS_TRANSIT
+                : PhaseState.MAIN_TURN;
+        } else {
+            target = determineDefaultPhase(player, state);
+
+            if (target == PhaseState.BETTING) {
+                DeckPhaseResult deckPhaseResult = phaseOfBetAndRetakeBet(state);
+                pre = deckPhaseResult.prePhase();
+            }
+        }
+
+        return state.toBuilder()
+            .targetPhase(target)
+            .prePhase(pre)
+            .build();
     }
 
     public PhaseState updatePrePhaseBasedOnTokens(GameState state, int currentTokens) {
@@ -205,6 +232,16 @@ public class GamePhaseService {
             .targetPhase(target)
             .prePhase(pre)
             .build();
+    }
+
+    private PhaseState determineDefaultPhase(Player player, GameState state) {
+        if (player.getTokens() <= 0 && !state.isRoundActive()) {
+            return PhaseState.OUT_OF_TOKENS;
+        } else if (state.isRoundActive()) {
+            return PhaseState.RECOVERY_DECISION;
+        } else {
+            return PhaseState.BETTING;
+        }
     }
 
     public interface PhaseResultProvider {

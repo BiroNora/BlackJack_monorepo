@@ -1,5 +1,6 @@
 package com.blackjack.blackjack.model;
 
+import com.blackjack.blackjack.common.GameConstants;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import lombok.Builder;
 
@@ -9,6 +10,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
+import static com.blackjack.blackjack.common.GameConstants.INITIAL_DECK_LENGTH;
 import static com.blackjack.blackjack.common.GameConstants.NUM_DECKS;
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -56,6 +58,6 @@ public record Deck(List<Card> deck) implements Serializable {
     }
 
     public int getDeckLength() {
-        return this.deck != null ? this.deck.size() : 0;
+        return (this.deck != null && !this.deck.isEmpty()) ? this.deck.size() : INITIAL_DECK_LENGTH;
     }
 }
