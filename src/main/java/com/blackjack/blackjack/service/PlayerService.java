@@ -1,21 +1,27 @@
 package com.blackjack.blackjack.service;
 
 import com.blackjack.blackjack.exception.GameRuleException;
+import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.repository.PlayerRepository;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
 public class PlayerService {
     private final PlayerRepository playerRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public PlayerService(PlayerRepository playerRepository) {
+    public PlayerService(PlayerRepository playerRepository, PasswordEncoder passwordEncoder) {
         this.playerRepository = playerRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     /**
@@ -93,6 +99,95 @@ public class PlayerService {
                 org.springframework.http.HttpStatus.NOT_FOUND, "Player not found"));
     }
 
+    public Object handleUserAuth(String email, String username, String password, boolean isLogIn, UUID currClientId, UUID idempotencyKey) {
+        if (isLogIn) {
+            System.out.println(" *************** ISLOGIN TRUE");
+            // --- BEJELENTKEZÉS ---
+            Player targetUser = playerRepository.findByEmailOrUsername(email, username)
+                .orElse(null);
+
+            if (targetUser == null || !passwordEncoder.matches(password, targetUser.getPasswordHash())) {
+                return Map.of("status", "IC"); // Invalid Credentials
+            }
+
+            if (currClientId != null && !currClientId.equals(targetUser.getId())) {
+                Player sessionUser = playerRepository.findById(currClientId).orElse(null);
+
+                if (sessionUser != null && sessionUser.isGuest()) {
+                    GameState dbRaw = targetUser.getCurrentGameState();
+                    GameState sessionRaw = sessionUser.getCurrentGameState();
+
+                    boolean hasDbGame = dbRaw != null && !dbRaw.toString().equals("{}");
+                    boolean hasSessionGame = sessionRaw != null && !sessionRaw.toString().equals("{}");
+
+                    // Ha mindkét helyen van aktív játékállás, ütközés van!
+                    if (hasDbGame && hasSessionGame) {
+                        return Map.of("status", "CONFLICT");
+                    }
+
+                    // Ha a session-ben van játék, de a célfiókban NINCS, átköltöztetjük
+                    if (hasSessionGame) {
+                        targetUser.setCurrentGameState(sessionRaw);
+                        playerRepository.save(targetUser);
+                    }
+                }
+            }
+
+            return targetUser;
+
+        } else {
+            System.out.println(" *************** ISLOGIN FALSE");
+            // --- REGISZTRÁCIÓ ---
+            // 1. Username formátum ellenőrzése regex-szel (3-30 karakter, betűk, számok, aláhúzás)
+            if (username == null || !username.matches("^[a-zA-Z0-9_]{3,30}$")) {
+                return Map.of("status", "IU"); // Invalid Username format
+            }
+
+            // 2. Létezik-e már ilyen email vagy username az adatbázisban?
+            boolean exists = playerRepository.existsByEmailOrUsername(email, username);
+            if (exists) {
+                return Map.of("status", "UAE"); // User Already Exists
+            }
+
+            Player user = null;
+            // 3. Ha van aktív vendég session (currClientId), megkeressük
+            if (currClientId != null) {
+                user = playerRepository.findByClientId(currClientId).orElse(null);
+            }
+
+            if (user != null) {
+                user = user.toBuilder()
+                    .email(email)
+                    .username(username)
+                    .idempotencyKey(idempotencyKey)
+                    .passwordHash(passwordEncoder.encode(password))
+                    .isGuest(false)
+                    .build();
+                System.out.println(">>>>>>>>>>>>>>>>>>>>>user.name" + user.getUsername());
+            } else {
+                // Ha nincs session, létrehozunk egy teljesen új Playert
+                user = new Player();
+                user.setEmail(email);
+                user.setUsername(username);
+                user.setIdempotencyKey(idempotencyKey);
+                user.setPasswordHash(passwordEncoder.encode(password));
+                user.setGuest(false);
+
+                user.setClientId(Objects.requireNonNullElseGet(currClientId, UUID::randomUUID));
+
+                if (idempotencyKey != null) {
+                    user.setIdempotencyKey(idempotencyKey);
+                } else if (user.getIdempotencyKey() == null) {
+                    user.setIdempotencyKey(UUID.randomUUID());
+                }
+            }
+
+            playerRepository.save(user);
+
+            return user;
+        }
+    }
+
     @Transactional
     public Player savePlayer(Player player) {
         return playerRepository.save(player);
@@ -101,5 +196,12 @@ public class PlayerService {
     public boolean isDuplicateRequest(Player player, UUID incomingKey) {
         return player.getIdempotencyKey() != null &&
             player.getIdempotencyKey().equals(incomingKey);
+    }
+
+    public boolean hasEmptyFields(String email, String username, String password) {
+        return (
+            (email == null || email.trim().isEmpty()) ||
+                (username == null || username.trim().isEmpty()) ||
+                (password == null || password.trim().isEmpty()));
     }
 }

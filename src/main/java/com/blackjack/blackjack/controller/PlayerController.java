@@ -2,6 +2,7 @@ package com.blackjack.blackjack.controller;
 
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
+import com.blackjack.blackjack.dto.init.ConflictResponse;
 import com.blackjack.blackjack.dto.init.InitializationRequest;
 import com.blackjack.blackjack.dto.init.InitializationResponse;
 import com.blackjack.blackjack.model.GameState;
@@ -12,9 +13,13 @@ import com.blackjack.blackjack.security.JwtService;
 import com.blackjack.blackjack.service.GamePhaseService;
 import com.blackjack.blackjack.service.GameStateManager;
 import com.blackjack.blackjack.service.PlayerService;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
@@ -134,13 +139,119 @@ public class PlayerController {
         player.setCurrentGameState(phaseResult);
         playerRepository.save(player);
 
+        Object responseDto = null;
+
+        if (phaseResult.getTargetPhase() == PhaseState.BETTING) {
+            responseDto = gameStateManager.buildGameStateBet(phaseResult)
+                .toBuilder()
+                .build();
+        }
+
+        if (phaseResult.getTargetPhase() != null && phaseResult.getTargetPhase().name().startsWith("MAIN")) {
+            responseDto = gameStateManager.buildGameStateCheckBase(phaseResult)
+                .toBuilder()
+                .build();
+        }
+
+        if (phaseResult.getTargetPhase() != null && phaseResult.getTargetPhase().name().startsWith("SPLIT")) {
+            responseDto = gameStateManager.buildGameStateSplitHand(phaseResult)
+                .toBuilder()
+                .build();
+        }
+
         return ResponseEntity.ok(ApiResponse.builder()
             .status("success")
             .currentTokens(player.getTokens())
             .isGuest(player.isGuest())
-            .gameState(phaseResult)
+            .username(player.getUsername())
+            .gameState(responseDto)
             .gameStateHint("SESSION_LOADED")
             .build());
+    }
+
+    @PostMapping("/handle_auth")
+    public ResponseEntity<?> handleAuth(@RequestBody Map<String, String> body, Principal principal, HttpSession session) {
+        String email = body.get("email");
+        String username = body.get("username");
+        String password = body.get("password");
+
+        Object isLoginVal = body.get("is_login");
+        boolean isLogin = isLoginVal != null && Boolean.parseBoolean(String.valueOf(isLoginVal));
+
+        UUID idempotencyKey = UUID.fromString(body.get("idempotencyKey"));
+
+        if (playerService.hasEmptyFields(email, username, password)) {
+            return ResponseEntity.ok(Map.of(
+                "status", "IC"
+            ));
+        }
+
+        // 2. Kliens ID lekérése
+        UUID currClientId = controllerHelper.validateAndGetClientId(body, principal);
+        System.out.println(">>>>>>>>>>>>>>>>>>currClientId" + currClientId);
+        Player guestUser = (currClientId != null) ? playerRepository.findById(currClientId).orElse(null) : null;
+        //System.out.println(">>>>>>>>>>>>>>>>>>guestUser" + guestUser.getClientId());
+        // 3. Meghívjuk a service-t
+        Object result = playerService.handleUserAuth(email, username, password, isLogin, currClientId, idempotencyKey);
+
+        if (result instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> errorMap = (Map<String, Object>) result;
+            String status = (String) errorMap.get("status");
+
+            if ("CONFLICT".equals(status)) {
+                Player targetUser = playerRepository.findByEmailOrUsername(email, username).orElse(null);
+
+                int targetTokens = (targetUser != null) ? targetUser.getTokens() : 0;
+                int guestTokens = (guestUser != null) ? guestUser.getTokens() : 0;
+
+                if (targetUser != null) {
+                    session.setAttribute("pending_target_user_id", targetUser.getId());
+                }
+
+                if (guestUser != null && guestUser.getCurrentGameState() != null) {
+                    playerRepository.save(guestUser);
+                }
+
+                ConflictResponse responseDto = new ConflictResponse(
+                    status,
+                    null,
+                    new ConflictResponse.ConflictData(
+                        new ConflictResponse.Balance(targetTokens),
+                        new ConflictResponse.Balance(guestTokens)
+                    )
+                );
+
+                return ResponseEntity.ok(responseDto);
+            }
+            // Egyéb státuszok visszaküldése (pl. "IC", "IU", "UAE")
+            return ResponseEntity.ok(errorMap);
+        } else {
+            Player user = (Player) result;
+            System.out.println(">>>>>>>>>>>>>>>>>>user1" + user.getClientId());
+            session.setAttribute("user_id", user.getId());
+
+            GameState game = user.getCurrentGameState();
+            if (game == null) {
+                game = new GameState(); // Biztonsági fallback
+                user.setCurrentGameState(game);
+            }
+
+            user.setCurrentGameState(game);
+            playerRepository.save(user);
+            System.out.println(">>>>>>>>>>>>>>>>>>user2" + user.getClientId());
+            InitializationResponse.GameStateInit gameStateData = InitializationResponse.GameStateInit.builder()
+                .deckLen(game.getDeckLen())
+                .targetPhase(game.getTargetPhase())
+                .build();
+
+            return ResponseEntity.ok(ApiResponse.<InitializationResponse.GameStateInit>builder()
+                .status("success")
+                .gameState(gameStateData)
+                .username(user.getUsername())
+                .isGuest(user.isGuest())
+                .build());
+        }
     }
 
     @PostMapping("/recover_game_state")

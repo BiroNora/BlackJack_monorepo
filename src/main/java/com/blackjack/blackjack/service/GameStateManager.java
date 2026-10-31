@@ -8,7 +8,6 @@ import com.blackjack.blackjack.repository.PlayerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
@@ -231,6 +230,11 @@ public class GameStateManager {
     }
 
     // --- DTO BUILDEREK ---
+    public GameStateBase buildGameStateCheckBase(GameState s) {
+        return GameStateBase.builder().player(s.getPlayer()).dealerMasked(s.getDealerMasked()).bet(s.getBet()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
+            .build();
+    }
+
     public GameStateBet buildGameStateBet(GameState s) {
         return GameStateBet.builder().bet(s.getBet()).betList(s.getBetList()).deckLen(s.getDeckLen()).targetPhase(s.getTargetPhase())
             .prePhase(s.getPrePhase()).build();

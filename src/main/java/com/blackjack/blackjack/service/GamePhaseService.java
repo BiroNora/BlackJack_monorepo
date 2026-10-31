@@ -25,7 +25,10 @@ public class GamePhaseService {
 
     public GameState phaseOfCheckSession(Player player, GameState state) {
         if (state.getPlayers() != null && !state.getPlayers().isEmpty() || state.getSplitReq() > 0) {
-            return state;
+            return state.toBuilder()
+                .targetPhase(state.getTargetPhase())
+                .prePhase(state.getPrePhase())
+                .build();
         }
 
         PhaseState target;
@@ -245,6 +248,7 @@ public class GamePhaseService {
 
     public interface PhaseResultProvider {
         PhaseState targetPhase();
+
         PhaseState prePhase();
     }
 

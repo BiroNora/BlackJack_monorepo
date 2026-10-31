@@ -74,6 +74,7 @@ public class BetController {
             .gameState(betDto)
             .currentTokens(savedPlayer.getTokens())
             .isGuest(savedPlayer.isGuest())
+            .username(savedPlayer.getUsername())
             .gameStateHint("BET_SUCCESSFULLY_PLACED")
             .build());
     }
@@ -121,6 +122,7 @@ public class BetController {
             .gameState(betDto)
             .currentTokens(savedPlayer.getTokens())
             .isGuest(savedPlayer.isGuest())
+            .username(savedPlayer.getUsername())
             .gameStateHint("BET_SUCCESSFULLY_RETAKEN")
             .build());
     }
@@ -138,6 +140,7 @@ public class BetController {
             .currentTokens(player.getTokens())
             .isGuest(player.isGuest())
             .gameState(currentBetDto)
+            .username(player.getUsername())
             .gameStateHint("BET_SUCCESS")
             .build();
     }

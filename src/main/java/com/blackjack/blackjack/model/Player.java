@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import lombok.*;
+import org.hibernate.annotations.Check;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.annotations.UpdateTimestamp;
 import org.hibernate.annotations.UuidGenerator;
@@ -15,6 +16,8 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "players")
+@Check(constraints = "(email IS NULL AND user_name IS NULL AND password_hash IS NULL) OR " +
+    "(email IS NOT NULL AND user_name IS NOT NULL AND password_hash IS NOT NULL)")
 @Getter
 @Setter
 @Builder(toBuilder = true)
@@ -42,7 +45,7 @@ public class Player {
     private String email;
 
     @Column(name = "user_name", length = 150, unique = true)
-    private String userName;
+    private String username;
 
     @Column(name = "password_hash")
     private String passwordHash;

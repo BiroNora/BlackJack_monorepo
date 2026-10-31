@@ -15,6 +15,7 @@ public enum PhaseState {
     ERROR("ERROR"),
     OUT_OF_TOKENS("OUT_OF_TOKENS"),
     RECOVERY_DECISION("RECOVERY_DECISION"),
+    CONFLICT("CONFLICT"),
 
     // --- Játék előkészítése ---
     SHUFFLING("SHUFFLING"),
