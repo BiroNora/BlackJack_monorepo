@@ -4,7 +4,6 @@ import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.others.*;
 import com.blackjack.blackjack.factory.PlayerHandFactory;
 import com.blackjack.blackjack.model.*;
-import com.blackjack.blackjack.repository.PlayerRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -20,7 +19,7 @@ public class GameStateManager {
     private final HandStateUpdater handStateUpdater;
     private final DeckService deckService;
 
-    public GameStateManager(GameRuleEngine gameRuleEngine, PlayerHandFactory playerHandFactory, HandValueCalculator handValueCalculator, HandStateUpdater handStateUpdater, DeckService deckService, PlayerRepository playerRepository) {
+    public GameStateManager(GameRuleEngine gameRuleEngine, PlayerHandFactory playerHandFactory, HandValueCalculator handValueCalculator, HandStateUpdater handStateUpdater, DeckService deckService) {
         this.gameRuleEngine = gameRuleEngine;
         this.playerHandFactory = playerHandFactory;
         this.handValueCalculator = handValueCalculator;
