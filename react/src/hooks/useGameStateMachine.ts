@@ -1,8 +1,10 @@
 import {useCallback, useEffect, useReducer, useRef, useState} from "react";
+import toast from "react-hot-toast";
 import {
   addPlayerFromPlayers,
   addSplitPlayerToGame,
-  addToPlayersListByStand, checkSessionAPI,
+  addToPlayersListByStand,
+  checkSessionAPI,
   clearGameState,
   forceRestart,
   getShuffling,
@@ -36,7 +38,6 @@ import type {
 } from "../types/game-types";
 import {extractGameStateData} from "../utilities/utils";
 import {gameReducer, initialGameDataState} from "../context/gameReducer";
-import toast from "react-hot-toast";
 
 // A hook visszatérési típusa most inline van deklarálva, nincs külön 'type' definíció.
 export function useGameStateMachine(): GameStateMachineHookResult {
@@ -94,25 +95,27 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   }, [dispatch]);
 
   const executeAsyncAction = useCallback(async (actionFn: () => Promise<void>) => {
-    if (isProcessingRef.current) return;
-    isProcessingRef.current = true;
-    setIsWFSR(true);
+      if (isProcessingRef.current) return;
+      isProcessingRef.current = true;
+      setIsWFSR(true);
 
-    try {
-      await actionFn();
-      if (!isMountedRef.current) return;
-    } catch (error) {
-      console.error("Action error:", error);
-      if (isMountedRef.current) {
-        transitionToState("ERROR");
+      try {
+        await actionFn();
+        if (!isMountedRef.current) return;
+      } catch (error) {
+        console.error("Action error:", error);
+        if (isMountedRef.current) {
+          transitionToState("ERROR");
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsWFSR(false);
+          isProcessingRef.current = false;
+        }
       }
-    } finally {
-      if (isMountedRef.current) {
-        setIsWFSR(false);
-        isProcessingRef.current = false;
-      }
-    }
-  }, [transitionToState]);
+    },
+    [transitionToState]
+  );
 
   const handleApiAction = useCallback(
     async <T, >(apiCallFn: () => Promise<T>): Promise<T | null> => {
@@ -122,7 +125,10 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         const httpError = error as HttpError;
         const status = httpError.response?.status;
 
-        console.error(status && status < 500 ? "Kliens hiba:" : "Szerver hiba:", error);
+        console.error(
+          status && status < 500 ? "Kliens hiba:" : "Szerver hiba:",
+          error,
+        );
 
         if (isMountedRef.current) {
           transitionToState("ERROR");
@@ -155,7 +161,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
       ]);
       if (!initData || !isMountedRef.current) return;
 
-      const { tokens, game_state } = initData as SessionInitResponse;
+      const {tokens, game_state} = initData as SessionInitResponse;
       const nextPhase = game_state.target_phase as GameState;
 
       dispatch({
@@ -163,11 +169,11 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         payload: game_state.deck_len,
       });
 
-      transitionToState(nextPhase, { tokens, ...game_state });
+      transitionToState(nextPhase, {tokens, ...game_state});
     } catch (error) {
       console.error("Initialization Error: ", error);
       if (isMountedRef.current) {
-        transitionToState("ERROR", { tokens: 0, deck_len: 0 });
+        transitionToState("ERROR", {tokens: 0, deck_len: 0});
       }
     } finally {
       if (isMountedRef.current) {
@@ -223,16 +229,16 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         if (!response) return;
 
         if (resData && typeof resData.is_guest === "boolean") {
-          dispatch({ type: "SET_IS_GUEST", payload: resData.is_guest });
+          dispatch({type: "SET_IS_GUEST", payload: resData.is_guest});
         }
         if (response.username) {
-          dispatch({ type: "SET_USERNAME", payload: response.username });
+          dispatch({type: "SET_USERNAME", payload: response.username});
         }
 
         transitionToState(response?.target_phase as GameState, response);
       });
 
-      return { status: resultStatus };
+      return {status: resultStatus};
     },
     [executeAsyncAction, handleApiAction, transitionToState],
   );
@@ -260,12 +266,12 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         if (!response) return;
 
         if (response.username) {
-          dispatch({ type: "SET_USERNAME", payload: response.username });
+          dispatch({type: "SET_USERNAME", payload: response.username});
         }
 
         transitionToState(response?.target_phase as GameState, response);
       });
-      return { status: resultStatus };
+      return {status: resultStatus};
     },
     [executeAsyncAction, handleApiAction, transitionToState],
   );
@@ -273,7 +279,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   const handleCloseNewPassCase = useCallback(() => {
     sessionStorage.removeItem("_rf_");
 
-    transitionToState("BETTING" as GameState, { target_phase: "BETTING" });
+    transitionToState("BETTING" as GameState, {target_phase: "BETTING"});
   }, [transitionToState]);
 
   const handleConflict = useCallback(
@@ -292,14 +298,14 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         }
 
         if (resData && typeof resData.is_guest === "boolean") {
-          dispatch({ type: "SET_IS_GUEST", payload: resData.is_guest });
+          dispatch({type: "SET_IS_GUEST", payload: resData.is_guest});
         }
         const response = extractGameStateData(data);
         if (!response) return;
         transitionToState(response?.target_phase as GameState, response);
       });
 
-      return { status: resultStatus };
+      return {status: resultStatus};
     },
     [executeAsyncAction, handleApiAction, transitionToState],
   );
@@ -336,7 +342,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         if (!response) return;
         transitionToState(response?.target_phase as GameState, response);
       });
-      return { status: resultStatus };
+      return {status: resultStatus};
     },
     [executeAsyncAction, handleApiAction, transitionToState],
   );
@@ -364,7 +370,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
         transitionToState(response?.target_phase as GameState, response);
       });
 
-      return { status: resultStatus };
+      return {status: resultStatus};
     },
     [executeAsyncAction, handleApiAction, transitionToState],
   );
@@ -599,10 +605,10 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           username?: string;
         };
         if (resData && typeof resData.is_guest === "boolean") {
-          dispatch({ type: "SET_IS_GUEST", payload: resData.is_guest });
+          dispatch({type: "SET_IS_GUEST", payload: resData.is_guest});
         }
         if (resData.username) {
-          dispatch({ type: "SET_USERNAME", payload: resData.username });
+          dispatch({type: "SET_USERNAME", payload: resData.username});
         }
 
         if (
@@ -625,60 +631,6 @@ export function useGameStateMachine(): GameStateMachineHookResult {
 
     checkExistingSession();
   }, [handleApiAction, transitionToState]);
-
-
-
-  /*// --- LOADING ---
-  useEffect(() => {
-    // 1. Kapuőr: Csak ha LOADING fázisban vagyunk és nem dolgozunk éppen
-    if (state.gameState.currentGameState !== "LOADING" || isProcessingRef.current) return;
-
-    // 2. Egyszeri futás védelme
-    if (isAppInitializedRef.current) return;
-    isAppInitializedRef.current = true;
-
-    isProcessingRef.current = true;
-    //console.log("--- INITIALIZING SESSION INDUL ---");
-
-    const initializeApplicationOnLoad = async () => {
-      try {
-        const minLoadingTimePromise = new Promise((resolve) => setTimeout(resolve, 6000));
-        const initializationPromise = handleApiAction(initializeSessionAPI);
-
-        const [initData] = await Promise.all([
-          initializationPromise,
-          minLoadingTimePromise,
-        ]);
-
-        if (!isMountedRef.current) return;
-
-        const {tokens, game_state, total_initial_cards} = initData as SessionInitResponse;
-        const nextPhase = game_state.target_phase as GameState;
-        dispatch({
-          type: 'SET_CONFIG',
-          payload: {totalInitialCards: total_initial_cards}
-        });
-
-        dispatch({
-          type: 'SET_DECK_LEN',
-          payload: game_state.deck_len
-        });
-
-        // Itt egyetlen hívással lerendezzük az adatot és a fázisváltást is a Reducerben
-        transitionToState(nextPhase, {tokens, ...game_state});
-
-        // Ezután a state.gameState.currentGameState megváltozik,
-        // és ez az effekt már nem fog újra belépni a legfelső IF miatt.
-
-      } catch (error) {
-        console.error("Initialization Error: ", error);
-        isProcessingRef.current = false;
-        if (isMountedRef.current) transitionToState("ERROR", {tokens: 0, deck_len: 0});
-      }
-    };
-
-    void initializeApplicationOnLoad();
-  }, [state.gameState.currentGameState, transitionToState, handleApiAction]);*/
 
   // --- SHUFFLING ---
   useEffect(() => {
