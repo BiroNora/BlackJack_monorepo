@@ -3,7 +3,6 @@ package com.blackjack.blackjack.controller;
 import com.blackjack.blackjack.dto.ActionRequest;
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.dto.bet.GameStateBet;
-import com.blackjack.blackjack.dto.others.*;
 import com.blackjack.blackjack.exception.GameRuleException;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
@@ -164,8 +163,8 @@ public class GameController {
         }
 
         return controllerHelper.handleAction(req, principal, "SPLIT_PROCESSED", gameStateManager::buildGameStateSplitHand, state -> {
-            GameState splitted = gameService.splitHand(state);
-            return gamePhaseService.phaseOfSplitRequest(splitted);
+            GameState split = gameService.splitHand(state);
+            return gamePhaseService.phaseOfSplitRequest(split);
         }, -betToDeduct);
     }
 

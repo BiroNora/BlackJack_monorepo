@@ -1,6 +1,5 @@
 package com.blackjack.blackjack.model;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 
 import java.io.Serializable;

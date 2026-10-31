@@ -9,6 +9,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class BlackjackApplication {
     public static void main(String[] args) {
         SpringApplication.run(BlackjackApplication.class, args);
-        log.info("--- Blackjack Alkalmazás sikeresen elindult ---");
+        log.info("&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&--- Blackjack Alkalmazás sikeresen elindult ---");
     }
 }

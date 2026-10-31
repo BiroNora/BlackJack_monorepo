@@ -33,6 +33,10 @@ public enum WinnerState {
         throw new IllegalArgumentException("Unknown WinnerState value: " + value);
     }
 
+    public static boolean isImmediateStop(int value) {
+        return value == 1 || value == 2;
+    }
+
     @JsonValue
     public int getValue() {
         return value;
@@ -40,9 +44,5 @@ public enum WinnerState {
 
     public boolean isImmediateStop() {
         return this == BLACKJACK_PLAYER_WON || this == BLACKJACK_PUSH;
-    }
-
-    public static boolean isImmediateStop(int value) {
-        return value == 1 || value == 2;
     }
 }

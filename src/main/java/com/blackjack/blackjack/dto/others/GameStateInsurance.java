@@ -9,7 +9,8 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 
 @Builder(toBuilder = true)
-public record GameStateInsurance(PlayerHand player, @JsonProperty("natural_21") int natural21, @JsonProperty("deck_len") int deckLen, int bet,
+public record GameStateInsurance(PlayerHand player, @JsonProperty("natural_21") int natural21,
+                                 @JsonProperty("deck_len") int deckLen, int bet,
                                  @JsonProperty("is_round_active") boolean isRoundActive,
                                  @JsonProperty("target_phase") PhaseState targetPhase,
                                  @JsonProperty("pre_phase") PhaseState prePhase, DealerHandMasked dealerMasked,
