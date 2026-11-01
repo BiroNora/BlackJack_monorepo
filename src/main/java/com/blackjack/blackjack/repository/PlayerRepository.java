@@ -1,6 +1,7 @@
 package com.blackjack.blackjack.repository;
 
 import com.blackjack.blackjack.model.Player;
+import org.jspecify.annotations.NonNull;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -12,4 +13,6 @@ public interface PlayerRepository extends JpaRepository<Player, UUID> {
     Optional<Player> findByEmailOrUsername(String email, String username);
 
     boolean existsByEmailOrUsername(String email, String username);
+
+    void delete(@NonNull Player player);
 }

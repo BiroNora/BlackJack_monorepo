@@ -257,6 +257,49 @@ public class PlayerController {
         }
     }
 
+    @PostMapping("/handle_conflict")
+    public ResponseEntity<?> handleConflict(@RequestBody Map<String, String> body, Principal principal, HttpSession session) {
+        Object isVersionNew = body.get("version_new");
+        boolean versionNew = isVersionNew != null && Boolean.parseBoolean(String.valueOf(isVersionNew));
+        UUID currClientId = controllerHelper.validateAndGetClientId(body, principal);
+        UUID targetUserId = controllerHelper.getAndClearPendingTargetUserId(session);
+
+        Object result = playerService.handleConflict(currClientId, targetUserId, versionNew);
+
+        GameState game;
+        Player user;
+        if (result instanceof java.util.Map<?, ?> map) {
+            return ResponseEntity.ok(Map.of(
+                "status", map.get("status")
+            ));
+        } else {
+            user = (Player) result;
+            session.setAttribute("user_id", user.getId());
+
+            game = user.getCurrentGameState();
+
+            if (game == null) {
+                game = GameState.builder()
+                    .targetPhase(PhaseState.BETTING)
+                    .build();
+                user.setCurrentGameState(game);
+                playerRepository.save(user);
+            }
+        }
+
+        GameStateBet responseDto = gameStateManager.buildGameStateBet(game)
+            .toBuilder()
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
+            .status("success")
+            .currentTokens(user.getTokens())
+            .gameState(responseDto)
+            .username(user.getUsername())
+            .isGuest(user.isGuest())
+            .build());
+    }
+
     @PostMapping("/recover_game_state")
     public ResponseEntity<?> recoverGameState(@RequestBody Map<String, String> body, Principal principal) {
         UUID clientId = controllerHelper.validateAndGetClientId(body, principal);

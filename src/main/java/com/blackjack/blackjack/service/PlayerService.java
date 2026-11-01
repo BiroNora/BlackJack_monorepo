@@ -188,6 +188,29 @@ public class PlayerService {
         }
     }
 
+    public Object handleConflict(UUID currClientId, UUID targetUserId, boolean versionNew) {
+        Player targetUser = playerRepository.findByClientId(targetUserId).orElse(null);  // régi mentett
+        Player sessionUser = (currClientId != null) ? playerRepository.findByClientId(currClientId).orElse(null) : null; // jelenlegi
+
+        if (targetUser == null) {
+            return Map.of("status", "IC"); // Invalid Credentials
+        }
+
+        if (sessionUser != null && sessionUser.isGuest()) {
+            if (versionNew) {
+                if (sessionUser.getCurrentGameState() != null) {
+                    targetUser.setCurrentGameState(sessionUser.getCurrentGameState());
+                    targetUser.setTokens(sessionUser.getTokens());
+                }
+            }
+        }
+
+        targetUser.setGuest(false);
+        playerRepository.save(targetUser);
+
+        return targetUser;
+    }
+
     @Transactional
     public Player savePlayer(Player player) {
         return playerRepository.save(player);

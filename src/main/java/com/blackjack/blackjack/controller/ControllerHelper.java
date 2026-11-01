@@ -5,6 +5,7 @@ import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
 import com.blackjack.blackjack.service.PlayerService;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -69,6 +70,18 @@ public class ControllerHelper {
         if (authenticatedClientId == null || !authenticatedClientId.equals(requestClientId)) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Unauthorized client ID access");
         }
+    }
+
+    public UUID getAndClearPendingTargetUserId(HttpSession session) {
+        Object pendingIdObj = session.getAttribute("pending_target_user_id");
+
+        if (pendingIdObj == null) {
+            return null;
+        }
+
+        session.removeAttribute("pending_target_user_id");
+
+        return (UUID) pendingIdObj;
     }
 
     /**
