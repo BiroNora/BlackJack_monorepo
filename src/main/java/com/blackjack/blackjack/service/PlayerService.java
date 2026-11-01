@@ -101,7 +101,7 @@ public class PlayerService {
 
     public Object handleUserAuth(String email, String username, String password, boolean isLogIn, UUID currClientId, UUID idempotencyKey) {
         if (isLogIn) {
-            System.out.println(" *************** ISLOGIN TRUE");
+            //System.out.println(" *************** ISLOGIN TRUE");
             // --- BEJELENTKEZÉS ---
             Player targetUser = playerRepository.findByEmailOrUsername(email, username)
                 .orElse(null);
@@ -111,7 +111,7 @@ public class PlayerService {
             }
 
             if (currClientId != null && !currClientId.equals(targetUser.getId())) {
-                Player sessionUser = playerRepository.findById(currClientId).orElse(null);
+                Player sessionUser = playerRepository.findByClientId(currClientId).orElse(null);
 
                 if (sessionUser != null && sessionUser.isGuest()) {
                     GameState dbRaw = targetUser.getCurrentGameState();
@@ -136,7 +136,7 @@ public class PlayerService {
             return targetUser;
 
         } else {
-            System.out.println(" *************** ISLOGIN FALSE");
+            //System.out.println(" *************** ISLOGIN FALSE");
             // --- REGISZTRÁCIÓ ---
             // 1. Username formátum ellenőrzése regex-szel (3-30 karakter, betűk, számok, aláhúzás)
             if (username == null || !username.matches("^[a-zA-Z0-9_]{3,30}$")) {
@@ -163,7 +163,6 @@ public class PlayerService {
                     .passwordHash(passwordEncoder.encode(password))
                     .isGuest(false)
                     .build();
-                System.out.println(">>>>>>>>>>>>>>>>>>>>> User adatok: " + user);
 
             } else {
                 // Ha nincs session, létrehozunk egy teljesen új Playert

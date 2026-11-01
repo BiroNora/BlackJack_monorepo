@@ -187,12 +187,10 @@ public class PlayerController {
             ));
         }
 
-        // 2. Kliens ID lekérése
+        // Kliens ID lekérése
         UUID currClientId = controllerHelper.validateAndGetClientId(body, principal);
-        System.out.println(">>>>>>>>>>>>>>>>>>currClientId" + currClientId);
-        Player guestUser = (currClientId != null) ? playerRepository.findById(currClientId).orElse(null) : null;
-        //System.out.println(">>>>>>>>>>>>>>>>>>guestUser" + guestUser.getClientId());
-        // 3. Meghívjuk a service-t
+        Player guestUser = (currClientId != null) ? playerRepository.findByClientId(currClientId).orElse(null) : null;
+
         Object result = playerService.handleUserAuth(email, username, password, isLogin, currClientId, idempotencyKey);
 
         if (result instanceof Map) {
@@ -214,9 +212,13 @@ public class PlayerController {
                     playerRepository.save(guestUser);
                 }
 
+                Map<String, Object> gameStateMap = Map.of(
+                    "target_phase", "CONFLICT"
+                );
+
                 ConflictResponse responseDto = new ConflictResponse(
                     status,
-                    null,
+                    gameStateMap,
                     new ConflictResponse.ConflictData(
                         new ConflictResponse.Balance(targetTokens),
                         new ConflictResponse.Balance(guestTokens)
