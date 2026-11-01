@@ -5,6 +5,7 @@ import com.blackjack.blackjack.dto.bet.GameStateBet;
 import com.blackjack.blackjack.dto.init.ConflictResponse;
 import com.blackjack.blackjack.dto.init.InitializationRequest;
 import com.blackjack.blackjack.dto.init.InitializationResponse;
+import com.blackjack.blackjack.dto.init.InitializationResponse.GameStateInit;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.PhaseState;
 import com.blackjack.blackjack.model.Player;
@@ -228,7 +229,6 @@ public class PlayerController {
             return ResponseEntity.ok(errorMap);
         } else {
             Player user = (Player) result;
-            System.out.println(">>>>>>>>>>>>>>>>>>user1" + user.getClientId());
             session.setAttribute("user_id", user.getId());
 
             GameState game = user.getCurrentGameState();
@@ -239,14 +239,15 @@ public class PlayerController {
 
             user.setCurrentGameState(game);
             playerRepository.save(user);
-            System.out.println(">>>>>>>>>>>>>>>>>>user2" + user.getClientId());
-            InitializationResponse.GameStateInit gameStateData = InitializationResponse.GameStateInit.builder()
+
+            GameStateInit gameStateData = GameStateInit.builder()
                 .deckLen(game.getDeckLen())
-                .targetPhase(game.getTargetPhase())
+                .targetPhase(PhaseState.BETTING)
                 .build();
 
-            return ResponseEntity.ok(ApiResponse.<InitializationResponse.GameStateInit>builder()
+            return ResponseEntity.ok(ApiResponse.<GameStateInit>builder()
                 .status("success")
+                .currentTokens(user.getTokens())
                 .gameState(gameStateData)
                 .username(user.getUsername())
                 .isGuest(user.isGuest())

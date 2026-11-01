@@ -20,6 +20,7 @@ import java.util.UUID;
     "(email IS NOT NULL AND user_name IS NOT NULL AND password_hash IS NOT NULL)")
 @Getter
 @Setter
+@ToString
 @Builder(toBuilder = true)
 @NoArgsConstructor // JPA miatt
 @AllArgsConstructor(access = AccessLevel.PRIVATE)

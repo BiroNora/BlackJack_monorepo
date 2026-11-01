@@ -163,7 +163,8 @@ public class PlayerService {
                     .passwordHash(passwordEncoder.encode(password))
                     .isGuest(false)
                     .build();
-                System.out.println(">>>>>>>>>>>>>>>>>>>>>user.name" + user.getUsername());
+                System.out.println(">>>>>>>>>>>>>>>>>>>>> User adatok: " + user);
+
             } else {
                 // Ha nincs session, létrehozunk egy teljesen új Playert
                 user = new Player();
