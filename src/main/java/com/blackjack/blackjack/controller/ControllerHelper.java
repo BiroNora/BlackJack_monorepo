@@ -4,8 +4,8 @@ import com.blackjack.blackjack.dto.ActionRequest;
 import com.blackjack.blackjack.dto.ApiResponse;
 import com.blackjack.blackjack.model.GameState;
 import com.blackjack.blackjack.model.Player;
+import com.blackjack.blackjack.repository.PlayerRepository;
 import com.blackjack.blackjack.service.PlayerService;
-import jakarta.servlet.http.HttpSession;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Component;
@@ -13,6 +13,7 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.security.Principal;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
@@ -20,9 +21,11 @@ import java.util.function.UnaryOperator;
 @Component
 public class ControllerHelper {
     private final PlayerService playerService;
+    private final PlayerRepository playerRepository;
 
-    public ControllerHelper(PlayerService playerService) {
+    public ControllerHelper(PlayerService playerService, PlayerRepository playerRepository) {
         this.playerService = playerService;
+        this.playerRepository = playerRepository;
     }
 
     /**
@@ -72,16 +75,29 @@ public class ControllerHelper {
         }
     }
 
-    public UUID getAndClearPendingTargetUserId(HttpSession session) {
-        Object pendingIdObj = session.getAttribute("pending_target_user_id");
-
-        if (pendingIdObj == null) {
-            return null;
+    /**
+     * Ellenőrzi a target_user_id-t.
+     * - Ha hiba van, egy ResponseEntity.ok(...) ad vissza (IC-vel).
+     * - Ha minden oké, magát a Player objektumot adja vissza.
+     */
+    public Object validateTargetUserIdSafely(String targetUserIdStr) {
+        if (targetUserIdStr == null || targetUserIdStr.isBlank()) {
+            return ResponseEntity.ok(Map.of("status", "IC"));
         }
 
-        session.removeAttribute("pending_target_user_id");
+        UUID target_user_id;
+        try {
+            target_user_id = UUID.fromString(targetUserIdStr);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.ok(Map.of("status", "IC"));
+        }
 
-        return (UUID) pendingIdObj;
+        Optional<Player> targetUserOpt = playerRepository.findByClientId(target_user_id);
+        if (targetUserOpt.isEmpty()) {
+            return ResponseEntity.ok(Map.of("status", "IC"));
+        }
+
+        return targetUserOpt.get();
     }
 
     /**

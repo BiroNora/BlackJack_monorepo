@@ -204,8 +204,9 @@ public class PlayerController {
                 int targetTokens = (targetUser != null) ? targetUser.getTokens() : 0;
                 int guestTokens = (guestUser != null) ? guestUser.getTokens() : 0;
 
+                UUID targetuserId = null;
                 if (targetUser != null) {
-                    session.setAttribute("pending_target_user_id", targetUser.getId());
+                    targetuserId = targetUser.getClientId();
                 }
 
                 if (guestUser != null && guestUser.getCurrentGameState() != null) {
@@ -221,7 +222,8 @@ public class PlayerController {
                     gameStateMap,
                     new ConflictResponse.ConflictData(
                         new ConflictResponse.Balance(targetTokens),
-                        new ConflictResponse.Balance(guestTokens)
+                        new ConflictResponse.Balance(guestTokens),
+                        targetuserId
                     )
                 );
 
@@ -259,37 +261,47 @@ public class PlayerController {
 
     @PostMapping("/handle_conflict")
     public ResponseEntity<?> handleConflict(@RequestBody Map<String, String> body, Principal principal, HttpSession session) {
-        Object isVersionNew = body.get("version_new");
-        boolean versionNew = isVersionNew != null && Boolean.parseBoolean(String.valueOf(isVersionNew));
+        boolean versionNew = Boolean.parseBoolean(String.valueOf(body.get("version_new")));
         UUID currClientId = controllerHelper.validateAndGetClientId(body, principal);
-        UUID targetUserId = controllerHelper.getAndClearPendingTargetUserId(session);
+        Object result = controllerHelper.validateTargetUserIdSafely(body.get("target_user_id"));
 
-        Object result = playerService.handleConflict(currClientId, targetUserId, versionNew);
-
-        GameState game;
-        Player user;
-        if (result instanceof java.util.Map<?, ?> map) {
-            return ResponseEntity.ok(Map.of(
-                "status", map.get("status")
-            ));
-        } else {
-            user = (Player) result;
-            session.setAttribute("user_id", user.getId());
-
-            game = user.getCurrentGameState();
-
-            if (game == null) {
-                game = GameState.builder()
-                    .targetPhase(PhaseState.BETTING)
-                    .build();
-                user.setCurrentGameState(game);
-                playerRepository.save(user);
-            }
+        if (result instanceof Map<?, ?> errorMap) {
+            return ResponseEntity.ok(Map.of("status", errorMap.get("status")));
         }
+
+        Player targetUser = (Player) result;
+        UUID targetUserId = targetUser.getClientId();
+
+        Object res = playerService.handleConflict(currClientId, targetUserId, versionNew);
+        if (res instanceof Map<?, ?> errorMap) {
+            return ResponseEntity.ok(Map.of("status", errorMap.get("status")));
+        }
+
+        Player user = (Player) res;
+        session.setAttribute("user_id", user.getClientId());
+
+        GameState game = user.getCurrentGameState();
+
+        if (game == null) {
+            game = GameState.builder()
+                .targetPhase(PhaseState.BETTING)
+                .build();
+            user.setCurrentGameState(game);
+        } else {
+            GamePhaseService.DeckPhaseResult deckAndPhase = gamePhaseService.phaseOfBetAndRetakeBet(game);
+            game = game.toBuilder()
+                .targetPhase(deckAndPhase.targetPhase())
+                .prePhase(deckAndPhase.prePhase())
+                .build();
+            user.setCurrentGameState(game);
+        }
+        playerRepository.save(user);
 
         GameStateBet responseDto = gameStateManager.buildGameStateBet(game)
             .toBuilder()
             .build();
+
+        String freshJwtToken = jwtService.generateToken(user.getClientId().toString());
 
         return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
             .status("success")
@@ -297,6 +309,8 @@ public class PlayerController {
             .gameState(responseDto)
             .username(user.getUsername())
             .isGuest(user.isGuest())
+            .clientId(user.getClientId())
+            .token(freshJwtToken)
             .build());
     }
 

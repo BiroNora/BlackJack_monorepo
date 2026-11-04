@@ -189,9 +189,13 @@ public class PlayerService {
     }
 
     public Object handleConflict(UUID currClientId, UUID targetUserId, boolean versionNew) {
+        if (targetUserId == null) {
+            return Map.of("status", "IC");
+        }
+        System.out.println("SSSSSSSSSS ---- targetUserId: " + targetUserId);
         Player targetUser = playerRepository.findByClientId(targetUserId).orElse(null);  // régi mentett
         Player sessionUser = (currClientId != null) ? playerRepository.findByClientId(currClientId).orElse(null) : null; // jelenlegi
-
+        System.out.println("WWWWWWWWWWWWWWWWWW targetuser: " + targetUser);
         if (targetUser == null) {
             return Map.of("status", "IC"); // Invalid Credentials
         }
@@ -207,6 +211,11 @@ public class PlayerService {
 
         targetUser.setGuest(false);
         playerRepository.save(targetUser);
+
+        if (sessionUser != null && !sessionUser.getClientId().equals(targetUser.getClientId())) {
+            playerRepository.delete(sessionUser);
+            System.out.println("DDDDDDDDDDDDDDDDDD Deleted old guest user with ID: " + sessionUser.getClientId());
+        }
 
         return targetUser;
     }

@@ -4,11 +4,15 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Builder;
 
+import java.util.UUID;
+
 @Builder(toBuilder = true)
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public record ApiResponse<T>(String status, @JsonProperty("game_state") T gameState,
                              @JsonProperty("game_state_hint") String gameStateHint,
                              @JsonProperty("current_tokens") int currentTokens,
                              @JsonProperty("is_guest") boolean isGuest,
-                             String username) {
+                             String username,
+                             @JsonProperty("client_id") UUID clientId,
+                             String token) {
 }
