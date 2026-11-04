@@ -38,6 +38,7 @@ export interface GameStateData {
   pre_phase: GameState | null;
   conflict_data?: ConflictDetails;
   username?: string;
+  target_user_id?: string;
 }
 
 export interface ApiResponse {
@@ -48,6 +49,8 @@ export interface ApiResponse {
   game_state: GameStateData; // Csak a játék adatai
   game_state_hint: string;
   conflict_data?: ConflictDetails;
+  client_id?: string;
+  token?: string;
 }
 
 export interface ConflictDetails {
@@ -58,6 +61,7 @@ export interface ConflictDetails {
   current_session: {
     balance: number;
   };
+  target_user_id: string;
 }
 
 export interface PlayerData {
@@ -125,7 +129,7 @@ export type GameStateMachineHookResult = {
   handleUpdateUsername: (
     username: string,
   ) => Promise<{ status: string } | void>;
-  handleConflict: (version_new: boolean) => Promise<{ status: string } | void>;
+  handleConflict: (version_new: boolean, target_user_id: string) => Promise<{ status: string } | void>;
   handleCloseNewPassCase: () => void;
   handleForgotPassword: (
     identifier: string,

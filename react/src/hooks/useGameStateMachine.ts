@@ -6,6 +6,7 @@ import {
   addToPlayersListByStand,
   checkSessionAPI,
   clearGameState,
+  CLIENT_STORAGE_ID_KEY,
   forceRestart,
   getShuffling,
   handleConflictAPI,
@@ -219,7 +220,11 @@ export function useGameStateMachine(): GameStateMachineHookResult {
           resultStatus = "CONFLICT";
 
           const response = extractGameStateData(data);
+
           if (response) {
+            if (response.target_user_id) {
+              dispatch({type: 'SET_TARGETUSER_ID', payload: response.target_user_id});
+            }
             transitionToState(response?.target_phase as GameState, response);
           }
           return;
@@ -285,16 +290,22 @@ export function useGameStateMachine(): GameStateMachineHookResult {
   const handleConflict = useCallback(
     async (version_new: boolean): Promise<{ status: string } | void> => {
       let resultStatus = "success";
+      const targetUserId = state.target_user_id;
 
       await executeAsyncAction(async () => {
         const data = await handleApiAction(() =>
-          handleConflictAPI(version_new),
+          handleConflictAPI(version_new, targetUserId),
         );
 
-        const resData = data as { status?: string; is_guest?: boolean };
+        const resData = data as { status?: string; is_guest?: boolean; client_id?: string; token?: string };
         if (resData && resData.status === "IC") {
           resultStatus = resData.status;
           return;
+        }
+
+        if (resData && resData.client_id && resData.token) {
+          localStorage.setItem(CLIENT_STORAGE_ID_KEY, resData.client_id);
+          localStorage.setItem("jwtToken", resData.token);
         }
 
         if (resData && typeof resData.is_guest === "boolean") {
@@ -307,7 +318,7 @@ export function useGameStateMachine(): GameStateMachineHookResult {
 
       return {status: resultStatus};
     },
-    [executeAsyncAction, handleApiAction, transitionToState],
+    [executeAsyncAction, handleApiAction, state.target_user_id, transitionToState],
   );
 
   const handleForgotPassword = useCallback(

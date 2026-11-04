@@ -1,12 +1,12 @@
-import { API_BASE_URL } from "../config/apiConfig";
-import type { ErrorResponse, SessionInitResponse } from "../types/game-types";
+import {API_BASE_URL} from "../config/apiConfig";
+import type {ErrorResponse, SessionInitResponse} from "../types/game-types";
 
 const runningInitializations = new Map<string, Promise<SessionInitResponse>>();
 
 // Statikus kulcs a futó inicializálási folyamat jelzésére (sik = Session Init Key)
 const SESSION_INIT_KEY = '__sik__';
 // localStorage számára (cid = Client ID)
-const CLIENT_STORAGE_ID_KEY = 'cid';
+export const CLIENT_STORAGE_ID_KEY = 'cid';
 
 
 export async function initializeSessionAPI(
@@ -104,9 +104,10 @@ export async function updateUsername(username: string) {
   });
 }
 
-export async function handleConflictAPI(version_new: boolean) {
+export async function handleConflictAPI(version_new: boolean, target_user_id: string) {
   return await callApiEndpoint(`/api/handle_conflict`, "POST", {
     version_new: version_new,
+    target_user_id: target_user_id
   });
 }
 

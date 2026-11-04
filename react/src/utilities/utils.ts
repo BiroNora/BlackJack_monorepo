@@ -4,6 +4,7 @@ export function extractGameStateData(apiResponse: unknown):
   | (Partial<GameStateData> & {
   conflict_data?: ConflictDetails;
   username?: string;
+  target_user_id?: string;
 })
   | undefined {
   if (
@@ -29,13 +30,17 @@ export function extractGameStateData(apiResponse: unknown):
     const processedData: Partial<GameStateData> & {
       conflict_data?: ConflictDetails;
       username?: string;
+      target_user_id?: string;
     } = {
       ...rawGameState,
       ...(typeof res.current_tokens === "number"
         ? {tokens: res.current_tokens}
         : {}),
       ...(typeof res.username === "string" ? {username: res.username} : {}),
-      ...(res.conflict_data ? {conflict_data: res.conflict_data} : {}),
+      ...(res.conflict_data ? {
+        conflict_data: res.conflict_data,
+        target_user_id: res.conflict_data.target_user_id
+      } : {}),
     };
     return processedData;
   } catch (e) {
