@@ -314,6 +314,45 @@ public class PlayerController {
             .build());
     }
 
+    @PostMapping("/update_username")
+    public ResponseEntity<?> updateUsername(@RequestBody Map<String, String> body, Principal principal) {
+        String username = body != null ? body.get("username") : null;
+
+        if (username == null || username.trim().isEmpty()) {
+            return ResponseEntity.ok(Map.of("status", "IC"));
+        }
+
+        UUID currClientId = controllerHelper.validateAndGetClientId(body, principal);
+        Player user = (currClientId != null) ? playerRepository.findByClientId(currClientId).orElse(null) : null;
+
+        if (user == null) {
+            return ResponseEntity.ok(Map.of("status", "IC"));
+        }
+
+        Object serviceResult = playerService.updateUsername(user, username);
+
+        if (serviceResult instanceof Map<?, ?> errorMap) {
+            return ResponseEntity.ok(Map.of("status", errorMap.get("status")));
+        }
+
+        Player updatedUser = (Player) serviceResult;
+        GameState game = user.getCurrentGameState();
+        playerRepository.save(user);
+
+        GameStateBet responseDto = gameStateManager.buildGameStateBet(game)
+            .toBuilder()
+            .build();
+
+        return ResponseEntity.ok(ApiResponse.<GameStateBet>builder()
+            .status("success")
+            .currentTokens(updatedUser.getTokens())
+            .gameState(responseDto)
+            .username(updatedUser.getUsername())
+            .isGuest(updatedUser.isGuest())
+            .clientId(updatedUser.getClientId())
+            .build());
+    }
+
     @PostMapping("/recover_game_state")
     public ResponseEntity<?> recoverGameState(@RequestBody Map<String, String> body, Principal principal) {
         UUID clientId = controllerHelper.validateAndGetClientId(body, principal);

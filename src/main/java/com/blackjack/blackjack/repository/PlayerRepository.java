@@ -14,5 +14,7 @@ public interface PlayerRepository extends JpaRepository<Player, UUID> {
 
     boolean existsByEmailOrUsername(String email, String username);
 
+    Optional<Player> findByUsername(String username);
+
     void delete(@NonNull Player player);
 }

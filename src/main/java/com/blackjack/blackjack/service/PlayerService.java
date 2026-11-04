@@ -12,7 +12,10 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+
+import static com.blackjack.blackjack.common.GameConstants.USERNAME_PATTERN;
 
 @Service
 public class PlayerService {
@@ -139,7 +142,7 @@ public class PlayerService {
             //System.out.println(" *************** ISLOGIN FALSE");
             // --- REGISZTRÁCIÓ ---
             // 1. Username formátum ellenőrzése regex-szel (3-30 karakter, betűk, számok, aláhúzás)
-            if (username == null || !username.matches("^[a-zA-Z0-9_]{3,30}$")) {
+            if (username == null || !USERNAME_PATTERN.matcher(username).matches()) {
                 return Map.of("status", "IU"); // Invalid Username format
             }
 
@@ -192,10 +195,10 @@ public class PlayerService {
         if (targetUserId == null) {
             return Map.of("status", "IC");
         }
-        System.out.println("SSSSSSSSSS ---- targetUserId: " + targetUserId);
+
         Player targetUser = playerRepository.findByClientId(targetUserId).orElse(null);  // régi mentett
         Player sessionUser = (currClientId != null) ? playerRepository.findByClientId(currClientId).orElse(null) : null; // jelenlegi
-        System.out.println("WWWWWWWWWWWWWWWWWW targetuser: " + targetUser);
+
         if (targetUser == null) {
             return Map.of("status", "IC"); // Invalid Credentials
         }
@@ -214,10 +217,24 @@ public class PlayerService {
 
         if (sessionUser != null && !sessionUser.getClientId().equals(targetUser.getClientId())) {
             playerRepository.delete(sessionUser);
-            System.out.println("DDDDDDDDDDDDDDDDDD Deleted old guest user with ID: " + sessionUser.getClientId());
         }
 
         return targetUser;
+    }
+
+    public Object updateUsername(Player user, String newUsername) {
+        if (newUsername == null || !USERNAME_PATTERN.matcher(newUsername).matches() || user == null) {
+            return Map.of("status", "IC");
+        }
+
+        Optional<Player> existing = playerRepository.findByUsername(newUsername);
+
+        if (existing.isPresent() && !existing.get().getId().equals(user.getId())) {
+            return Map.of("status", "UAE");
+        }
+
+        user.setUsername(newUsername);
+        return user;
     }
 
     @Transactional
